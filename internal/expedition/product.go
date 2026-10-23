@@ -47,15 +47,16 @@ type Installment struct {
 }
 
 type Schedule struct {
-	Quantity      int           `json:"quantity"`
-	Version       int           `json:"version"`
-	Berth         string        `json:"berth"`
-	Plan          string        `json:"plan"`
-	Provider      string        `json:"provider"`
-	Currency      string        `json:"currency"`
-	StandardCents int64         `json:"standard_cents"`
-	TotalCents    int64         `json:"total_cents"`
-	Installments  []Installment `json:"installments"`
+	Selections    []CabinSelection `json:"selections,omitempty"`
+	Quantity      int              `json:"quantity"`
+	Version       int              `json:"version"`
+	Berth         string           `json:"berth"`
+	Plan          string           `json:"plan"`
+	Provider      string           `json:"provider"`
+	Currency      string           `json:"currency"`
+	StandardCents int64            `json:"standard_cents"`
+	TotalCents    int64            `json:"total_cents"`
+	Installments  []Installment    `json:"installments"`
 }
 
 // NewSchedule creates a finite contract, never a subscription. Until a late-

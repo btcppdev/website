@@ -3,10 +3,12 @@ package getters
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/expedition"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -129,6 +131,16 @@ func BeginServicePayment(app *config.AppContext, personID, orderID string) (*Ser
 	}
 	var attempt ServicePaymentAttempt
 	if status == "pending" && quote.ExpiresAt.After(time.Now()) {
+		if quote.ProductCode == expedition.ProductCode {
+			var f expedition.Fulfillment
+			if err = json.Unmarshal(quote.Fulfillment, &f); err != nil {
+				return nil, ErrServiceQuote
+			}
+			key := fmt.Sprintf("expedition:%s:%d", f.ReservationID, f.Installment)
+			if err = validateExpeditionQuoteTx(ctx, tx, app, personID, key, quote); err != nil {
+				return nil, err
+			}
+		}
 		// Freeze line edits while checking the order against its immutable quote.
 		// This runs under the same order lock as charge-attempt allocation.
 		if _, err = tx.Exec(ctx, `SELECT id FROM shop_order_items WHERE order_id=$1 FOR UPDATE`, orderID); err != nil {
@@ -288,7 +300,7 @@ func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 		if !same {
 			return ErrServicePayment
 		}
-		if strings.HasPrefix(quote.ProductCode, "insider.") {
+		if strings.HasPrefix(quote.ProductCode, "insider.") || quote.ProductCode == expedition.ProductCode {
 			evidence, marshalErr := json.Marshal(payment)
 			if marshalErr != nil {
 				return marshalErr
@@ -317,7 +329,7 @@ func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(quote.ProductCode, "insider.") {
+	if strings.HasPrefix(quote.ProductCode, "insider.") || quote.ProductCode == expedition.ProductCode {
 		evidence, marshalErr := json.Marshal(payment)
 		if marshalErr != nil {
 			return marshalErr

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type Fulfillment struct {
@@ -42,7 +43,7 @@ func chargeFor(r Reservation, number int) (Charge, error) {
 	return Charge{
 		Key: fmt.Sprintf("expedition:%s:%d", r.ID, number), ProductCode: ProductCode,
 		ResourceID: r.ID, BuyerID: r.BuyerID, Provider: r.Provider, Currency: "USD",
-		Name:       fmt.Sprintf("Antarctica 2028 — %s passage (%d/%d)", r.Berth, number, len(r.Schedule.Installments)),
+		Name:       fmt.Sprintf("Antarctica 2028 — %d passenger(s), payment %d/%d", r.Quantity, number, len(r.Schedule.Installments)),
 		TotalCents: i.Cents, ExpiresAt: expires, Fulfillment: raw,
 	}, nil
 }
@@ -59,6 +60,15 @@ func (s *Store) Charge(ctx context.Context, buyerID, id string, number int) (Cha
 		return Charge{}, err
 	}
 	defer tx.Rollback(ctx)
+	charge, err := s.ChargeTx(ctx, tx, buyerID, id, number)
+	if err != nil {
+		return Charge{}, err
+	}
+	return charge, tx.Commit(ctx)
+}
+
+// ChargeTx rechecks the next installment within the shared order transaction.
+func (s *Store) ChargeTx(ctx context.Context, tx pgx.Tx, buyerID, id string, number int) (Charge, error) {
 	r, err := scanReservation(tx.QueryRow(ctx, `SELECT `+reservationColumns+` FROM expedition_reservations WHERE id=$1 AND buyer_id=$2 FOR UPDATE`, id, buyerID))
 	if err != nil {
 		return Charge{}, err
@@ -88,7 +98,7 @@ func (s *Store) Charge(ctx context.Context, buyerID, id string, number int) (Cha
 	if number != next || now.Before(r.Schedule.Installments[number-1].DueAt) {
 		return Charge{}, ErrNotDue
 	}
-	return charge, tx.Commit(ctx)
+	return charge, nil
 }
 
 // PaidChargeReader is implemented by the shared commerce bridge. It MUST read
@@ -111,18 +121,35 @@ func (s *Store) Fulfill(ctx context.Context, commerce PaidChargeReader, orderID 
 	if err != nil {
 		return err
 	}
-	var f Fulfillment
-	if err = json.Unmarshal(paid.Fulfillment, &f); err != nil || f.Version != 1 {
-		return ErrInvalid
-	}
-	if _, err = uuid.Parse(f.ReservationID); err != nil {
-		return ErrInvalid
-	}
 	tx, err := s.DB.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	err = s.FulfillPaidTx(ctx, tx, paid, orderID)
+	if err != nil && err != ErrReview {
+		return err
+	}
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return commitErr
+	}
+	return err
+}
+
+// FulfillPaidTx must be called only after shared commerce verifies and locks the
+// paid order in this transaction. ErrReview must be committed for reconciliation.
+func (s *Store) FulfillPaidTx(ctx context.Context, tx pgx.Tx, paid Charge, orderID string) error {
+	var f Fulfillment
+	if err := json.Unmarshal(paid.Fulfillment, &f); err != nil || f.Version != 1 {
+		return ErrInvalid
+	}
+	if _, err := uuid.Parse(f.ReservationID); err != nil {
+		return ErrInvalid
+	}
+	var err error
+	if _, err = tx.Exec(ctx, `SELECT singleton FROM expedition_settings WHERE singleton FOR UPDATE`); err != nil {
+		return err
+	}
 	// Same inventory lock as Reserve: a confirmation cannot race a replacement hold.
 	var berth string
 	if err = tx.QueryRow(ctx, `SELECT berth FROM expedition_reservations WHERE id=$1`, f.ReservationID).Scan(&berth); err != nil {
@@ -153,7 +180,7 @@ func (s *Store) Fulfill(ctx context.Context, commerce PaidChargeReader, orderID 
 		if r.State == "review" {
 			return ErrReview
 		}
-		return tx.Commit(ctx)
+		return nil
 	}
 	var next int
 	if err = tx.QueryRow(ctx, `SELECT min(number) FROM expedition_installments WHERE reservation_id=$1 AND paid_order_id IS NULL`, r.ID).Scan(&next); err != nil {
@@ -171,9 +198,6 @@ func (s *Store) Fulfill(ctx context.Context, commerce PaidChargeReader, orderID 
 		return err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE expedition_reservations SET state=$2, confirmed_at=CASE WHEN $2='confirmed' THEN COALESCE(confirmed_at,$3) ELSE confirmed_at END WHERE id=$1`, r.ID, state, now); err != nil {
-		return err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
 	if state == "review" {

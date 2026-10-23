@@ -68,6 +68,13 @@ func testStore(t *testing.T, capacity int) (*Store, *time.Time) {
 	if _, err = pool.Exec(ctx, string(sql)); err != nil {
 		t.Fatal(err)
 	}
+	sql, err = os.ReadFile("../../db/migrations/135_expedition_party_allocations.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(sql)); err != nil {
+		t.Fatal(err)
+	}
 	_, err = pool.Exec(ctx, `INSERT INTO expedition_inventory(berth,capacity,sales_open,booking_closes_at,hold_seconds) VALUES('shared',$1,true,'2028-01-01',900),('quad',$1,false,'2028-01-01',900)`, capacity)
 	if err != nil {
 		t.Fatal(err)

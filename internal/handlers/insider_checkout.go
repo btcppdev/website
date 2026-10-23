@@ -14,6 +14,7 @@ import (
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/expedition"
 	"btcpp-web/internal/servicebilling"
 	"btcpp-web/internal/servicestripe"
 
@@ -306,7 +307,7 @@ func settleInsiderServicePayment(ctx context.Context, app *config.AppContext, pa
 	if err != nil {
 		return err
 	}
-	if !strings.HasPrefix(purchase.Quote.ProductCode, "insider.") {
+	if !strings.HasPrefix(purchase.Quote.ProductCode, "insider.") && purchase.Quote.ProductCode != expedition.ProductCode {
 		return getters.ErrServicePayment
 	}
 	// The shared ledger correctly rejects a provider event ID replayed with a
@@ -320,6 +321,11 @@ func settleInsiderServicePayment(ctx context.Context, app *config.AppContext, pa
 	}
 	if err := getters.RecordServicePayment(app, payment); err != nil {
 		return err
+	}
+	if purchase.Quote.ProductCode == expedition.ProductCode {
+		if err := getters.FinalizeServiceTax(ctx, app, purchase.OrderID); err != nil {
+			return err
+		}
 	}
 	_, err = processServiceFulfillment(ctx, app, payment.AttemptID, time.Now())
 	return err

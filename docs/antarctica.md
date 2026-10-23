@@ -323,18 +323,18 @@ Implemented on the isolated `antartica` branch in `internal/expedition`:
   automatic delinquency cancellation.
 
 Migration `132_expedition_reservations.sql` intentionally seeds **no inventory**.
-It follows the shared branch's currently pending migration 130; recheck numbering
-at merge time. It creates product-owned tables only, with opaque shared customer
+It now follows master’s purchase-invoice migration 131. It creates product-owned tables only, with opaque shared customer
 and order IDs, and no dependency on email schema or copied financial ledger.
 The migration has been exercised in disposable test schemas, not the application
 database. The public prototype still has reservations closed.
 
-### Shared-commerce bridge still required before enabling checkout
+### Shared-commerce bridge plan — superseded in part by October 23 integration
 
 The working shared API at
 `/Users/niftynei/dev/notifs/target/btcpp-alerts-current` was inspected read-only.
 Its uncommitted email/account-free management work has not been copied or changed.
-The Antarctica branch does not yet contain the shared commerce implementation.
+The branch now contains master’s shared commerce implementation; the October 23
+integration status below identifies completed and outstanding work.
 
 1. After the shared work is ready, register the expedition product in shared
    sales/quote validation and fulfillment dispatch. Map `Charge` to `ServiceQuote`
@@ -372,7 +372,7 @@ retention of confirmed inventory during review. PostgreSQL tests opt in with
 
 The organizer confirmed nine twin cabins, one triple, and one quad: 11 cabins,
 25 berths. Staff/guest deductions and sellable capacity still need confirmation.
-Migration 132 seeds the physical cabins with internal labels only, without
+Migration 133 seeds the physical cabins with internal labels only, without
 opening sales or configuring a booking cutoff. These labels are not ship cabin
 numbers. No application database has been migrated.
 
@@ -476,7 +476,7 @@ expedition or rule out obligations in the delivery jurisdiction.
 ### Configurable staff reserve — October 23
 
 Organizer confirmed 3 staff berths initially: 25 physical berths minus 3 staff
-holds leaves 22 public spots before customer holds/bookings. Migration 133 adds
+holds leaves 22 public spots before customer holds/bookings. Migration 134 adds
 `expedition_settings.staff_berths`, default 3. Staff allocation is deliberately
 expedition-wide until cabin types are assigned; do not assume the triple belongs
 to staff. The checkout preview reads its maximum from page data instead of a
@@ -492,3 +492,77 @@ An authenticated admin editing screen is still to be connected to this operator
 method; no public endpoint changes the reserve. Staff cabin placement is still a
 launch decision, since a global count alone does not preserve a particular cabin
 configuration. Multi-cabin atomic booking remains pending as noted above.
+
+## Shared commerce integration — October 23, 2026
+
+The Antarctica changes were checkpointed and rebased onto current origin/master,
+including shared billing, email directory/preferences, and purchase invoices.
+The original branch is preserved as `backup/antartica-before-commerce-20261023`.
+Other worktrees were not edited. No production deployment or payment was made.
+
+Migration allocation is now:
+- 131: shared purchase invoices (master, unchanged).
+- 132: expedition reservations and finite installments.
+- 133: physical cabin allocation.
+- 134: configurable staff reserve (initially three).
+- 135: multiple cabin allocations per reservation/payment schedule.
+- 136: allow expedition-specific reviewed policy revisions in shared commerce.
+
+Implemented and tested:
+- `ReserveParty` atomically reserves all requested cabin arrangements or none.
+  One buyer, stable request key, hold expiry and finite schedule cover the party.
+  Replays preserve the original selection; changed selections conflict. The
+  global staff reserve and category/cabin capacities are checked in the same
+  transaction. Preferences remain best-effort; cabin numbers remain internal.
+- `CreateExpeditionPurchase` maps the next persisted installment to one shared
+  service order. Its period describes January 24–February 5, 2028 (exclusive
+  end February 6 UTC); it is not recurring. The shared product validation checks
+  buyer, deterministic key, exact server amount, provider, dates and fulfillment
+  resource against the held contract again inside the order transaction.
+- Reviewed, current terms acceptance and shared tax-quote evidence are mandatory
+  for expedition orders, including a zero-tax result if ultimately appropriate.
+  No reviewed terms or tax exemption are seeded by these migrations. Tax is
+  represented inside the supplied gross passage charge; final fare/tax policy
+  must be confirmed before the customer-facing tax calculation is connected.
+- Shared payment attempts recheck the payable reservation before creating a
+  charge. Stripe and OpenNode verified settlement paths can dispatch expedition
+  fulfillment via the existing durable worker. The worker does not need Insider
+  credentials to fulfill an expedition order.
+- `FulfillExpeditionPurchase` locks/revalidates the shared paid order and items,
+  verifies settlement evidence and applies the installment/berth projection in
+  one transaction. Duplicate callbacks and fulfillment retries are safe. Late
+  payments go to review; refunded or altered orders cannot grant berths.
+- Shared order pages distinguish confirmed expedition payments, pending berth
+  confirmation and manual review. Shared financial records remain authoritative;
+  no second payment ledger or provider credentials were added.
+
+Validation: the complete migration sequence through 136 applied to a fresh
+disposable PostgreSQL database. Tests cover mixed-category party rollback,
+last-cabin contention, staff reserves, exact order replay before/after payment,
+missing terms, changed prices, both Stripe and bitcoin totals, duplicate
+settlement/fulfillment and rejection after refund. Expedition integration tests
+ran with the race detector. Affected handler/getter/servicebilling package suites
+also passed. Provider evidence in these tests is synthetic; this is not a live
+provider sandbox rehearsal.
+
+Still required before opening sales:
+1. Connect the customer checkout to authenticated/account-free identity, CSRF,
+   server quote review, hold creation and provider session creation. The current
+   browser UI remains a preview; it does not invoke these backend entry points.
+   Card session expiry must fit the selected hold/tax quote; confirm hold duration
+   against provider session minimums and bitcoin confirmation timing.
+2. Finalize gross fare/tax treatment and publish/activate reviewed booking terms.
+   Configure category sale capacity, cutoff and hold duration; assign staff cabins
+   or approve the consequences of a floating staff allocation before opening.
+3. Connect merchandise as actual catalog/stock/tax/onboard-pickup order lines,
+   without disguising hats as passage or applying the passage discount to merch.
+   Persist newsletter consent via the shared email service, separately from terms.
+4. Complete passenger records, each adult’s acknowledgments, receipt/reminder
+   delivery, later-installment checkout and an operator reconciliation/cancellation
+   workflow. Include expedition customer links in the shared account-merge and
+   deletion lifecycle before enabling account changes for paying passengers.
+5. Rehearse actual provider sandboxes and refund/tax/delivery operations, enable
+   the relevant workers, then review launch settings. Reservations remain closed.
+
+The earlier notes saying multi-cabin atomic reservation and the basic shared
+purchase bridge were pending are historical; those backend pieces are now done.

@@ -12,6 +12,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/expedition"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
 )
@@ -144,6 +145,18 @@ func serviceOrderPresentation(order *getters.ServiceOrderView) serviceOrderPage 
 	case order.PaymentVerified:
 		page.Heading = "Payment confirmed — access pending"
 		page.Message = "Your payment is recorded. Access is still being activated. Please refresh shortly; contact support if this persists."
+	}
+	if order.Quote.ProductCode == expedition.ProductCode && order.PaymentVerified && order.Status == "paid" {
+		page.Heading = "Payment received — berth confirmation pending"
+		page.Message = "Your payment is recorded. Your expedition reservation is awaiting confirmation."
+		if order.ExpeditionState == "confirmed" {
+			page.Heading = "Expedition payment confirmed"
+			page.Message = "This payment has been applied to your expedition reservation. Any remaining installments are still due on their scheduled dates."
+		}
+		if order.ExpeditionState == "review" {
+			page.Heading = "Payment received — reservation needs review"
+			page.Message = "Your payment is recorded, but we need to review your berth allocation. Please contact support with your order number."
+		}
 	}
 	return page
 }

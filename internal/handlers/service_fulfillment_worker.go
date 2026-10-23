@@ -3,6 +3,7 @@ package handlers
 import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/expedition"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,7 +14,7 @@ import (
 )
 
 func StartServiceFulfillment(app *config.AppContext) {
-	if os.Getenv("SERVICE_FULFILLMENT_ENABLED") != "true" || !serviceFulfillmentReady(app) {
+	if os.Getenv("SERVICE_FULFILLMENT_ENABLED") != "true" {
 		return
 	}
 	go func() {
@@ -39,9 +40,6 @@ func serviceFulfillmentReady(app *config.AppContext) bool {
 	return app != nil && app.Env != nil && strings.TrimSpace(app.Env.InsiderFulfillmentEndpoint) != "" && strings.TrimSpace(app.Env.InsiderFulfillmentToken) != "" && strings.TrimSpace(app.Env.InsiderMerchantName) != ""
 }
 func processServiceFulfillment(ctx context.Context, app *config.AppContext, attemptID string, now time.Time) (bool, error) {
-	if !serviceFulfillmentReady(app) {
-		return false, errors.New("external product fulfillment not configured")
-	}
 	job, err := getters.ClaimServiceFulfillment(ctx, app, attemptID, now)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
@@ -62,6 +60,19 @@ func processServiceFulfillment(ctx context.Context, app *config.AppContext, atte
 			return finish("review", err)
 		}
 		return finish("retry", err)
+	}
+	if purchase.Quote.ProductCode == expedition.ProductCode {
+		err = getters.FulfillExpeditionPurchase(app, purchase.OrderID)
+		if errors.Is(err, expedition.ErrReview) || errors.Is(err, expedition.ErrConflict) || errors.Is(err, getters.ErrServiceFulfillment) || errors.Is(err, pgx.ErrNoRows) {
+			return finish("review", err)
+		}
+		if err != nil {
+			return finish("retry", err)
+		}
+		return finish("accepted", nil)
+	}
+	if !serviceFulfillmentReady(app) {
+		return finish("retry", errors.New("external product fulfillment not configured"))
 	}
 	if !strings.HasPrefix(purchase.Quote.ProductCode, "insider.") {
 		return finish("review", getters.ErrServiceFulfillment)

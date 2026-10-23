@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/expedition"
 )
 
 type ServiceOrderView struct {
@@ -20,6 +21,7 @@ type ServiceOrderView struct {
 	CreatedAt        time.Time
 	PaymentVerified  bool
 	AccessState      string
+	ExpeditionState  string
 	Quote            ServiceQuote
 }
 
@@ -45,6 +47,12 @@ func ServiceOrderForPerson(ctx context.Context, app *config.AppContext, personID
 	}
 	if err := json.Unmarshal(raw, &order.Quote); err != nil {
 		return nil, err
+	}
+	if order.Quote.ProductCode == expedition.ProductCode {
+		err = app.DB.QueryRow(ctx, `SELECT COALESCE((SELECT r.state FROM expedition_reservations r JOIN expedition_installments i ON i.reservation_id=r.id WHERE r.id::text=$1 AND r.buyer_id=$2 AND i.paid_order_id=$3),'pending')`, order.Quote.ResourceID, personID, order.ID).Scan(&order.ExpeditionState)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &order, nil
 }

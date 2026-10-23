@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/expedition"
 )
 
 // ReconcileOpenNodeServiceCharge re-fetches authoritative provider state, records
@@ -72,7 +73,7 @@ func finishVerifiedServiceSettlement(ctx context.Context, app *config.AppContext
 				}
 			}
 		}
-	case "insider.membership.monthly", "insider.membership.annual", "insider.article":
+	case "insider.membership.monthly", "insider.membership.annual", "insider.article", expedition.ProductCode:
 		// recordServicePayment atomically queues Insider delivery, including on
 		// settlement replays; there is no local Alerts entitlement to create.
 	default:

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/expedition"
 	"btcpp-web/internal/servicebilling"
 	"github.com/jackc/pgx/v5"
 )
@@ -78,6 +79,9 @@ func validateServiceTaxQuote(quote ServiceQuote, tax TaxQuoteInput) error {
 }
 
 func createServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax *TaxQuoteInput, acceptedVersion string) (*ServicePurchase, error) {
+	if quote.ProductCode == expedition.ProductCode && (tax == nil || acceptedVersion == "") {
+		return nil, ErrServiceLegalReview
+	}
 	// Only this transaction may construct acceptance evidence.
 	if quote.LegalAcceptance != nil {
 		return nil, ErrServiceLegalReview
@@ -162,6 +166,10 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	}
 	method := "service"
 	switch quote.ProductCode {
+	case expedition.ProductCode:
+		if err = validateExpeditionQuoteTx(ctx, tx, app, personID, key, quote); err != nil {
+			return nil, err
+		}
 	case "alerts.repository-slots", "insider.membership", "insider.membership.annual", "insider.membership.monthly":
 		if quote.PeriodStart == nil || quote.PeriodEnd == nil || !quote.PeriodEnd.After(*quote.PeriodStart) {
 			return nil, ErrServiceQuote
@@ -183,6 +191,9 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	quote.LegalAcceptance, err = serviceLegalAcceptanceTx(ctx, tx, quote.ProductCode, acceptedVersion)
 	if err != nil {
 		return nil, err
+	}
+	if quote.ProductCode == expedition.ProductCode && quote.LegalAcceptance == nil {
+		return nil, ErrServiceLegalReview
 	}
 	snapshot, err = json.Marshal(quote)
 	if err != nil {

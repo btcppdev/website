@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"time"
 
@@ -53,18 +54,17 @@ func (s *Store) Reserve(ctx context.Context, buyerID, key, berth, plan, provider
 	return s.ReserveGroup(ctx, buyerID, key, berth, plan, provider, "coed", 1)
 }
 
-// ReserveGroup holds all requested berths in one cabin atomically.
-// Sharing is an explicit cabin preference, not an inferred passenger attribute.
-// The checkout must ask for it; the single-berth Reserve helper selects co-ed.
+// ReserveGroup is the single-cabin convenience wrapper around atomic party booking.
 func (s *Store) ReserveGroup(ctx context.Context, buyerID, key, berth, plan, provider, sharing string, quantity int) (Reservation, error) {
+	return s.ReserveParty(ctx, buyerID, key, plan, provider, quantity, []CabinSelection{{Berth: berth, Quantity: quantity, Preference: sharing}})
+}
+
+// ReserveParty holds every selected arrangement or none. All category/cabin
+// allocation and staff-reserve checks share the expedition-wide settings lock.
+func (s *Store) ReserveParty(ctx context.Context, buyerID, key, plan, provider string, spots int, selections []CabinSelection) (Reservation, error) {
 	var empty Reservation
-	if strings.TrimSpace(buyerID) == "" || len(key) < 16 || len(key) > 128 || (sharing != "male" && sharing != "female" && sharing != "coed") || quantity < 1 || quantity > 4 {
+	if strings.TrimSpace(buyerID) == "" || len(key) < 16 || len(key) > 128 {
 		return empty, ErrInvalid
-	}
-	// Roommate requests are relevant only to an unfilled twin cabin. Triple and
-	// quad cabins are co-ed; filling a cabin needs no outside roommate preference.
-	if berth != "shared" || quantity == 2 {
-		sharing = "coed"
 	}
 	tx, err := s.DB.Begin(ctx)
 	if err != nil {
@@ -75,13 +75,20 @@ func (s *Store) ReserveGroup(ctx context.Context, buyerID, key, berth, plan, pro
 	if err = tx.QueryRow(ctx, `SELECT staff_berths FROM expedition_settings WHERE singleton FOR UPDATE`).Scan(&staff); err != nil {
 		return empty, err
 	}
-	// Serialize the idempotency key even when competing requests select different berths.
-	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, buyerID+":"+key); err != nil {
+	now, err := s.clock(ctx, tx)
+	if err != nil {
 		return empty, err
 	}
+	// Validate identity on retries using the original contract date, so expired
+	// contracts still replay after the installment enrollment cutoff.
 	r, err := scanReservation(tx.QueryRow(ctx, `SELECT `+reservationColumns+` FROM expedition_reservations WHERE buyer_id=$1 AND request_key=$2`, buyerID, key))
 	if err == nil {
-		if r.Berth != berth || r.Plan != plan || r.Provider != provider || r.Sharing != sharing || r.Quantity != quantity {
+		requested, e := QuoteParty(spots, selections, plan, provider, r.CreatedAt)
+		existing := r.Schedule.Selections
+		if len(existing) == 0 {
+			existing = []CabinSelection{{r.Berth, r.Quantity, r.Sharing}}
+		}
+		if e != nil || r.Plan != plan || r.Provider != provider || r.Quantity != spots || !reflect.DeepEqual(existing, requested.Selections) {
 			return empty, ErrConflict
 		}
 		return r, tx.Commit(ctx)
@@ -89,76 +96,97 @@ func (s *Store) ReserveGroup(ctx context.Context, buyerID, key, berth, plan, pro
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return empty, err
 	}
-	var capacity, holdSeconds int
-	var open bool
-	var closes time.Time
-	err = tx.QueryRow(ctx, `SELECT capacity,sales_open,booking_closes_at,hold_seconds FROM expedition_inventory WHERE berth=$1 FOR UPDATE`, berth).Scan(&capacity, &open, &closes, &holdSeconds)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return empty, ErrClosed
-	}
+	quote, err := QuoteParty(spots, selections, plan, provider, now)
 	if err != nil {
 		return empty, err
 	}
-	now, err := s.clock(ctx, tx)
+	available, err := s.availability(ctx, tx, staff)
 	if err != nil {
 		return empty, err
 	}
-	if !open || !now.Before(closes) {
-		return empty, ErrClosed
-	}
-	availability, err := s.availability(ctx, tx, staff)
-	if err != nil {
-		return empty, err
-	}
-	if quantity > availability.Remaining {
+	if spots > available.Remaining {
 		return empty, ErrSoldOut
 	}
-	schedule, err := NewGroupSchedule(berth, plan, provider, quantity, now)
-	if err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE expedition_reservations SET state='expired' WHERE state='held' AND hold_expires_at<=$1`, now); err != nil {
 		return empty, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE expedition_reservations SET state='expired' WHERE berth=$1 AND state='held' AND hold_expires_at <= $2`, berth, now); err != nil {
-		return empty, err
+	type allocation struct {
+		Cabin     string
+		Selection CabinSelection
 	}
-	var used int
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(quantity),0) FROM expedition_reservations WHERE berth=$1 AND (state='held' OR confirmed_at IS NOT NULL)`, berth).Scan(&used); err != nil {
-		return empty, err
+	var assigned []allocation
+	usedCabins := []string{}
+	expires := now.Add(24 * time.Hour)
+	for _, a := range quote.Selections {
+		var capacity, seconds int
+		var open bool
+		var closes time.Time
+		err = tx.QueryRow(ctx, `SELECT capacity,sales_open,booking_closes_at,hold_seconds FROM expedition_inventory WHERE berth=$1 FOR UPDATE`, a.Berth).Scan(&capacity, &open, &closes, &seconds)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return empty, ErrClosed
+		}
+		if err != nil {
+			return empty, err
+		}
+		if !open || !now.Before(closes) {
+			return empty, ErrClosed
+		}
+		var used int
+		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(a.quantity),0) FROM expedition_allocations a JOIN expedition_reservations r ON r.id=a.reservation_id WHERE a.berth=$1 AND (r.state='held' OR r.confirmed_at IS NOT NULL)`, a.Berth).Scan(&used)
+		if err != nil {
+			return empty, err
+		}
+		for _, prior := range assigned {
+			if prior.Selection.Berth == a.Berth {
+				used += prior.Selection.Quantity
+			}
+		}
+		if used+a.Quantity > capacity {
+			return empty, ErrSoldOut
+		}
+		var cabin string
+		err = tx.QueryRow(ctx, `SELECT c.id FROM expedition_cabins c
+   LEFT JOIN LATERAL (SELECT COALESCE(sum(a.quantity),0) used,COALESCE(bool_and(a.preference=$3),true) compatible
+     FROM expedition_allocations a JOIN expedition_reservations r ON r.id=a.reservation_id
+     WHERE a.cabin_id=c.id AND (r.state='held' OR r.confirmed_at IS NOT NULL)) occupancy ON true
+   WHERE c.berth=$1 AND c.enabled AND occupancy.used+$2<=c.capacity AND NOT(c.id=ANY($4::text[]))
+   ORDER BY occupancy.compatible DESC,occupancy.used DESC,c.id LIMIT 1`, a.Berth, a.Quantity, a.Preference, usedCabins).Scan(&cabin)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return empty, ErrSoldOut
+		}
+		if err != nil {
+			return empty, err
+		}
+		assigned = append(assigned, allocation{cabin, a})
+		usedCabins = append(usedCabins, cabin)
+		end := now.Add(time.Duration(seconds) * time.Second)
+		if closes.Before(end) {
+			end = closes
+		}
+		if end.Before(expires) {
+			expires = end
+		}
 	}
-	if used+quantity > capacity {
-		return empty, ErrSoldOut
+	var standard int64
+	for _, a := range quote.Selections {
+		one, _ := NewGroupSchedule(a.Berth, Full, Stripe, a.Quantity, now)
+		standard += one.StandardCents
 	}
-	// Category inventory lock also serializes cabin assignment and fulfillment.
-	// Prefer already occupied compatible cabins to preserve empty cabins for groups.
-	var cabinID string
-	err = tx.QueryRow(ctx, `SELECT c.id FROM expedition_cabins c
-	 LEFT JOIN LATERAL (
-	   SELECT COALESCE(sum(r.quantity),0) used,
-	     COALESCE(bool_and(r.sharing=$3),true) compatible
-	   FROM expedition_reservations r WHERE r.cabin_id=c.id
-	     AND (r.state='held' OR r.confirmed_at IS NOT NULL)
-	 ) occupancy ON true
-	 WHERE c.berth=$1 AND c.enabled
-	   AND occupancy.used+$2 <= c.capacity
-	 ORDER BY occupancy.compatible DESC,occupancy.used DESC,c.id LIMIT 1`, berth, quantity, sharing).Scan(&cabinID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return empty, ErrSoldOut
-	}
-	if err != nil {
-		return empty, err
-	}
-	expires := now.Add(time.Duration(holdSeconds) * time.Second)
-	if closes.Before(expires) {
-		expires = closes
-	}
-	r = Reservation{ID: uuid.NewString(), BuyerID: buyerID, Berth: berth, Plan: plan, Provider: provider, State: "held", CreatedAt: now, HoldExpiresAt: expires, Schedule: schedule}
-	r.CabinID, r.Sharing, r.Quantity = cabinID, sharing, quantity
+	first := assigned[0]
+	schedule := Schedule{Version: 2, Quantity: spots, Berth: first.Selection.Berth, Plan: plan, Provider: provider, Currency: "USD", StandardCents: standard, TotalCents: quote.TotalCents, Installments: quote.Installments, Selections: quote.Selections}
+	r = Reservation{ID: uuid.NewString(), BuyerID: buyerID, Berth: first.Selection.Berth, Plan: plan, Provider: provider, State: "held", CreatedAt: now, HoldExpiresAt: expires, Schedule: schedule, CabinID: first.Cabin, Sharing: first.Selection.Preference, Quantity: spots}
 	raw, err := json.Marshal(schedule)
 	if err != nil {
 		return empty, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO expedition_reservations(id,buyer_id,request_key,berth,plan,provider,state,created_at,hold_expires_at,schedule,cabin_id,sharing,quantity) VALUES($1,$2,$3,$4,$5,$6,'held',$7,$8,$9,$10,$11,$12)`, r.ID, buyerID, key, berth, plan, provider, now, expires, raw, cabinID, sharing, quantity)
+	_, err = tx.Exec(ctx, `INSERT INTO expedition_reservations(id,buyer_id,request_key,berth,plan,provider,state,created_at,hold_expires_at,schedule,cabin_id,sharing,quantity) VALUES($1,$2,$3,$4,$5,$6,'held',$7,$8,$9,$10,$11,$12)`, r.ID, buyerID, key, r.Berth, plan, provider, now, expires, raw, r.CabinID, r.Sharing, spots)
 	if err != nil {
 		return empty, err
+	}
+	for _, a := range assigned {
+		if _, err = tx.Exec(ctx, `INSERT INTO expedition_allocations(reservation_id,cabin_id,berth,quantity,preference) VALUES($1,$2,$3,$4,$5)`, r.ID, a.Cabin, a.Selection.Berth, a.Selection.Quantity, a.Selection.Preference); err != nil {
+			return empty, err
+		}
 	}
 	for _, i := range schedule.Installments {
 		if _, err = tx.Exec(ctx, `INSERT INTO expedition_installments(reservation_id,number,due_at,cents) VALUES($1,$2,$3,$4)`, r.ID, i.Number, i.DueAt, i.Cents); err != nil {
