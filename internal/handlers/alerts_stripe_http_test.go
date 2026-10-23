@@ -66,6 +66,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	sessionID := "cs_fixture_" + strings.ReplaceAll(people[0], "-", "")
 	var lock sync.Mutex
 	creates, reads := 0, 0
+	expires := 0
 	var session map[string]any
 	var managed *stripe.Subscription
 	cancellations := 0
@@ -98,6 +99,13 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 			}
 			intent := r.Form.Get("client_reference_id")
 			session = map[string]any{"id": sessionID, "object": "checkout.session", "mode": "subscription", "status": "open", "livemode": false, "expires_at": time.Now().Add(time.Hour).Unix(), "client_reference_id": intent, "metadata": map[string]string{"account_id": people[0], "checkout_intent": intent, "product": "alerts.repository-slots"}, "url": "https://checkout.stripe.com/c/pay/" + sessionID}
+		} else if r.Method == "POST" && r.URL.Path == "/v1/checkout/sessions/"+sessionID+"/expire" {
+			expires++
+			if r.Header.Get("Idempotency-Key") == "" {
+				t.Error("missing expiration idempotency key")
+			}
+			session["status"] = "expired"
+			session["payment_status"] = "unpaid"
 		} else if r.Method == "GET" && r.URL.Path == "/v1/checkout/sessions/"+sessionID {
 			reads++
 		} else {
@@ -256,14 +264,27 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(grants, err)
 	}
 	form.Set("slots", "3")
-	if code, _, _ := call("/services/alerts/subscribe", form); code != 409 {
-		t.Fatal("changed checkout quantity", code)
+	if code, _, location := call("/services/alerts/subscribe", form); code != 303 || location != returnPath {
+		t.Fatal("changed selection did not recover existing checkout", code, location)
+	}
+	var savedSlots int64
+	if err := pool.QueryRow(ctx, `SELECT (intent->>'PaidSlots')::bigint FROM alerts_stripe_checkouts WHERE id=$1`, intent).Scan(&savedSlots); err != nil || savedSlots != 2 {
+		t.Fatal("recovery changed the existing purchase", savedSlots, err)
+	}
+	lock.Lock()
+	gotCreates = creates
+	lock.Unlock()
+	if gotCreates != 1 {
+		t.Fatal("recovery created another Stripe session", gotCreates)
 	}
 	if code, body, _ := call("/fixture/login/"+people[1], nil); code != 204 {
 		t.Fatal(code, body)
 	}
 	if code, _, _ := call(returnPath, nil); code != 404 {
 		t.Fatal("cross-account checkout visible", code)
+	}
+	if code, _, _ := call(returnPath, url.Values{"action": {"cancel"}, "csrf": {form.Get("csrf")}}); code != 404 {
+		t.Fatal("cross-account cancellation allowed", code)
 	}
 	lock.Lock()
 	session["status"] = "expired"
@@ -306,6 +327,49 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	if code, body, _ := call(returnPath, nil); code != 200 || !strings.Contains(body, "Checkout closed") {
 		t.Fatal(code, body)
+	}
+	// Cancel an open session, reject missing CSRF, and permit a new selection.
+	// The old fixture reference is unique in storage, so use a new provider ID.
+	sessionID += "_replacement"
+	code, html, _ = call(path, nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	form.Set("slots", "2")
+	form.Set("key", field("key"))
+	if code, body, _ := call("/services/alerts/subscribe", form); code != 303 {
+		t.Fatal(code, body)
+	}
+	var cancelID string
+	if err := pool.QueryRow(ctx, `SELECT id::text FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL`, people[0]).Scan(&cancelID); err != nil {
+		t.Fatal(err)
+	}
+	cancelPath := "/services/alerts/checkout/" + cancelID
+	code, html, _ = call(cancelPath, nil)
+	if code != 200 || !strings.Contains(html, "Cancel checkout") {
+		t.Fatal("missing cancel action", code, html)
+	}
+	abandonForm := url.Values{"action": {"cancel"}, "csrf": {"wrong"}}
+	if code, _, _ := call(cancelPath, abandonForm); code != 403 {
+		t.Fatal("cancel CSRF", code)
+	}
+	abandonForm.Set("csrf", field("csrf"))
+	lock.Lock()
+	session["payment_status"] = "unpaid"
+	lock.Unlock()
+	for i := 0; i < 2; i++ {
+		if code, body, location := call(cancelPath, abandonForm); code != 303 || location != "https://alerts.btcpp.dev/alerts" {
+			t.Fatal("cancel failed", code, body, location)
+		}
+	}
+	lock.Lock()
+	gotExpires := expires
+	lock.Unlock()
+	if gotExpires != 1 {
+		t.Fatal("duplicate provider expiration", gotExpires)
+	}
+	if _, err := getters.ReserveAlertsStripeCheckoutWithPolicy(app, people[0], "after-cancel-new-selection", 3, app.Env.GetURI(), policyVersion); err != nil {
+		t.Fatal("cancellation did not release purchase lock", err)
 	}
 	// A separate, account-owned subscription exercises the management flow.
 	saved, e := getters.ReserveAlertsStripeCheckoutWithPolicy(app, people[1], "management-checkout-fixture", 2, "https://btcpp.dev", policyVersion)

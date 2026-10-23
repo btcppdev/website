@@ -23,12 +23,14 @@ type alertsStripeReturnPage struct {
 	Slots                                           int64
 	CanPay                                          bool
 	CanCheck                                        bool
+	CanCancel                                       bool
 }
 
 func alertsStripeReturnPresentation(stored *getters.AlertsStripeCheckout, bound, enabled bool, now time.Time) alertsStripeReturnPage {
 	total := stored.Intent.PaidSlots * servicebilling.AlertsAnnualSlotCents
 	page := alertsStripeReturnPage{ID: stored.Intent.ID, Slots: stored.Intent.PaidSlots, Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Heading: "Awaiting payment confirmation", Message: "Payment has not yet been verified. If you just paid, refresh this page shortly to check again."}
 	page.CanCheck = enabled && stored.Reference != "" && !stored.Closed
+	page.CanCancel = enabled && !bound && !stored.Closed
 	if stored.Closed {
 		page.Heading, page.Message = "Checkout closed", "This checkout is closed. Return to My alerts to review your subscriptions."
 	} else if bound {
@@ -122,6 +124,19 @@ func AlertsStripeReturn(w http.ResponseWriter, r *http.Request, app *config.AppC
 			return
 		}
 		action := r.PostForm.Get("action")
+		if action == "cancel" {
+			if !enabled || bound {
+				http.Error(w, "This checkout cannot be canceled. Check payment status or manage your subscription.", http.StatusConflict)
+				return
+			}
+			live := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
+			if err := getters.CancelAlertsStripeCheckout(r.Context(), app, identity.PersonID, stored.Intent.ID, alertsstripe.NewClient(live)); err != nil {
+				http.Error(w, "We could not confirm cancellation. Your checkout is still saved. Check payment status before trying again.", http.StatusConflict)
+				return
+			}
+			http.Redirect(w, r, "https://alerts.btcpp.dev/alerts", http.StatusSeeOther)
+			return
+		}
 		if action == "check" {
 			if !page.CanCheck {
 				http.Error(w, "This checkout cannot be checked yet", 409)
@@ -169,7 +184,7 @@ func AlertsStripeReturn(w http.ResponseWriter, r *http.Request, app *config.AppC
 			page.CheckMessage = "Status checked. This checkout is closed."
 		}
 	}
-	if page.CanPay || page.CanCheck {
+	if page.CanPay || page.CanCheck || page.CanCancel {
 		page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 		if err != nil {
 			http.Error(w, "Unable to prepare checkout", 500)

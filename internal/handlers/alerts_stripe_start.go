@@ -156,6 +156,18 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 			return
 		}
 		if errors.Is(err, getters.ErrAlertsStripeCheckoutConflict) {
+			// A different selection must not overwrite an existing checkout or
+			// create a second subscription. Give the buyer its recovery page.
+			var existing string
+			recoveryErr := app.DB.QueryRow(r.Context(), `SELECT id::text FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL ORDER BY created_at DESC LIMIT 1`, account).Scan(&existing)
+			if recoveryErr == nil {
+				http.Redirect(w, r, "/services/alerts/checkout/"+existing, http.StatusSeeOther)
+				return
+			}
+			if !errors.Is(recoveryErr, pgx.ErrNoRows) {
+				http.Error(w, "Unable to load your existing checkout. Please try again shortly.", http.StatusServiceUnavailable)
+				return
+			}
 			http.Error(w, "An existing Alerts purchase needs attention. Return to My alerts before starting another subscription.", 409)
 			return
 		}

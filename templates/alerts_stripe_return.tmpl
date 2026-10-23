@@ -33,6 +33,14 @@
       <a href="/services/alerts/checkout/{{ .ID }}">Refresh payment status</a>
       {{ end }}
     </div>
+    {{ if .CanCancel }}
+    <form method="post" action="/services/alerts/checkout/{{ .ID }}" class="service-checkout-actions">
+      <input type="hidden" name="csrf" value="{{ .CSRF }}">
+      <input type="hidden" name="action" value="cancel">
+      <button type="submit" class="service-secondary">Cancel checkout</button>
+    </form>
+    <p class="service-note">Cancel this unpaid checkout to change your selection. Your projects stay saved in My alerts.</p>
+    {{ end }}
     {{ if .CanPay }}
     <p class="service-note">Renews annually. Cancel future renewals through billing management; your paid allowance continues until the current period ends. Cancellation does not refund that period.</p>
     {{ end }}
