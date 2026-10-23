@@ -17,13 +17,14 @@ type antarcticaBerth struct {
 	PayInFull, PayInFullSavings                             string
 }
 
-const antarcticaBookingInformationUpdated = "October 23, 2026"
+const antarcticaBookingInformationUpdated = "October 24, 2026"
 
 type antarcticaPage struct {
 	DefaultTerms, DefaultPrivacy string
 	TermsUpdated                 string
 	BetaTrial                    bool
 	CheckoutEnabled              bool
+	StripeEnabled                bool
 	CSRF, RequestKey             string
 	Policy                       *getters.ServiceLegalPolicy
 	StaffBerths, RemainingBerths int
@@ -49,7 +50,7 @@ func antarcticaMoney(cents int64) string {
 }
 
 func newAntarcticaPage(conf *types.Conf, preview bool) *antarcticaPage {
-	page := &antarcticaPage{DefaultTerms: expedition.BookingTerms, DefaultPrivacy: expedition.BookingPrivacy, TermsUpdated: antarcticaBookingInformationUpdated, Conf: conf, Preview: preview, CheckoutURL: "?checkout=1", StaffBerths: expedition.DefaultStaffBerths, RemainingBerths: expedition.TotalBerths - expedition.DefaultStaffBerths}
+	page := &antarcticaPage{DefaultTerms: expedition.BookingTerms, DefaultPrivacy: expedition.BookingPrivacy, TermsUpdated: antarcticaBookingInformationUpdated, Conf: conf, Preview: preview, StripeEnabled: preview, CheckoutURL: "?checkout=1", StaffBerths: expedition.DefaultStaffBerths, RemainingBerths: expedition.TotalBerths - expedition.DefaultStaffBerths}
 	if !preview {
 		page.CheckoutURL = "/expeditions/antarctica/checkout"
 	}

@@ -27,9 +27,9 @@ func antarcticaPaymentsReady(app *config.AppContext) bool {
 	return app != nil && app.DB != nil && app.Env != nil && strings.TrimSpace(app.Env.OpenNode.Key) != ""
 }
 
-// Stripe checkout is off for launch.
+// Card checkout uses the existing shared Stripe configuration.
 func antarcticaPaymentProviderAllowed(app *config.AppContext, provider string) bool {
-	return provider == expedition.Bitcoin || (provider == expedition.Stripe && app != nil && app.Env != nil && app.Env.AntarcticaStripeCheckoutEnabled)
+	return provider == expedition.Bitcoin || (provider == expedition.Stripe && app != nil && app.Env != nil && strings.TrimSpace(app.Env.StripeKey) != "")
 }
 
 // A verified email without a person record needs profile setup, not another login.
@@ -91,6 +91,7 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 	if r.Method == "GET" {
 		page := newAntarcticaPage(nil, false)
 		page.CheckoutEnabled = true
+		page.StripeEnabled = antarcticaPaymentProviderAllowed(app, expedition.Stripe)
 		page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 		if err != nil {
 			http.Error(w, "Unable to prepare checkout.", 503)

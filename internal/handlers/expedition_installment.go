@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var installmentPageTemplate = template.Must(template.New("installment").Parse(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your expedition installment</title><link rel="stylesheet" href="/static/css/antarctica.css"><link rel="stylesheet" href="/static/css/antarctica-checkout.css"></head><body class="antarctica expedition-checkout"><header><a class="wordmark" href="/">bitcoin<span>++</span></a><a href="/dashboard/orders">Your dashboard</a></header><main class="checkout-shell"><p class="eyebrow">Cold Storage Edition</p><h1>Payment {{.Number}} of 5.</h1><p><strong>{{.Amount}} USD · due {{.Due}}</strong></p><p>Pay in Bitcoin. The full due date is available in Texas time (America/Chicago). This payment applies to your existing booking.</p><form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="key" value="{{.Key}}"><input type="hidden" name="version" value="{{.Version}}"><p>Need a company invoice? You can add billing details after payment.</p><details><summary>Terms for this payment · {{.Version}}</summary><div class="policy-text">{{.Terms}}</div><h2>Privacy</h2><div class="policy-text">{{.Privacy}}</div></details><label class="checkout-check"><input type="checkbox" name="accepted" value="yes" required><span>I agree to these payment terms and acknowledge the privacy policy.</span></label><button type="submit" class="button">Continue to Bitcoin payment →</button></form><p><a href="{{.BookingURL}}">Back to your booking</a> · <a href="mailto:inbox@btcpp.dev">Get help</a></p></main></body></html>`))
+var installmentPageTemplate = template.Must(template.New("installment").Parse(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your expedition installment</title><link rel="stylesheet" href="/static/css/antarctica.css"><link rel="stylesheet" href="/static/css/antarctica-checkout.css"></head><body class="antarctica expedition-checkout"><header><a class="wordmark" href="/">bitcoin<span>++</span></a><a href="/dashboard/orders">Your dashboard</a></header><main class="checkout-shell"><p class="eyebrow">Cold Storage Edition</p><h1>Payment {{.Number}} of 5.</h1><p><strong>{{.Amount}} USD · due {{.Due}}</strong></p><p>Pay with {{.ProviderName}}. The full due date is available in Texas time (America/Chicago). This payment applies to your existing booking.</p><form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="key" value="{{.Key}}"><input type="hidden" name="version" value="{{.Version}}"><p>Need a company invoice? You can add billing details after payment.</p><details><summary>Terms for this payment · {{.Version}}</summary><div class="policy-text">{{.Terms}}</div><h2>Privacy</h2><div class="policy-text">{{.Privacy}}</div></details><label class="checkout-check"><input type="checkbox" name="accepted" value="yes" required><span>I agree to these payment terms and acknowledge the privacy policy.</span></label><button type="submit" class="button">Continue to {{.ProviderName}} payment →</button></form><p><a href="{{.BookingURL}}">Back to your booking</a> · <a href="mailto:inbox@btcpp.dev">Get help</a></p></main></body></html>`))
 
 func ExpeditionInstallment(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 	w.Header().Set("Cache-Control", "private, no-store")
@@ -41,7 +41,7 @@ func ExpeditionInstallment(w http.ResponseWriter, r *http.Request, app *config.A
 		http.NotFound(w, r)
 		return
 	}
-	if !antarcticaPaymentsReady(app) || !antarcticaPaymentProviderAllowed(app, booking.Provider) || booking.Provider != expedition.Bitcoin {
+	if app == nil || app.Env == nil || !antarcticaPaymentProviderAllowed(app, booking.Provider) || (booking.Provider == expedition.Bitcoin && app.Env.OpenNode.Key == "") {
 		http.Error(w, "Installment checkout is unavailable. Contact inbox@btcpp.dev.", 503)
 		return
 	}
@@ -94,10 +94,14 @@ func ExpeditionInstallment(w http.ResponseWriter, r *http.Request, app *config.A
 		return
 	}
 	if r.Method == "GET" {
+		providerName := "Bitcoin"
+		if booking.Provider == expedition.Stripe {
+			providerName = "Stripe"
+		}
 		d := struct {
-			Number                                                      int
-			Amount, Due, CSRF, Key, Version, Terms, Privacy, BookingURL string
-		}{number, antarcticaMoney(charge.TotalCents), booking.Payments[number-1].DueAt.UTC().Format("January 2, 2006"), csrf, uuid.NewString(), policy.Version, policy.TermsText, policy.PrivacyText, "/expeditions/bookings/" + url.PathEscape(booking.ID)}
+			Number                                                                    int
+			Amount, Due, CSRF, Key, Version, Terms, Privacy, BookingURL, ProviderName string
+		}{number, antarcticaMoney(charge.TotalCents), booking.Payments[number-1].DueAt.UTC().Format("January 2, 2006"), csrf, uuid.NewString(), policy.Version, policy.TermsText, policy.PrivacyText, "/expeditions/bookings/" + url.PathEscape(booking.ID), providerName}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err = installmentPageTemplate.Execute(w, d); err != nil {
 			app.Err.Printf("installment page: %v", err)
@@ -112,6 +116,14 @@ func ExpeditionInstallment(w http.ResponseWriter, r *http.Request, app *config.A
 	if err != nil {
 		http.Error(w, "Invalid payment key", 400)
 		return
+	}
+	// Stripe Checkout sessions must expire within 24 hours. Freeze a one-hour
+	// window in the new order; retries reuse that order and its expiry.
+	if booking.Provider == expedition.Stripe {
+		window := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
+		if window.Before(charge.ExpiresAt) {
+			charge.ExpiresAt = window
+		}
 	}
 	tax := getters.ExpeditionConferenceTaxQuote(charge.ExpiresAt)
 	purchase, err := getters.CreateExpeditionInstallmentPurchase(app, id.PersonID, booking.ID, number, charge.Key+":"+key.String(), tax, policy.Version)

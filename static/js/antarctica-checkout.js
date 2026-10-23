@@ -272,7 +272,7 @@
       if (pending?.key === form.dataset.requestKey) {
         allocations = pending.selections.map(a => ({ type: a.berth, quantity: a.quantity, preference: a.preference }));
         party.value = String(pending.spots);
-        form.elements.plan.value = pending.plan; form.elements.provider.value = 'opennode';
+        form.elements.plan.value = pending.plan; form.elements.provider.value = pending.provider;
         step = 3; showStep();
         error.textContent = 'Your previous checkout is ready to retry. Review the details and accept the terms to continue.';
       }

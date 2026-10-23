@@ -7,7 +7,7 @@ The expedition runs January 24–February 5, 2028. Fares are per person in USD. 
 
 Payment options
 
-Choose full payment at signup or five installments: at booking, January 1, April 1, July 1 and October 1, 2027. Full payment in bitcoin receives a 5% passage discount. Launch purchases are Bitcoin-only. Installments use the standard fare. Merchandise is separate, paid upfront, and collected onboard.
+Choose full payment at signup or five installments: at booking, January 1, April 1, July 1 and October 1, 2027. Full payment in bitcoin receives a 5% passage discount. Payment is available in bitcoin or by card via Stripe. Installments use the standard fare. Merchandise is separate, paid upfront, and collected onboard.
 
 Operator deposit and payment deadline
 

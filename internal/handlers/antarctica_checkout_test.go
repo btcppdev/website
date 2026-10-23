@@ -45,7 +45,7 @@ func TestAntarcticaCheckoutHTTPPostgres(t *testing.T) {
 		provider, plan string
 		amount         int64
 	}{
-		{"stripe", "full", 1670000}, {"opennode", "full", 1586500}, {"opennode", "installments", 334000}, {"opennode", "full", 1},
+		{"stripe", "full", 1670000}, {"stripe", "installments", 334000}, {"opennode", "full", 1586500}, {"opennode", "installments", 334000}, {"opennode", "full", 1},
 	} {
 		t.Run(scenario.provider+"_"+scenario.plan+fmt.Sprint(scenario.amount), func(t *testing.T) {
 			testAntarcticaCheckoutHTTP(t, scenario.provider, scenario.plan, scenario.amount)
@@ -68,7 +68,6 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	app.DB = pool
 	app.Session = scs.New()
 	defer enableAntarcticaSalesForTest(t, app)()
-	app.Env.AntarcticaStripeCheckoutEnabled = paymentProvider == "stripe"
 	app.Env.OpenNode.Key = "local-fixture"
 	if paymentProvider == "stripe" {
 		app.Env.StripeKey = "sk_test_fixture"
@@ -151,7 +150,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 			http.Error(w, "unexpected tax request", 500)
 		case r.URL.Path == "/v1/checkout/sessions" && r.Method == "POST":
 			creates++
-			if r.Header.Get("Idempotency-Key") == "" || r.Form.Get("payment_method_types[0]") != "card" || r.Form.Get("line_items[0][price_data][unit_amount]") != "1670000" {
+			if r.Header.Get("Idempotency-Key") == "" || r.Form.Get("payment_method_types[0]") != "card" || r.Form.Get("line_items[0][price_data][unit_amount]") != strconv.FormatInt(amount, 10) {
 				t.Error("wrong payment request", r.Form)
 			}
 			expires, _ := strconv.ParseInt(r.Form.Get("expires_at"), 10, 64)
@@ -181,6 +180,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	router.HandleFunc("/services/orders/{order}/pay", func(w http.ResponseWriter, r *http.Request) { ServiceOrderPay(w, r, app) })
 	router.HandleFunc("/callback/services/opennode", func(w http.ResponseWriter, r *http.Request) { ServiceOpenNodeCallback(w, r, app) })
 	router.HandleFunc("/expeditions/bookings/{booking}", func(w http.ResponseWriter, r *http.Request) { ExpeditionBooking(w, r, app) })
+	router.HandleFunc("/expeditions/bookings/{booking}/installments/{number}", func(w http.ResponseWriter, r *http.Request) { ExpeditionInstallment(w, r, app) })
 	server := httptest.NewServer(app.Session.LoadAndSave(router))
 	defer server.Close()
 	jar, _ := cookiejar.New(nil)
@@ -205,6 +205,13 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	if code != 200 {
 		t.Fatal(code, html)
 	}
+	if strings.Contains(html, "Save 5% when paying in full") {
+		t.Fatal("Bitcoin option still advertises the discount")
+	}
+	if strings.Contains(html, `name="provider" value="stripe"`) != (paymentProvider == "stripe") {
+		t.Fatal("Stripe option does not match configured availability")
+	}
+
 	attr := func(name string) string {
 		t.Helper()
 		m := regexp.MustCompile(name + `="([^"]+)"`).FindStringSubmatch(html)
@@ -314,6 +321,55 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 		t.Fatal("redirect confirmed unpaid booking")
 	}
 	if paymentProvider == "stripe" {
+		if plan == "installments" {
+			metadata := sessionResponse["metadata"].(map[string]string)
+			orderID := metadata["service-order-id"]
+			payment := getters.VerifiedServicePayment{AttemptID: metadata["service-attempt-id"], Provider: "stripe", Reference: sessionID, EventID: "fixture-" + sessionID, Currency: "USD", TotalCents: amount, PaidAt: time.Now().UTC()}
+			if err := getters.RecordServicePayment(app, payment); err != nil {
+				t.Fatal(err)
+			}
+			if err := getters.FulfillExpeditionPurchase(app, orderID); err != nil {
+				t.Fatal(err)
+			}
+			var bookingID string
+			if err := pool.QueryRow(ctx, `SELECT id::text FROM expedition_reservations WHERE buyer_id=$1 AND state='confirmed'`, buyer).Scan(&bookingID); err != nil {
+				t.Fatal(err)
+			}
+			// Move this test fixture into the second installment's payment window.
+			if _, err := pool.Exec(ctx, `UPDATE expedition_reservations SET schedule=jsonb_set(schedule,'{installments,1,due_at}',to_jsonb(now()+interval '1 day')) WHERE id=$1`, bookingID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `UPDATE expedition_installments SET due_at=now()+interval '1 day' WHERE reservation_id=$1 AND number=2`, bookingID); err != nil {
+				t.Fatal(err)
+			}
+			path := "/expeditions/bookings/" + bookingID + "/installments/2"
+			code, page := get(path)
+			if code != 200 || !strings.Contains(page, "Continue to Stripe payment") || strings.Contains(page, "Billing address") {
+				t.Fatal("Stripe installment page", code, page)
+			}
+			field := func(name string) string {
+				m := regexp.MustCompile(`name="` + name + `" value="([^"]+)"`).FindStringSubmatch(page)
+				if len(m) != 2 {
+					t.Fatal("missing field", name)
+				}
+				return m[1]
+			}
+			res, err := client.PostForm(server.URL+path, url.Values{"csrf": {field("csrf")}, "key": {field("key")}, "version": {field("version")}, "accepted": {"yes"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			if res.StatusCode != 303 {
+				b, _ := io.ReadAll(res.Body)
+				t.Fatal("Stripe installment checkout", res.StatusCode, string(b))
+			}
+			nextOrder := strings.TrimPrefix(res.Header.Get("Location"), "/services/orders/")
+			var provider string
+			var total int64
+			if err := pool.QueryRow(ctx, `SELECT payment_provider,total_cents FROM shop_orders WHERE public_id=$1`, nextOrder).Scan(&provider, &total); err != nil || provider != "stripe" || total != 334000 {
+				t.Fatal("incorrect installment order", provider, total, err)
+			}
+		}
 		return
 	}
 	callback := func(signature string) int {

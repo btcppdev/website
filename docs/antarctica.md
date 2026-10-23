@@ -1083,3 +1083,20 @@ receipt remains available without those details. Issued invoice snapshots do not
 change the payment amount, tax treatment or account profile.
 
 Pausing new sales no longer blocks payments toward confirmed installment plans.
+
+### Card checkout restored — October 24, 2026
+
+Bitcoin and Card via Stripe are available side by side when shared Stripe
+credentials are configured. The former expedition-only Stripe environment flag
+has been removed. Stripe uses the existing card Checkout adapter, durable payment
+attempts and verified settlement. Full card payments and all installments use the
+standard fare; full Bitcoin payments retain the 5% discount in the totals. The
+Bitcoin choice itself says “Lightning or on-chain.” The one-cent test remains
+Bitcoin-only. Later installment orders retain the booking's original provider.
+ACH and other delayed payment methods remain deferred.
+
+Migration 143 copies the currently active policy when it contains the exact
+Bitcoin-only launch sentence, replacing only that sentence in a new immutable
+revision. Privacy text, historical acceptances and the lifecycle timezone are
+preserved. Installations with custom wording must review their active policy in
+admin; the migration does not rewrite arbitrary custom terms.

@@ -43,7 +43,7 @@ func TestExpeditionBookingAndTermsTemplates(t *testing.T) {
 	if err := app.TemplateCache.ExecuteTemplate(&out, "conf/antarctica-checkout.tmpl", page); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(out.String(), "draft_terms_reviewed") || strings.Contains(out.String(), `name="terms_version"`) || !strings.Contains(out.String(), "Booking information updated October 23, 2026") {
+	if strings.Contains(out.String(), "draft_terms_reviewed") || strings.Contains(out.String(), `name="terms_version"`) || !strings.Contains(out.String(), "Booking information updated October 24, 2026") {
 		t.Fatal("draft masquerades as approved terms")
 	}
 	page.Policy = &getters.ServiceLegalPolicy{Version: "reviewed-v1", TermsText: "Approved <text>", EffectiveAt: time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)}

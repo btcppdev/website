@@ -39,25 +39,25 @@ func TestExpeditionStripeSessionValidation(t *testing.T) {
 		})
 	}
 }
-func TestExpeditionBitcoinOnlyLaunch(t *testing.T) {
-	app := &config.AppContext{Env: &types.EnvConfig{StripeKey: "sk_test_fixture"}}
+func TestExpeditionPaymentProviders(t *testing.T) {
+	app := &config.AppContext{Env: &types.EnvConfig{}}
 	if !antarcticaPaymentProviderAllowed(app, expedition.Bitcoin) {
-		t.Fatal("Bitcoin must remain available")
+		t.Fatal("Bitcoin unavailable")
 	}
 	for _, provider := range []string{expedition.Stripe, "", "unknown"} {
 		if antarcticaPaymentProviderAllowed(app, provider) {
-			t.Fatalf("unexpected launch provider: %s", provider)
+			t.Fatalf("unconfigured provider allowed: %s", provider)
 		}
 	}
 	order := &getters.ServiceOrderView{Status: "pending", Currency: "USD", TotalCents: 100, Quote: getters.ServiceQuote{ProductCode: expedition.ProductCode, Provider: expedition.Stripe, TotalCents: 100, ExpiresAt: time.Now().Add(time.Hour)}}
 	if serviceOrderCanPay(order, app, time.Now()) {
-		t.Fatal("existing Stripe order payable")
+		t.Fatal("unconfigured Stripe order payable")
 	}
 	if _, err := expeditionStripeCheckout(context.Background(), app, "buyer", order); err == nil {
-		t.Fatal("direct Stripe handoff allowed")
+		t.Fatal("unconfigured Stripe handoff allowed")
 	}
-	app.Env.AntarcticaStripeCheckoutEnabled = true
+	app.Env.StripeKey = "sk_test_fixture"
 	if !antarcticaPaymentProviderAllowed(app, expedition.Stripe) {
-		t.Fatal("explicit opt-in unavailable")
+		t.Fatal("configured Stripe unavailable")
 	}
 }
