@@ -102,3 +102,15 @@ func TestAnnualReportIncludeAllAction(t *testing.T) {
 		t.Fatal("include all still restricted to old selection")
 	}
 }
+
+func TestAnnualReportIncompleteCoverageSaved(t *testing.T) {
+	p := annualFixture()
+	key := "hack_" + p.Events[0].Event.ID
+	f := url.Values{"action": {"save"}, "cutoff": {"2026-10-19"}, key: {"incomplete"}}
+	if err := annualReportForm(&p, f, time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if p.Saved[key] != "incomplete" {
+		t.Fatal("incomplete coverage not retained")
+	}
+}

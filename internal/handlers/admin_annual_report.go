@@ -374,7 +374,7 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 			if _, err := uuid.Parse(strings.TrimPrefix(key, "hack_")); err != nil {
 				return fmt.Errorf("invalid event coverage")
 			}
-			if values[0] != "unknown" && values[0] != "none" && values[0] != "records" {
+			if values[0] != "unknown" && values[0] != "none" && values[0] != "records" && values[0] != "incomplete" {
 				return fmt.Errorf("invalid hackathon coverage")
 			}
 			saved[key] = values[0]

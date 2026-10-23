@@ -44,3 +44,18 @@ func TestAnnualReportAutomaticallyIncludesAvailableHackathonRecords(t *testing.T
 		t.Fatal("explicit no-hackathon setting silently overridden")
 	}
 }
+
+func TestAnnualReportIncompleteHackathonExcluded(t *testing.T) {
+	e := annualEvent{Included: true, Eligible: true, HackCoverage: "incomplete", Projects: 10, Participants: 20, Sats: 1000000, Talks: 12, Registrations: 150, WinningProjects: []reportWinner{{ID: "partial", Title: "Partial winner"}}}
+	e.detectHackathonRecords()
+	p := annualReportPage{RegistrationBased: true, Events: []annualEvent{e}}
+	if e.HackKnown() || len(p.FundingChart().Rows) != 0 || len(p.BriefProjects()) != 0 || len(p.BuildingMetrics()) != 0 {
+		t.Fatal("incomplete records leaked into hackathon rollup")
+	}
+	if p.ParticipationTotal() != 150 || p.ProgramChart().Rows[0].Value != 12 {
+		t.Fatal("non-hackathon statistics were excluded")
+	}
+	if annualEventStats(e)[2].Value != "—" {
+		t.Fatal("partial payout shown as complete")
+	}
+}

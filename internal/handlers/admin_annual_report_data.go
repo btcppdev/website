@@ -61,6 +61,9 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 	speakers := map[string]bool{}
 	for _, event := range roster {
 		e := annualEvent{Event: event, Eligible: annualEligible(event, p.Year, p.Cutoff) && event.End != nil && !event.End.After(time.Now()), HackCoverage: p.Saved["hack_"+event.ID]}
+		if p.Year == 2026 && event.Tag == "floripa26" && (e.HackCoverage == "" || e.HackCoverage == "unknown") {
+			e.HackCoverage = "incomplete"
+		}
 		if e.HackCoverage == "" {
 			e.HackCoverage = "unknown"
 			// Confirmed by the organizer: these 2026 editions had no hackathon.

@@ -46,6 +46,8 @@ func (e annualEvent) DataStatus() string {
 		if e.Sats == 0 {
 			status += "No sent/claimed sats payouts recorded; funding chart has no amount for this event. "
 		}
+	} else if e.HackCoverage == "incomplete" {
+		status += "Incomplete historical hackathon records: excluded from project, participant, winner and payout totals. Other event statistics remain included. "
 	} else if e.HackCoverage == "none" {
 		status += "No hackathon. "
 	} else {

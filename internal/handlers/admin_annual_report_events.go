@@ -32,6 +32,9 @@ func annualEventStats(e annualEvent) []annualEventStat {
 	if e.HackKnown() {
 		prizes.Value = compactReportSats(e.Sats)
 		prizes.Detail = "Recorded sent or claimed hackathon prize distributions"
+	} else if e.HackCoverage == "incomplete" {
+		prizes.Label = "prize data unavailable"
+		prizes.Detail = "Incomplete historical records; excluded from annual hackathon totals"
 	} else if e.HackCoverage == "none" {
 		prizes.Label = "no hackathon"
 		prizes.Detail = "This edition did not include a hackathon"
