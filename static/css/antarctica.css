@@ -133,3 +133,24 @@
 @media(max-width:600px) { .unconference-details { grid-template-columns:1fr; gap:20px; } header nav { flex-wrap:wrap; justify-content:flex-start; } }
 
 .booking-note-copy{display:grid;gap:4px}.booking-note .button{flex-shrink:0;background:var(--paper);color:var(--ink);gap:24px;white-space:nowrap}.booking-note .button:hover{background:var(--ice)}@media(max-width:600px){.booking-note{align-items:stretch;gap:16px}.booking-note .button{align-self:flex-end}}
+
+/* A scroll-driven cartographic closing chapter. Static and usable without JS. */
+.southbound{position:relative;background:var(--deep);color:var(--paper)}
+.southbound-stage{position:relative;min-height:850px;overflow:hidden;isolation:isolate}
+.southbound-intro{position:absolute;z-index:2;left:6%;top:9%;max-width:340px;pointer-events:none}
+.southbound-intro .eyebrow{color:var(--on-dark-accent)}
+.southbound-intro h2{font-size:clamp(40px,4.5vw,70px)}
+.southbound-intro>p:not(.eyebrow){font-size:16px;line-height:1.8;color:var(--on-dark-muted)}
+.southbound-scroll{display:none;font:10px SpaceMono,monospace;letter-spacing:1px;margin-top:22px;color:var(--on-dark-accent)}
+.southbound-map{position:absolute;right:0;top:0;width:78%;height:100%;object-fit:contain}
+.southbound-land{fill:#345c67;stroke:#7e9ea8;stroke-width:1.5}.southbound-ice{fill:#f8fcfd;stroke:#bcd2d9;stroke-width:2}
+.southbound-map-labels{font:12px SpaceMono,monospace;fill:#c0dbe4;letter-spacing:2px}.southbound-water-label{font-style:italic;fill:#a2c4d0}.southbound-continent-label{fill:#426674;font-size:15px}
+.southbound-route-guide{fill:none;stroke:#ffa77b;stroke-width:2;stroke-dasharray:4 8;opacity:.4}.southbound-route{fill:none;stroke:#ffa77b;stroke-width:3;stroke-dasharray:1;stroke-dashoffset:0}
+.southbound-arrival{position:absolute;z-index:3;left:calc(61% - 210px);top:78%;width:420px;text-align:center;color:var(--ink)}
+.southbound-arrival .eyebrow{font-size:9px;margin-bottom:8px}.southbound-arrival h3{font:26px/1.15 Georgia,serif;margin-bottom:16px}.southbound-arrival .button{background:var(--accent);color:var(--deep);gap:40px;font-weight:600}.southbound-arrival .button:hover{background:#ffa77b}
+.southbound-caption{position:absolute;bottom:14px;left:6%;right:6%;margin:0;font:10px/1.6 SpaceMono,monospace;color:var(--on-dark-muted);max-width:500px}
+.southbound.is-animated{height:200vh;height:200svh}.southbound.is-animated .southbound-stage{position:sticky;top:0;height:100vh;height:100svh;min-height:700px}.southbound.is-animated .southbound-scroll{display:block}
+@media(max-width:700px){.southbound-stage{min-height:900px}.southbound-intro{top:30px;left:7%}.southbound-intro h2{font-size:40px;letter-spacing:-2px;margin:10px 0}.southbound-intro>p:not(.eyebrow){font-size:13px}.southbound-map{width:125%;max-width:none;right:-10%;height:650px;top:200px}.southbound-arrival{left:6%;width:88%;top:715px}.southbound-arrival h3{font-size:24px}.southbound-caption{font-size:9px;bottom:12px}.southbound.is-animated .southbound-stage{min-height:900px}.southbound-scroll{margin-top:8px}}
+@media(prefers-reduced-motion:reduce){.southbound.is-animated{height:auto}.southbound.is-animated .southbound-stage{position:relative;height:auto}.southbound-scroll{display:none!important}}
+
+@media(max-width:700px){.southbound-stage{min-height:960px}.southbound-map{height:auto;top:250px}.southbound-arrival{top:725px;color:var(--paper)}.southbound-caption{bottom:22px}}
