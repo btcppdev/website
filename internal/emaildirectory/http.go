@@ -22,6 +22,7 @@ import (
 )
 
 type Handler struct {
+	Account  func(*http.Request) (personID, csrf string, err error)
 	Store    Store
 	Tokens   map[string]string
 	Origin   string
@@ -35,6 +36,8 @@ func (h *Handler) Routes() http.Handler {
 	m.HandleFunc("GET /api/internal/email-directory/{service}/contacts/{id}", h.contact)
 	m.HandleFunc("PUT /api/internal/email-directory/{service}/contacts/{id}", h.change)
 	m.HandleFunc("GET /email-preferences", h.requestPage)
+	m.HandleFunc("GET /dashboard/email-subscriptions", h.accountManage)
+	m.HandleFunc("POST /dashboard/email-subscriptions", h.accountSave)
 	m.HandleFunc("POST /email-preferences", h.requestLink)
 	m.HandleFunc("POST /email-preferences/open", h.openLink)
 	m.HandleFunc("GET /email-preferences/manage", h.manage)
@@ -43,7 +46,7 @@ func (h *Handler) Routes() http.Handler {
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		if h.Store.DB == nil {
 			http.Error(w, "Email preferences temporarily unavailable", 503)
 			return
@@ -153,6 +156,8 @@ var preferencesPage = template.Must(template.New("preferences").Parse(preference
 type page struct {
 	Notice, Token, CSRF, Key string
 	Contact                  *Contact
+	Contacts                 []*Contact
+	AccountPage              bool
 }
 
 func render(w http.ResponseWriter, p page) {
@@ -160,7 +165,19 @@ func render(w http.ResponseWriter, p page) {
 	preferencesPage.Execute(w, p)
 }
 func (h *Handler) requestPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("token") == "" && h.Account != nil {
+		person, _, err := h.Account(r)
+		if err != nil {
+			http.Error(w, "Unable to load account", 500)
+			return
+		}
+		if person != "" {
+			http.Redirect(w, r, "/dashboard/email-subscriptions", http.StatusSeeOther)
+			return
+		}
+	}
 	raw := r.URL.Query().Get("token")
+
 	if len(raw) > 100 {
 		raw = ""
 	}
@@ -275,6 +292,10 @@ func (h *Handler) save(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Request a new management link.", 401)
 		return
 	}
+	h.savePreferences(w, r, id, csrf, "/email-preferences/manage")
+}
+
+func (h *Handler) savePreferences(w http.ResponseWriter, r *http.Request, id, csrf, destination string) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	r.ParseForm()
 	if !h.sameOrigin(r) || subtle.ConstantTimeCompare([]byte(csrf), []byte(r.FormValue("csrf"))) != 1 {
@@ -313,7 +334,7 @@ func (h *Handler) save(w http.ResponseWriter, r *http.Request) {
 		respond(w, nil, err)
 		return
 	}
-	http.Redirect(w, r, "/email-preferences/manage", http.StatusSeeOther)
+	http.Redirect(w, r, destination, http.StatusSeeOther)
 }
 
 func (h *Handler) verifiedAccount(w http.ResponseWriter, r *http.Request) {

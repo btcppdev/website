@@ -33,12 +33,14 @@ footer{border-top:1px solid #dedbd2;font-size:12px;color:#68655c;flex-wrap:wrap}
 <button class="full">Manage my subscriptions</button>
 </form><p class="help">This private link gives you access to the email preferences for your address.</p></div>
 {{else if .Contact}}
+{{if .AccountPage}}<p><a href="/dashboard/settings#settings-emails">← Account settings</a></p>{{if gt (len .Contacts) 1}}<nav aria-label="Email addresses">{{range .Contacts}}<p><a href="/dashboard/email-subscriptions?contact={{.ID}}">{{.Email}}</a></p>{{end}}</nav>{{end}}{{end}}
 <p class="address">{{.Contact.Email}}</p>
 <p class="intro">Choose the emails you want to receive. Each change applies only to that subscription.</p>
 <div class="memberships">
 {{range .Contact.Memberships}}
 <fieldset><legend>{{.Service}} / {{.Newsletter}}</legend>
-<form method="post" action="/email-preferences/manage">
+<form method="post" action="{{if $.AccountPage}}/dashboard/email-subscriptions{{else}}/email-preferences/manage{{end}}">
+{{if $.AccountPage}}<input type="hidden" name="contact" value="{{$.Contact.ID}}">{{end}}
 <input type="hidden" name="csrf" value="{{$.CSRF}}">
 <input type="hidden" name="key" value="{{$.Key}}-{{.Service}}-{{.Newsletter}}">
 <input type="hidden" name="service" value="{{.Service}}">
@@ -53,6 +55,8 @@ footer{border-top:1px solid #dedbd2;font-size:12px;color:#68655c;flex-wrap:wrap}
 {{end}}
 </div>
 <p class="help">Turning off emails doesn’t cancel a paid plan or change Telegram delivery. Manage those settings in your account or the relevant service.</p>
+{{else if .AccountPage}}
+<p class="intro">Add and verify an email address in your account to manage its subscriptions.</p><a href="/dashboard/settings#settings-emails">Manage account emails</a>
 {{else}}
 <p class="intro">Get a private link to manage the emails you receive from bitcoin++. No password or sign-in needed.</p>
 <div class="card"><form method="post" action="/email-preferences">

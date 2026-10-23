@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emaildirectory"
 	"btcpp-web/internal/emails"
@@ -9,18 +10,31 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"html"
+	"net/http"
 	"os"
 	"time"
 )
 
 func registerEmailDirectory(r *mux.Router, app *config.AppContext) {
 	h := &emaildirectory.Handler{Store: emaildirectory.Store{DB: app.DB}, Origin: app.Env.GetURI(), Tokens: map[string]string{"insider": os.Getenv("EMAIL_DIRECTORY_INSIDER_TOKEN"), "alerts": os.Getenv("EMAIL_DIRECTORY_ALERTS_TOKEN")}}
+	h.Account = func(r *http.Request) (string, string, error) {
+		id, err := auth.Resolve(r, app)
+		if err != nil {
+			return "", "", err
+		}
+		if id == nil || id.PersonID == "" || id.Speaker == nil {
+			return "", "", nil
+		}
+		csrf, err := ensureAuthMethodsCSRF(app, r)
+		return id.PersonID, csrf, err
+	}
 	h.SendLink = func(ctx context.Context, address, link string) error {
 		return emails.ComposeAndSendMail(app, &emails.Mail{JobKey: fmt.Sprintf("email-preferences-%x", sha256.Sum256([]byte(link))), Email: address, Title: "Manage your bitcoin++ email subscriptions", SendAt: time.Now(), TextBody: []byte("Manage your email subscriptions without signing in:\n\n" + link + "\n\nThis link expires in 30 minutes. If you did not request it, ignore this message."), HTMLBody: []byte("<p>Manage your email subscriptions without signing in.</p><p><a href=\"" + html.EscapeString(link) + "\">Manage email subscriptions</a></p><p>This link expires in 30 minutes.</p>")})
 	}
 	routes := h.Routes()
 	r.PathPrefix("/api/internal/email-directory/").Handler(routes)
 	r.PathPrefix("/email-preferences").Handler(routes)
+	r.Handle("/dashboard/email-subscriptions", routes)
 }
 
 // StartEmailDirectoryCancellation retries cancellation of already queued central
