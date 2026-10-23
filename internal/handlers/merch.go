@@ -1530,10 +1530,12 @@ func AdminMerchOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 	publicID := strings.TrimSpace(mux.Vars(r)["order"])
-	// Older sale emails linked the internal UUID. Resolve it only after admin authorization.
+	// Public order numbers can also be UUIDs. Prefer a public match, then
+	// resolve legacy sale-email links containing the internal UUID.
+	// Both lookups happen only after admin authorization.
 	if _, err := uuid.Parse(publicID); err == nil {
 		var canonical string
-		if err := ctx.DB.QueryRow(r.Context(), `SELECT public_id FROM shop_orders WHERE id=$1`, publicID).Scan(&canonical); err != nil {
+		if err := ctx.DB.QueryRow(r.Context(), `SELECT public_id FROM shop_orders WHERE public_id=$1 OR id=$1::uuid ORDER BY (public_id=$1) DESC LIMIT 1`, publicID).Scan(&canonical); err != nil {
 			http.NotFound(w, r)
 			return
 		}
