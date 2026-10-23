@@ -40,6 +40,14 @@ func alertsStripeReturnPresentation(stored *getters.AlertsStripeCheckout, bound,
 		}
 	} else {
 		page.CanPay = enabled && (stored.Reference != "" || !now.After(stored.Intent.CreatedAt.Add(90*time.Minute)))
+		page.Heading, page.Message = "Continue checkout", "Continue with card to open your saved Stripe checkout. If you already paid, use Check with Stripe to verify its status."
+		if stored.Reference == "" {
+			page.Heading, page.Message = "Checkout could not open", "We could not open Stripe checkout. Your selection is saved. Try Continue with card again; it resumes the same checkout."
+			if !page.CanPay {
+				page.Heading, page.Message = "Checkout needs review", "We could not confirm whether Stripe created your checkout. Contact support with the checkout reference below before starting another purchase."
+			}
+		}
+
 	}
 	return page
 }

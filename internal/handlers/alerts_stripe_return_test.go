@@ -21,13 +21,13 @@ func TestAlertsStripeReturnStates(t *testing.T) {
 		bound, closed, enabled, reference, pay bool
 		heading                                string
 	}{
-		{"new", time.Minute, false, false, true, false, true, "Awaiting payment confirmation"},
-		{"resume", 100 * time.Minute, false, false, true, true, true, "Awaiting payment confirmation"},
-		{"unbound creation too old", 100 * time.Minute, false, false, true, false, false, "Awaiting payment confirmation"},
+		{"new", time.Minute, false, false, true, false, true, "Checkout could not open"},
+		{"resume", 100 * time.Minute, false, false, true, true, true, "Continue checkout"},
+		{"unbound creation too old", 100 * time.Minute, false, false, true, false, false, "Checkout needs review"},
 		{"completed awaiting invoice", time.Minute, true, false, true, true, false, "Awaiting payment confirmation"},
 		{"expired", 2 * time.Hour, false, false, true, true, false, "Checkout needs review"},
 		{"closed", time.Minute, false, true, true, true, false, "Checkout closed"},
-		{"disabled", time.Minute, false, false, false, false, false, "Awaiting payment confirmation"},
+		{"disabled", time.Minute, false, false, false, false, false, "Checkout needs review"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			stored := &getters.AlertsStripeCheckout{Intent: alertsstripe.Intent{ID: "checkout", PaidSlots: 2, CreatedAt: now.Add(-tc.age)}, Closed: tc.closed}

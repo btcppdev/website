@@ -64,3 +64,53 @@ func TestCheckoutRejectsOtherProductSession(t *testing.T) {
 		t.Fatal("Alerts session accepted for Insider")
 	}
 }
+
+func TestCheckoutHostedURLsAndSavedRetry(t *testing.T) {
+	for _, tc := range []struct {
+		url   string
+		valid bool
+	}{
+		{"https://checkout.stripe.com/c/pay/cs_test#configuration", true},
+		{"https://checkout.stripe.com/f/pay/cs_test#configuration", true},
+		{"https://checkout.stripe.com/f/pay/cs_other", false},
+		{"https://checkout.stripe.com.evil.test/f/pay/cs_test", false},
+		{"https://evil.test/f/pay/cs_test", false},
+		{"http://checkout.stripe.com/f/pay/cs_test", false},
+		{"https://user@checkout.stripe.com/f/pay/cs_test", false},
+		{"https://checkout.stripe.com/anything/cs_test", false},
+	} {
+		for _, reference := range []string{"", "cs_test"} {
+			t.Run(tc.url+"/"+reference, func(t *testing.T) {
+				in := insiderIntent(servicebilling.InsiderMonthlyProduct)
+				session := &stripe.CheckoutSession{ID: "cs_test", Mode: "subscription", Status: "open", ExpiresAt: in.CreatedAt.Add(time.Hour).Unix(), ClientReferenceID: in.ID, Metadata: map[string]string{"account_id": in.PersonID, "checkout_intent": in.ID, "product": in.ProductCode}, URL: tc.url}
+				c := CheckoutClient{
+					Create: func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+						if reference != "" {
+							t.Fatal("created replacement for saved checkout")
+						}
+						return session, nil
+					},
+					Retrieve: func(id string, _ *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+						if id != reference {
+							t.Fatal("wrong saved checkout")
+						}
+						return session, nil
+					},
+				}
+				ref, destination, err := c.Open(context.Background(), in, reference, in.CreatedAt)
+				if (err == nil) != tc.valid {
+					t.Fatalf("valid=%v err=%v", tc.valid, err)
+				}
+				if ref != "cs_test" {
+					t.Fatal("lost provider reference")
+				}
+				if tc.valid && destination != tc.url {
+					t.Fatal("lost hosted URL")
+				}
+				if !tc.valid && destination != "" {
+					t.Fatal("unsafe redirect returned")
+				}
+			})
+		}
+	}
+}

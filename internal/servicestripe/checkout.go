@@ -138,7 +138,7 @@ func (c CheckoutClient) Open(ctx context.Context, in CheckoutIntent, reference s
 		return session.ID, "", ErrReconcile
 	}
 	target, e := url.Parse(session.URL)
-	if e != nil || target.Scheme != "https" || target.Host != "checkout.stripe.com" || target.User != nil || target.Path != "/c/pay/"+session.ID {
+	if e != nil || target.Scheme != "https" || target.Host != "checkout.stripe.com" || target.User != nil || (target.Path != "/c/pay/"+session.ID && target.Path != "/f/pay/"+session.ID) {
 		return session.ID, "", ErrCheckout
 	}
 	return session.ID, session.URL, nil
