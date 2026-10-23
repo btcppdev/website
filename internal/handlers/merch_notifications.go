@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ func merchSaleMail(ctx *config.AppContext, order *types.ShopOrder, recipient str
 	data := struct {
 		Order *types.ShopOrder
 		URL   string
-	}{order, ctx.Env.GetURI() + "/admin/merch/orders/" + order.ID}
+	}{order, ctx.Env.GetURI() + "/admin/merch/orders/" + url.PathEscape(order.PublicID)}
 	var html bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&html, "shop/admin_sale_email.tmpl", data); err != nil {
 		return nil, err

@@ -26,6 +26,7 @@ import (
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/types"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	stripe "github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
@@ -1529,6 +1530,18 @@ func AdminMerchOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 	publicID := strings.TrimSpace(mux.Vars(r)["order"])
+	// Older sale emails linked the internal UUID. Resolve it only after admin authorization.
+	if _, err := uuid.Parse(publicID); err == nil {
+		var canonical string
+		if err := ctx.DB.QueryRow(r.Context(), `SELECT public_id FROM shop_orders WHERE id=$1`, publicID).Scan(&canonical); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if canonical != publicID {
+			http.Redirect(w, r, "/admin/merch/orders/"+url.PathEscape(canonical), http.StatusSeeOther)
+			return
+		}
+	}
 	order, err := getters.GetShopOrderByPublicID(ctx, publicID)
 	if err != nil {
 		ctx.Err.Printf("/admin/merch/orders/%s: %s", publicID, err)

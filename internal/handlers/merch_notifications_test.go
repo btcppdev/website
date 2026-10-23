@@ -45,7 +45,7 @@ func TestMerchSaleEmail(t *testing.T) {
 	if strings.Contains(string(one.HTMLBody), "Canvas <script>") || !strings.Contains(string(one.HTMLBody), "Canvas &lt;script&gt;") {
 		t.Fatal("unescaped product")
 	}
-	if !strings.Contains(string(one.TextBody), order.ID) || !strings.Contains(string(one.HTMLBody), "$65") {
+	if !strings.Contains(string(one.TextBody), "/admin/merch/orders/SHOP-123") || !strings.Contains(string(one.HTMLBody), "/admin/merch/orders/SHOP-123") || strings.Contains(string(one.TextBody), order.ID) || strings.Contains(string(one.HTMLBody), order.ID) || !strings.Contains(string(one.HTMLBody), "$65") {
 		t.Fatal("missing order link or total")
 	}
 	if os.Getenv("MERCH_NOTICE_PREVIEW") == "1" {
