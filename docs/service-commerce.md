@@ -954,10 +954,10 @@ this role for its admin interface. The account settings page links authorized
 users to https://alerts.btcpp.dev/admin. Newly granted administrators sign in
 again to establish the short-lived, encrypted identity session.
 
-### Alerts global-admin operational recipients
+### Alerts-admin operational recipients
 
 `GET /api/internal/email-directory/alerts/operators` is restricted to the Alerts
-email-directory bearer token. It returns current global-admin account IDs and a
+email-directory bearer token. It returns current alerts-admin account IDs and a
 verified email, preferring the primary address. Deleted accounts and erased
 contacts are excluded. Admins without a verified email remain in the response
 so Alerts can notify their linked Telegram chat. Insider credentials and

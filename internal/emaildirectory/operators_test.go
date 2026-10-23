@@ -8,25 +8,25 @@ import (
 	"testing"
 )
 
-func TestOperatorsRestrictedToAlertsAndCurrentGlobalAdmins(t *testing.T) {
+func TestOperatorsRestrictedToAlertsAndCurrentAlertsAdmins(t *testing.T) {
 	s := serviceStore(t)
 	ctx := context.Background()
 	if _, err := s.DB.Exec(ctx, `CREATE TABLE people_roles(person_id uuid,scope text,position text)`); err != nil {
 		t.Fatal(err)
 	}
 	ids := map[string]string{}
-	for _, name := range []string{"admin", "no-email", "regular", "alerts-admin", "deleted"} {
+	for _, name := range []string{"admin", "no-email", "regular", "global-admin", "deleted"} {
 		var id string
 		if err := s.DB.QueryRow(ctx, `INSERT INTO people(name,is_deleted_account) VALUES($1,$2) RETURNING id::text`, name, name == "deleted").Scan(&id); err != nil {
 			t.Fatal(err)
 		}
 		ids[name] = id
-		scope := "global"
+		scope := "alerts"
 		if name == "regular" {
 			scope = "conference"
 		}
-		if name == "alerts-admin" {
-			scope = "alerts"
+		if name == "global-admin" {
+			scope = "global"
 		}
 		if _, err := s.DB.Exec(ctx, `INSERT INTO people_roles VALUES($1,$2,'admin')`, id, scope); err != nil {
 			t.Fatal(err)
