@@ -7,6 +7,7 @@ import (
 )
 
 type AccountPurchase struct {
+	BookingID                                                        string
 	Kind, Reference, Description, Status, Provider, Amount, Currency string
 	CreatedAt                                                        time.Time
 }
@@ -21,19 +22,20 @@ func AccountPurchases(app *config.AppContext, person string, page int) ([]Accoun
  SELECT CASE WHEN o.checkout_kind IN ('service','digital') THEN 'service' ELSE 'order' END kind,o.public_id reference,
  coalesce((SELECT string_agg(i.product_name_snapshot, ', ' ORDER BY i.created_at,i.id) FROM shop_order_items i WHERE i.order_id=o.id),
  CASE o.checkout_kind WHEN 'ticket' THEN 'Event tickets' WHEN 'mixed' THEN 'Tickets and merchandise' WHEN 'service' THEN 'Subscription payment' ELSE 'Merchandise' END) description,
- o.status,o.payment_provider provider,(o.total_cents::numeric/100)::numeric(20,2)::text amount,upper(o.currency) currency,o.created_at
+ o.status,o.payment_provider provider,(o.total_cents::numeric/100)::numeric(20,2)::text amount,upper(o.currency) currency,o.created_at,
+ coalesce((SELECT p.quote_snapshot->>'resource_id' FROM service_purchase_requests p WHERE p.order_id=o.id AND p.person_id=$1 AND p.quote_snapshot->>'product_code'='expedition.antarctica2028.passage'),'') booking_id
  FROM shop_orders o WHERE o.buyer_person_id=$1
  UNION ALL
- SELECT 'pos',s.id::text,c.location || ' · Conference merchandise',s.status,'lightning',s.total_sats::text,'sats',s.created_at
+ SELECT 'pos',s.id::text,c.location || ' · Conference merchandise',s.status,'lightning',s.total_sats::text,'sats',s.created_at,''
  FROM conference_pos_sales s JOIN conferences c ON c.id=s.conference_id WHERE s.buyer_person_id=$1 AND s.status='paid'
  UNION ALL
  SELECT 'ticket',r.ref_id,coalesce(nullif(r.item_bought,''),'Event ticket') || coalesce(' · ' || c.location,''),
  CASE WHEN r.revoked THEN 'Ticket revoked' WHEN r.amount_paid IS NULL THEN 'Ticket issued' WHEN r.amount_paid=0 THEN 'Complimentary' ELSE 'Paid' END,
- r.platform,coalesce(r.amount_paid::text,'Not recorded'),upper(r.currency),coalesce(r.registered_at,r.created_at)
+ r.platform,coalesce(r.amount_paid::text,'Not recorded'),upper(r.currency),coalesce(r.registered_at,r.created_at),''
  FROM registrations r LEFT JOIN conferences c ON c.id=r.conference_id
  WHERE r.person_id=$1 AND NOT EXISTS(SELECT 1 FROM shop_orders o WHERE o.buyer_person_id=$1
  AND r.checkout_id<>'' AND r.checkout_id IN (o.id::text,o.public_id,o.payment_provider_id))
- ) SELECT kind,reference,description,status,provider,amount,currency,created_at FROM purchases
+ ) SELECT kind,reference,description,status,provider,amount,currency,created_at,booking_id FROM purchases
  WHERE EXISTS(SELECT 1 FROM people p WHERE p.id=$1 AND NOT p.is_deleted_account)
  ORDER BY created_at DESC,kind,reference LIMIT 51 OFFSET $2`, person, (page-1)*50)
 	if err != nil {
@@ -43,7 +45,7 @@ func AccountPurchases(app *config.AppContext, person string, page int) ([]Accoun
 	out := []AccountPurchase{}
 	for rows.Next() {
 		var p AccountPurchase
-		if err := rows.Scan(&p.Kind, &p.Reference, &p.Description, &p.Status, &p.Provider, &p.Amount, &p.Currency, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.Kind, &p.Reference, &p.Description, &p.Status, &p.Provider, &p.Amount, &p.Currency, &p.CreatedAt, &p.BookingID); err != nil {
 			return nil, false, err
 		}
 		out = append(out, p)

@@ -22,7 +22,7 @@ func (s *Store) availability(ctx context.Context, tx pgx.Tx, staff int) (Availab
 		return a, err
 	}
 	err = tx.QueryRow(ctx, `SELECT COALESCE(sum(quantity),0) FROM expedition_reservations
-	 WHERE confirmed_at IS NOT NULL OR (state='held' AND hold_expires_at>$1)`, now).Scan(&used)
+	 WHERE (confirmed_at IS NOT NULL AND released_at IS NULL) OR (state='held' AND hold_expires_at>$1)`, now).Scan(&used)
 	a.Remaining = max(0, a.Total-staff-used)
 	return a, err
 }

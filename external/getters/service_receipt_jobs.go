@@ -22,7 +22,7 @@ func ClaimServiceReceipt(ctx context.Context, app *config.AppContext, orderID st
 	if _, err := app.DB.Exec(ctx, `WITH orphaned AS (
  SELECT j.order_id FROM service_receipt_jobs j
  JOIN service_purchase_requests r ON r.order_id=j.order_id
- WHERE j.state IN ('pending','review') AND (r.person_id IS NULL OR r.quote_snapshot->>'product_code'<>'alerts.repository-slots')
+ WHERE j.state IN ('pending','review') AND (r.person_id IS NULL OR r.quote_snapshot->>'product_code' NOT IN ('alerts.repository-slots','expedition.antarctica2028.passage'))
  AND ($1='' OR j.order_id::text=$1)
  ORDER BY j.order_id FOR UPDATE OF j SKIP LOCKED LIMIT 100
  ) UPDATE service_receipt_jobs j SET state='cancelled',lease_until=$2
@@ -34,7 +34,7 @@ func ClaimServiceReceipt(ctx context.Context, app *config.AppContext, orderID st
 	}
 	err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT order_id FROM service_receipt_jobs j WHERE state='pending'
- AND EXISTS(SELECT 1 FROM service_purchase_requests r WHERE r.order_id=j.order_id AND r.person_id IS NOT NULL AND r.quote_snapshot->>'product_code'='alerts.repository-slots')
+ AND EXISTS(SELECT 1 FROM service_purchase_requests r WHERE r.order_id=j.order_id AND r.person_id IS NOT NULL AND r.quote_snapshot->>'product_code' IN ('alerts.repository-slots','expedition.antarctica2028.passage'))
  AND attempts-retry_after_attempt<12 AND next_attempt_at<=$2 AND lease_until<=$2 AND ($1='' OR order_id::text=$1)
  ORDER BY next_attempt_at,order_id FOR UPDATE SKIP LOCKED LIMIT 1
  ), claimed AS (

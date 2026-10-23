@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
+	"btcpp-web/internal/expedition"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -36,6 +38,10 @@ func serviceReceiptMailReady(app *config.AppContext) bool {
 }
 
 func processServiceReceipt(ctx context.Context, app *config.AppContext, orderID string, now time.Time) (bool, error) {
+	return processServiceReceiptWithSender(ctx, app, orderID, now, func(m *emails.Mail) error { return emails.ComposeAndSendMail(app, m) })
+}
+
+func processServiceReceiptWithSender(ctx context.Context, app *config.AppContext, orderID string, now time.Time, send func(*emails.Mail) error) (bool, error) {
 	// ComposeAndSendMail's MailOff path returns nil. Never consume a lease when
 	// mail is disabled, or that nil would falsely mark the receipt accepted.
 	if !serviceReceiptMailReady(app) {
@@ -63,10 +69,30 @@ func processServiceReceipt(ctx context.Context, app *config.AppContext, orderID 
 		return finish("cancelled", nil)
 	}
 	message, err := emails.ServiceReceiptMail(order, job.Recipient, app.Env.GetURI())
+	if err == nil && order.Quote.ProductCode == expedition.ProductCode {
+		var f expedition.Fulfillment
+		if json.Unmarshal(order.Quote.Fulfillment, &f) != nil || f.Version != 1 || f.ReservationID != order.Quote.ResourceID || f.Installment < 1 {
+			return finish("review", errors.New("invalid expedition receipt identity"))
+		}
+		booking, loadErr := getters.ExpeditionBookingForPerson(ctx, app, job.PersonID, f.ReservationID)
+		if loadErr != nil {
+			return finish("retry", loadErr)
+		}
+		if booking.State == "held" {
+			return finish("retry", errors.New("awaiting berth fulfillment"))
+		}
+		if booking.State != "confirmed" {
+			return finish("review", errors.New("booking not confirmed"))
+		}
+		if order.ExpeditionState == "pending" {
+			return finish("retry", errors.New("awaiting installment fulfillment"))
+		}
+		message, err = emails.AntarcticaBookingMail(order, booking, job.Recipient, app.Env.GetURI())
+	}
 	if err != nil {
 		return finish("review", err)
 	}
-	if err = emails.ComposeAndSendMail(app, message); err != nil {
+	if err = send(message); err != nil {
 		return finish("retry", errors.New("mailer did not confirm receipt acceptance"))
 	}
 	return finish("accepted", nil)

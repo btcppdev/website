@@ -21,15 +21,15 @@ identity system is needed.
 
 All prices are USD per person. Discounts are relative to the shared berth.
 
-| Berth | Total | Each 20% payment |
+| Berth | Total | First four payments |
 | --- | ---: | ---: |
-| Shared | $16,429 | $3,285.80 |
-| Three-person bunk | $15,599 | $3,119.80 |
-| Four-person bunk | $14,429 | $2,885.80 |
+| Shared | $16,700 | $3,340 |
+| Three-person cabin | $15,800 | $3,160 |
+| Four-person cabin | $14,900 | $2,980 |
 
 The confirmed standard fares above remain unchanged. Payment in full at signup
-receives 5% off only when paid with bitcoin: shared $15,607.55 (save $821.45),
-three-person $14,819.05 (save $779.95), and four-person $13,707.55 (save $721.45).
+receives 5% off only when paid with bitcoin: shared $15,865 (save $835),
+three-person $15,010 (save $790), and four-person $14,155 (save $745).
 Full payments through Stripe use the standard fare, with no discount or added
 surcharge. The organizer reports a 3% Stripe processing cost. The discount does
 not apply to installments.
@@ -37,7 +37,9 @@ Discounted totals are rounded to cents on the server and displayed consistently
 when switching berths. These are prototype displays; future checkout must enforce
 eligibility using the actual payment method and plan on the server.
 
-The payment plan is five equal payments: 20% on reservation, then January 1,
+These fares divide evenly into five payments; no rounding adjustment is needed.
+
+The payment plan is five payments of approximately 20%: 20% on reservation, then January 1,
 April 1, July 1, and October 1, 2027.
 
 On October 22, 2026, the organizer canceled the held-bitcoin plan entirely.
@@ -68,28 +70,28 @@ installment amount updates, and sponsorship rates, deck preview, and download.
 
 ## Parka sponsorship pricing proposal — September 30, 2026
 
-Organizer estimates approximately 30 attendees/parkas, with the garments featured
+Organizer estimates approximately 22 attendees/parkas, with the garments featured
 in expedition photos. Route, garment design, and whether attendees
 keep the parkas remain unconfirmed. These are proposed asking prices, not approved
 offers, guaranteed audience valuations, or live inventory.
 
 | Placement across all expedition parkas | Proposed USD price | Slots |
 | --- | ---: | ---: |
-| Upper arm | $4,000 | 2 |
-| Middle arm | $3,500 | 2 |
-| Lower arm | $3,000 | 2 |
-| Left chest | $7,000 | 1 |
-| Right front | $5,000 | 2 |
-| Large back | $21,000 | 1 |
+| Upper arm | $7,500 | 2 |
+| Middle arm | $6,000 | 2 |
+| Lower arm | $5,000 | 2 |
+| Left chest | $12,500 | 1 |
+| Right front | $10,000 | 2 |
+| Large back | $25,000 | 1 |
 
 The existing PowerPoint deck is the source for these updated proposed rates:
 10 placements, showing only the price per placement. Public decks and the website
 must not include revenue columns, fundraising totals, or aggregate package proceeds. The prototype now displays the deck's front/back placement diagram and
 these rates, with an inline image preview and a PowerPoint download at
-`/static/downloads/antarctica/parka-sponsorship.pptx`. This supersedes the earlier
+`/static/downloads/antarctica/btcpp-arctic-expedition-sponsor.pdf`. This supersedes the earlier
 four-placement proposal. Rates and placements remain proposed, not live inventory.
 
-Proposed package benefits: placement on approximately 30 parkas, linked website
+Proposed package benefits: placement on approximately 22 parkas, linked website
 acknowledgment, inclusion in a sponsor announcement and expedition recap, and an
 agreed selection of high-resolution photos licensed for sponsor promotional use.
 Confirm photographer/participant permissions and achievable deliverables before
@@ -123,16 +125,184 @@ Publication/reuse permission for these photographs has not been established.
 Confirm licensed promotional use with the supplier before public launch, particularly
 the stock-origin hiking photograph. Existing pricing remains the organizer's pricing.
 
-## Booking terms working draft — October 19, 2026
+## Booking terms working draft — updated October 23, 2026
+
+### Booking confirmation email — October 23, 2026
+
+The initial verified payment now uses the shared receipt queue to send an
+enthusiastic expedition welcome **only after berth fulfillment confirms the
+reservation**. Its absolute leading-image URL, booking and receipt links,
+insurance requirements, Argentina travel guidance, optional paid travel help via
+`inbox@btcpp.dev`, and future packing-list promise are in
+`internal/emails/antarctica_booking.go`. HTML and plain text share the same prose.
+Group buyers receive the email and are asked to share it with all passengers;
+there is no automatic delivery to unnamed fellow travelers yet.
+
+Delivery requires the existing `SERVICE_RECEIPTS_ENABLED=true`, mail
+configuration and `SERVICE_FULFILLMENT_ENABLED=true`. Mail-off does not consume
+jobs. Settlement alone queues the receipt; held bookings or unapplied installments
+retry, review bookings stop for review, and refunded orders do not receive a
+welcome. Later installments get expedition payment receipts without the welcome.
+The immutable order recipient and `service-receipt:<public order ID>` key preserve
+the shared system's leases, retry limits, deduplication and audited recovery.
+No new email store, newsletter signup or migration is introduced. Previously
+cancelled receipt jobs are not automatically resurrected.
+
+Local email preview (sample data, no sending):
+`http://127.0.0.1:8110/expeditions/antarctica/confirmation-preview`.
+This route exists only in the opt-in standalone demo test server.
+
+Travel guidance and sources checked October 23, 2026:
+
+- Arrive in Ushuaia by **January 23, 2028**, before January 24 embarkation.
+  [Oceanwide's Ushuaia guidance](https://oceanwide-expeditions.com/to-do/experiences/ushuaia)
+  recommends the preceding day and warns that the ship cannot wait for delays.
+- February 5 is scheduled disembarkation. **February 6 or later** is our
+  conservative recommended earliest return-flight date, not an operator-required
+  cutoff or guarantee against disruption. No departure-specific same-day flight
+  cutoff was verified. Ask Oceanwide before authorizing February 5 flights.
+- Check connecting airports in Buenos Aires:
+  [Ushuaia tourism's arrival information](https://turismoushuaia.com/contenidos/como-llegar/)
+  describes service from both Ezeiza and Aeroparque. The email does not promise
+  flight availability, fares, or a connection duration for 2028.
+- [Oceanwide insurance requirements](https://oceanwide-expeditions.com/faq/what-type-of-insurance-do-you-recommend-for-the-voyages)
+  provide the Antarctic evacuation/repatriation minimum. Traveler proof collection
+  and departure forms still need the onboarding workflow described below.
+
+The email is a reservation confirmation in our booking system, not an invented
+operator confirmation number, cabin assignment, boarding pass or proof of final
+payment for installment customers. Before launch, reconcile paid bookings with
+Oceanwide, confirm travel guidance, and verify the public image URL and monitored
+reply mailbox. The packing-list promise is copy; its later delivery is not yet
+automated. Paid travel help is offered by inquiry, with scope and fee quoted first.
 
 Status: internal proposal for organizer and legal review. Not customer terms and
 not authorization to open payments. Confirm the signed supplier/group agreement
 before setting cancellation promises. Public source checked October 19, 2026:
 https://oceanwide-expeditions.com/page/terms-and-conditions (section 6).
-The public trip listing separately states final payment 90 days before departure:
-https://www.adventure-life.com/antarctica/cruises/16115/antarctica-basecamp.
+The public trip listing previously gave a different final-payment deadline.
+Use the organizer-provided group correspondence below as the current working
+basis, subject to retaining the written agreement and confirming its departure
+date. Do not substitute a public listing's deadline for the group arrangement.
 
-### Confirmed commercial terms
+### Operator correspondence supplied October 23, 2026
+
+- Cabins are on a **Right of First Refusal** hold as of this week. Oceanwide may
+  request a cabin back when another passenger wants it. We have **24–48 hours**
+  to confirm with a deposit or release it; record the exact deadline in each notice.
+- Deposit: **20% per traveler as they book, non-refundable**, as described by
+  the operator. The correspondence does not establish exceptions, charges beyond
+  that deposit, or refunds when the operator cancels or cannot confirm a booking.
+- Final supplier payment: **70 days before departure**. If January 24, 2028 is
+  the contractual departure date, this is **November 15, 2027**. Confirm that the
+  deadline is based on that date and whether funds must be received by then.
+- Keep the existing customer installment dates, ending **October 1, 2027**.
+  This provides 45 days before the supplier deadline. No payment schedule or
+  automatic cancellation behavior is changed by this working draft.
+
+Operational implications before launch:
+
+- Operator holds are distinct from temporary checkout holds and paid bookings.
+  Reconcile each allocated cabin with the operator; remove released inventory
+  from sale without displacing existing paid passengers.
+- Assign an owner for recall notices, deposit remittance and operator confirmation.
+  Confirm whether booking one berth secures the whole cabin or only that berth.
+- Decide how checkout payment and operator confirmation are coordinated, including
+  the refund process if we collect payment but cannot confirm passage. Current
+  payment fulfillment does not itself prove operator confirmation.
+- Obtain the complete group cancellation schedule, traveler replacement rules,
+  missed-payment consequences and operator-cancellation provisions. The phrase
+  “non-refundable deposit” alone does not make every later payment non-refundable.
+- Decide the customer cancellation-charge basis explicitly: supplier net cost
+  versus the customer's agreed retail fare, including discounted bitcoin fares.
+  Do not activate a retail policy or change archived accepted terms from this note.
+
+### Supplier-source reconciliation — October 23, 2026
+
+The organizer confirmed we are booking **directly with Oceanwide**. Adventure
+Life is an itinerary/photography reference, not our booking intermediary. Its
+contract, payment deadline, forms and waiver requirements do not govern this
+direct booking. Use Oceanwide's written group agreement and applicable operator
+requirements as the supplier basis for our separate customer agreement.
+
+The operator's [departure schedule](https://oceanwide-expeditions.com/trips/dates-rates)
+identifies **OTL28-28**, Basecamp, January 24–February 5, 2028, 12 nights / 13 days,
+round-trip Ushuaia. The [vessel page](https://www.adventure-life.com/cruises/246/ortelius)
+identifies Oceanwide as operator. Vessel identity is internal reference information;
+continue omitting the name from public copy. Public availability is not our allocation.
+
+The updated draft at `/expeditions/antarctica/terms` adds insurance, voyage
+inclusions/exclusions, activity limits, traveler documents and a clearly labeled
+supplier cancellation schedule. It does not activate a legal-policy version,
+change payment fulfillment, or assert that customer terms are complete.
+
+Source and conflict register:
+
+| Source | Finding / action |
+| --- | --- |
+| [Adventure Life itinerary](https://www.adventure-life.com/antarctica/cruises/16115/antarctica-basecamp) | Generic example; 20% deposit, 90-day final balance. Keep our reported 70-day group arrangement pending written confirmation. Parkas excluded: resolve organizer-supplied garments before promising inclusion. Do not import its card surcharge, single-occupancy multiplier, or child discounts into our fares. |
+| [Oceanwide terms](https://oceanwide-expeditions.com/page/terms-and-conditions), §§3–6 | Standard balance is 60 days; written variations prevail. Public cancellation tiers remain the comparison table below, not approved retail policy. Review operator cancellation, delays and price-change remedies separately. |
+| [Exact departure](https://oceanwide-expeditions.com/antarctica/cruises/otl28-28-basecamp) | Basis for draft inclusions and activity limits. Its Basecamp overview says onboard signups, while embedded activity FAQs mention advance reservations. Obtain departure-specific registration instructions; promise neither guaranteed outings nor no prebooking. |
+| [Insurance FAQ](https://oceanwide-expeditions.com/faq/what-type-of-insurance-do-you-recommend-for-the-voyages) | Antarctica evacuation/repatriation minimum: EUR/USD 100,000 per person. Require destination/activity coverage; establish proof collection and verification. Insurance is not currently sold by our checkout. |
+| [Adventure Life contract and release](https://www.adventure-life.com/forms/terms-conditions) | Not applicable to this direct Oceanwide booking. Do not require its signatures, medical age threshold, release or invoice rules. Obtain the actual Oceanwide traveler forms and deadlines instead. |
+
+Remaining contract and implementation work:
+
+1. Obtain the direct Oceanwide invoice/group agreement. Archive applicable terms and departure documents
+   with an effective date; links to changing websites alone are not the accepted
+   customer contract.
+2. Reconcile supplier remedies for operator cancellation, minimum enrollment,
+   force majeure, itinerary changes, delays and surcharges with the retail policy.
+   Do not add blanket no-refund language or pass through supplier penalties
+   automatically. Have the final customer agreement reviewed for our selling entity.
+3. Define the cancellation receipt address/timezone, refunds and processing times,
+   replacement travelers, missed payments and the discounted bitcoin refund basis.
+4. Add a per-traveler onboarding workflow for documents, operator forms and
+   insurance proof. Define secure handling, recipients, retention and deadlines.
+   Booking acceptance by one payer does not complete other adults' forms.
+5. Keep organizer programming, parkas and merchandise distinct from voyage
+   inclusions. Resolve delivery and garment suitability. Port/service charges in
+   the cruise package do not establish a tax exemption for our retail sale.
+6. Do not copy Adventure Life's Montana arbitration, photo release, liability
+   waiver or later-term-update provisions into bitcoin++ terms. Similarly, do not
+   transplant the operator's jurisdiction clause. Determine applicable agreements
+   and use reviewed provisions for our own entity. Obtain separate participant
+   permissions for sponsor photography; other businesses' photo rights are not ours.
+
+### Guest cancellation decisions — October 23, 2026
+
+- Organizer confirmed guest final payment and last cancellation day:
+  **October 1, 2027**. The existing installment schedule already ends that day.
+- **No passenger substitutions**. This is the current policy, even if the operator
+  could permit a replacement. Any later relaxation must be explicitly adopted.
+- Refund/charge percentages before and after the deadline remain unconfirmed.
+  Asked whether to retain 20% through October 1 and 100% from October 2. Do not
+  implement that proposal without the organizer's answer. Confirm cutoff timezone
+  and written-notice channel; do not silently change installment timestamps.
+- Retain supplier cancellation tiers below only as an internal cost comparison.
+  The guest deadline does not change the November 15 supplier balance deadline.
+
+### Verified traveler forms — October 23, 2026
+
+Oceanwide's [health FAQ](https://oceanwide-expeditions.com/faq/do-i-have-to-be-completely-healthy-in-order-to-join-the-expedition)
+requires a Personal Information Form (PIF) within one month of booking.
+Its [privacy policy](https://oceanwide-expeditions.com/page/privacy-policy)
+identifies passport, emergency-contact and medical information in the PIF.
+The [booking-document FAQ](https://oceanwide-expeditions.com/faq/what-kind-of-documents-will-i-receive-when-i-book-an-expedition)
+includes boot sizing and activity forms where applicable. Obtain the current
+packet rather than reuse an old third-party PDF. Insurance details are requested
+post-booking; confirm the submission deadline and acceptable proof with Oceanwide.
+
+[Oceanwide's partner portal](https://oceanwide-expeditions.com/page/sales-info)
+can generate passenger-specific digital PIFs, including in bulk. Request access
+or ask our Oceanwide contact to generate each guest's link. Prefer submitting
+medical/passport details directly there and tracking completion in our booking
+workflow. Do not invent a general form URL or require guests to email health
+records to inbox@btcpp.dev. Confirm the exact activity forms/waivers and whether
+any individual requires medical clearance; no universal physician certificate
+for this Basecamp departure has been verified.
+
+### Organizer commercial terms
 
 Dates and fares remain as above. Only full payment in bitcoin at signup qualifies
 for 5% off. Stripe payments use the standard fare; no processing surcharge has
@@ -157,7 +327,7 @@ unavailable berths. Database `capacity` is this public allocation, including
 already-confirmed public bookings; it is **not** a remaining-availability count.
 The store subtracts active holds and confirmed bookings itself. Do not subtract
 those bookings a second time when configuring capacity. Sponsor placement counts
-and the approximately 30 parkas are not evidence of passenger capacity.
+and the approximately 22 parkas are not evidence of passenger capacity.
 
 Before configuring inventory, confirm:
 
@@ -220,7 +390,7 @@ Recommended customer-policy basis for review: calculate cancellation charges on
 the customer's agreed fare, including any full-payment discount, and disclose the
 result before payment. Refund payments received minus the applicable charge,
 never below zero; separately define whether any unpaid cancellation liability is
-collectible. Decide treatment of re-sold berths, substitutions, and supplier fees.
+collectible. Decide treatment of re-sold berths and supplier fees. Passenger substitutions are currently prohibited by the organizer.
 
 ### Payment administration proposals — not approved
 
@@ -239,7 +409,7 @@ collectible. Decide treatment of re-sold berths, substitutions, and supplier fee
 1. Contracting business name/address, booking contact, supplier role, and when a
    reservation becomes binding. Collect these rather than inventing placeholders.
 2. Actual berth allocation and roommate matching; individual versus whole-cabin
-   bookings; substitutions and the effect of a roommate cancellation.
+   bookings and the effect of a roommate cancellation; substitutions are currently prohibited.
 3. Final inclusions/exclusions and all-in charges. Confirm the parka is our own
    inclusion or separately supplied, not assumed from the cruise listing.
 4. Organizer cancellation, minimum enrollment, material changes, weather changes,
@@ -322,7 +492,7 @@ Implemented on the isolated `antartica` branch in `internal/expedition`:
   drop out; overdue balances remain visible for reconciliation. There is no
   automatic delinquency cancellation.
 
-Migration `132_expedition_reservations.sql` intentionally seeds **no inventory**.
+Migration `135_expedition_reservations.sql` intentionally seeds **no inventory**.
 It now follows master’s purchase-invoice migration 131. It creates product-owned tables only, with opaque shared customer
 and order IDs, and no dependency on email schema or copied financial ledger.
 The migration has been exercised in disposable test schemas, not the application
@@ -566,3 +736,291 @@ Still required before opening sales:
 
 The earlier notes saying multi-cabin atomic reservation and the basic shared
 purchase bridge were pending are historical; those backend pieces are now done.
+
+
+### Booking terms and customer booking view (October 23, 2026)
+
+- Checkout displays an unchecked policy agreement using the current shared legal
+  revision. Without an activated policy it displays only a draft-review checkbox;
+  that field cannot stand in for accepted terms. Payments remain disabled.
+- `/expeditions/antarctica/terms` renders the active archived terms/privacy text,
+  or a clearly labeled draft outline when no approved revision exists.
+- `/expeditions/bookings/{reservation UUID}` requires the authenticated buyer.
+  It uses saved reservation prices and shared order evidence, never today's fares.
+  It lists cabin arrangements, passage payments applied, outstanding scheduled
+  passage, and each order's exact accepted terms and privacy snapshot.
+- Purchase history and expedition order receipts link to this booking view.
+  Receipt quantity no longer implies one passenger for a group installment, and
+  expedition dates replace subscription access dates.
+- Refunds flag the booking for review; scheduled passage balances are not a
+  refund settlement. Taxes and merchandise remain on individual receipts.
+- Local demo `/?booking=1` shows a prominently labeled synthetic booking. It
+  creates neither a reservation nor payments nor acceptance evidence.
+- Still required: approved policy activation, authenticated checkout submission
+  with explicit agreement/CSRF validation, provider sandbox tests, traveler-name
+  assignment, and issuing later-installment payment links. Existing order links
+  use the shared order/payment page; the booking view does not generate charges.
+
+
+### Post-launch backlog
+
+- [ ] Add ACH Direct Debit through Stripe-hosted Checkout alongside cards.
+  Keep a single Stripe choice on the expedition page; once ACH is enabled and
+  tested, rename it to **Pay with fiat**, with **Card or US bank account via
+  Stripe** as supporting text. Stripe presents eligible payment methods and
+  handles bank verification and debit authorization.
+- [ ] Before enabling ACH, implement and test pending bank-payment reservations:
+  retain berths while processing, confirm only on verified successful payment,
+  and handle failures, returns, disputes and duplicate/delayed webhooks. Define
+  the pending-hold timeout and release policy so unpaid inventory cannot remain
+  blocked indefinitely. Verify both full-payment and finite-installment flows.
+- [ ] Check Stripe account eligibility, transaction limits and actual fees;
+  configure and test permitted methods for expedition checkout without changing
+  other products. Keep standard fares for fiat; the 5% full-payment discount
+  remains bitcoin-only.
+
+These are deferred until after launch. The current checkout keeps its Card and
+Bitcoin choices; no ACH activation or payment-label change is part of launch.
+Reference: https://docs.stripe.com/payments/payment-methods/dynamic-payment-methods
+
+### Real checkout wiring (October 23, 2026)
+
+- `/expeditions/antarctica/checkout` now authenticates with the shared bitcoin++
+  identity, validates CSRF and current terms, prices the party on the server,
+  atomically holds berths, calculates tax, and creates the shared purchase.
+  The resulting order page starts Stripe card or OpenNode payment. Existing
+  verified callbacks and durable fulfillment confirm the reservation; redirects
+  never do. Purchase history links to the booking and saved installment schedule.
+- Reloads resume the same order. Retries reuse the reservation and provider
+  attempt. Financial and legal snapshots cannot be replaced by a retry.
+- Newsletter signup is removed. Real checkout currently sells passage only;
+  hats remain in the design preview pending stock, tax and fulfillment wiring.
+- Sales remain closed by default. Opening requires **all** of:
+  `ANTARCTICA_CHECKOUT_ENABLED=true`, `ANTARCTICA_STRIPE_TAX_CODE` set to a
+  reviewed Stripe tax code, and `ANTARCTICA_TAX_MODE=billing-inclusive` only if
+  that tax location/treatment has been approved for this voyage. There is no
+  default tax exemption or assumption that Texas is the place of supply. A
+  different required tax treatment needs implementation before enabling sales.
+  Stripe credentials are required for tax calculations even for bitcoin.
+- Also required: an active approved shared legal policy, configured category
+  inventory and sales cutoffs, provider credentials/webhooks, and running shared
+  fulfillment/tax workers. Use a 3600-second inventory hold for card checkout;
+  Stripe requires at least 30 minutes remaining when creating its session.
+  Tax/order expiry is capped at 45 minutes and never exceeds the reservation.
+- Automated HTTP tests use a disposable PostgreSQL database and fake Stripe API:
+  authentication, CSRF, stale/missing terms, price tampering, durable retries,
+  reload recovery, card handoff, and no confirmation from redirects. These are
+  not a substitute for an actual provider sandbox payment and webhook exercise.
+- Still needed before launch: tax/terms approval, production inventory/staff
+  settings, provider sandbox end-to-end acceptance, traveler details, and issuing
+  later installment orders/reminders. Installments are finite scheduled payments,
+  not an automatically charging Stripe subscription.
+
+### Sold-out waitlist
+
+- The landing CTA becomes **Join the waitlist** when live inventory is exhausted.
+  Sold-out checkout replaces booking controls with a waitlist link. Inventory
+  errors return an error rather than pretending the expedition is sold out.
+- `/expeditions/antarctica/waitlist` uses the purchaser's verified bitcoin++
+  account email, records the Join action as availability-email consent and validates CSRF, and offers
+  a leave action. It does not subscribe anyone to the newsletter or hold a berth.
+- Migration `140_expedition_waitlist.sql` stores the request against the shared
+  email contact. Duplicate joins preserve the notification key and sent state.
+- The optional worker sends one availability alert per signup via the existing
+  mailer, with a stable job key for retry deduplication. It checks remaining spots,
+  category sales/cutoffs, active booking terms, checkout configuration and mail
+  availability. Deleted/unverified email contacts and withdrawn requests are skipped.
+- Enable `ANTARCTICA_WAITLIST_NOTIFICATIONS_ENABLED=true` with mail delivery when
+  launching. No messages are sent by the local demo or automated tests. The worker
+  checks once per minute; availability is not a guarantee or priority reservation.
+- Local sold-out preview: `http://127.0.0.1:8110/?checkout=1&soldout=1`.
+
+### Three-slide sponsorship deck
+
+The sponsorship PDF and editable PowerPoint now include a landing-inspired cover,
+a photo-led expedition slide, and placement pricing with sponsor@btcpp.dev.
+The pricing preview on the site remains the third slide. All per-placement prices
+and the approximately 22 parka count are preserved; no total fundraising figures.
+
+Photo source: Adventure Life Antarctica Basecamp trip page:
+https://www.adventure-life.com/antarctica/cruises/16115/antarctica-basecamp
+The images are source-trip photography, not our participants; the photo slide
+identifies this and credits Adventure Life. The cover uses the existing leading.png
+concept illustration; the brand mark is preserved from the supplied source deck.
+
+### Bitcoin-only launch checkout — October 23, 2026
+
+The checkout UI offers Bitcoin only, for both installments and full payment.
+Full payment in Bitcoin retains the 5% discount. Saved checkout selections
+restore to Bitcoin. `ANTARCTICA_STRIPE_CHECKOUT_ENABLED` defaults to false;
+leave it unset or false for launch. The server rejects Stripe booking requests,
+blocks payment on existing Stripe expedition orders, and guards the Stripe
+handoff itself. Verified settlement callbacks remain intact for reconciliation.
+Stripe Tax is still required for billing-inclusive tax calculations, including
+Bitcoin purchases; disabling card checkout does not remove that dependency.
+This does not enable sales, alter other products, or expire previously issued
+provider checkout sessions. Any already-issued Stripe sessions must be audited
+and expired at the provider before a production cutover.
+
+### Installment reminders and abandonment — October 23, 2026
+
+Implemented locally; production activation is still off. Confirmed bookings that
+remain unpaid become **abandoned / forfeited**, release their berths and retain all
+payments. Guest-requested cancellation is a separate outcome. An initial checkout
+hold that never receives its deposit expires; it is not an abandoned booking.
+
+Deadlines use **America/Chicago, end of the due date**. Reminders run at 9am local
+time 14 days before, 4 days before, on the due date, and every other day overdue
+through day 28. Abandonment happens at the deadline plus 30 local calendar days.
+For example, a January 1 installment is due through January 1 at 11:59:59pm CST;
+abandonment becomes eligible February 1 at midnight CST. DST uses calendar days.
+After downtime, only the latest applicable reminder is queued, avoiding a burst
+of obsolete reminders. The worker runs once per minute, so these are eligibility
+times, not guaranteed exact delivery times.
+
+Migration `141_expedition_installment_lifecycle.sql` adds policy registration,
+durable events, delivery jobs, provider observations and inventory release state.
+No policy is registered automatically. Only bookings whose initially accepted
+legal revision is explicitly registered in `expedition_lifecycle_policies` enter
+this lifecycle. Do not register a revision that lacks the agreed rule or apply new
+terms retroactively. Publish and review the final terms before activation, then
+register that exact revision with `time_zone = 'America/Chicago'` and enable
+`ANTARCTICA_INSTALLMENT_LIFECYCLE_ENABLED=true` with working transactional email.
+The draft terms page is not a published shared-commerce legal revision.
+
+Later installments open 14 days before their due date. The authenticated booking
+page and reminder link lead to a fresh tax/address/terms review and Bitcoin payment.
+Expired quotes can be replaced while preserving previous order/payment history;
+active, paid or unresolved attempts prevent competing invoices. Installments are
+finite payments, never automatic account debits.
+
+Before reminders or forfeiture, the worker reconciles outstanding provider
+attempts. Pending, partial, unknown and ambiguous payments block action for review.
+Paid-but-not-yet-fulfilled orders also block forfeiture. Inventory release, the
+audit event and both notification jobs commit together. Late payments received
+against an already abandoned booking require review and never restore its berths.
+A settlement recorded at or after the cutoff also requires review if the worker
+has not yet run; those berths stay held pending reconciliation. A payment recorded
+before the cutoff is not treated as late merely because fulfillment was delayed.
+Customer and `inbox@btcpp.dev` notices retry independently with stable job keys;
+a failed email cannot release inventory twice. After 12 delivery attempts the job
+moves to review. Worker errors and delivery jobs in review require operator action.
+Mail being disabled prevents lifecycle processing.
+
+Global admins can inspect `/expeditions/admin/bookings/{booking-id}` for event
+snapshots and delivery status. The staff email includes purchaser identity,
+released allocations, retained payment evidence, policy version and audit link.
+Inspect `expedition_lifecycle_mail` for pending/review jobs and worker logs for
+unresolved provider reconciliation. Keep the activation flag off until production
+migration, policy registration, mail delivery and provider checks are verified.
+Voluntary cancellation refund rules still need a separate final decision.
+
+Real email-template previews (no database or delivery):
+`http://127.0.0.1:8110/expeditions/antarctica/installment-preview`.
+Use the links above the preview for all reminder stages and both forfeiture notices.
+This replaces the earlier static concept in `outputs/antarctica-reminder-preview`.
+
+### New-email checkout handoff — October 23, 2026
+
+A verified email session without a person record now goes to `/dashboard/profile`
+with `/expeditions/antarctica/checkout` preserved as `next`. This uses the existing
+validated-session-email check, matching OAuth onboarding, since `auth.Resolve`
+returns nil before profile creation. Existing profile creation upgrades the session
+and returns to checkout; form validation errors retain the destination. Anonymous
+customers still go to login, and pending profiles cannot POST a purchase.
+Targeted redirect tests and the isolated-Postgres pending-email onboarding test pass.
+The existing profile requirements still apply; the demo checkout does not simulate
+login, profile creation, or outgoing email.
+
+### Launch rehearsal — October 23, 2026
+
+Extended `TestAntarcticaCheckoutHTTPPostgres` to cover Bitcoin full payment and
+Bitcoin installments with Stripe checkout disabled, retaining a separate card
+regression case. The Bitcoin cases exercise real HTTP handlers, an isolated
+PostgreSQL database and local fake OpenNode/Stripe APIs. Verified:
+
+- One twin full-payment charge is $15,865 (5% off $16,700); installment signup is
+  $3,340 with a five-payment schedule. Inclusive tax evidence is retained.
+- Authentication, CSRF, accepted/current terms and server pricing checks reject
+  invalid submissions before inventory is held. Order retries and checkout reloads
+  resume the same purchase; repeated payment clicks create one provider invoice.
+- Invalid callback signatures fail. A signed callback claiming paid does not
+  confirm a booking when the authenticated provider lookup still reports unpaid.
+- Repeated paid callbacks produce one payment event. Tax finalization and the
+  shared fulfillment worker produce the confirmed booking and payment schedule.
+- The authenticated booking page renders; the shared receipt job composes the
+  expedition welcome and January 24 calendar attachment for the purchaser.
+  The test captures the message instead of contacting a mail service.
+- The separate `TestPendingEmailDashboardOnboardingPostgres` passes verified-email
+  onboarding, profile setup and preserved return-to-checkout behavior.
+
+All four affected package suites passed with the isolated database. This is an
+HTTP/database integration rehearsal, not evidence of actual provider settlement,
+email inbox delivery, or a browser walkthrough of provider-hosted checkout.
+The current workspace has no `.env`/`.env.local` or inherited OpenNode/Stripe
+credentials configured for that external rehearsal. Obtain a non-production
+configuration before testing those external boundaries.
+
+Deployment must enable `SERVICE_FULFILLMENT_ENABLED=true` and
+`SERVICE_RECEIPTS_ENABLED=true` with working mail configuration, in addition to
+checkout, lifecycle and waitlist settings. Payment callbacks alone do not confirm
+expedition berths: the durable fulfillment worker performs that transition.
+
+Read-only comparison with the alerts checkout found receipt branding commit
+`f0c031ba` (shared receipt HTML, wordmark asset and printable invoice styling) not
+integrated into this branch. Reconcile it before final receipt visual acceptance;
+no changes were made to the alerts workspace or its uncommitted files.
+
+
+### Master integration and one-cent beta — October 23, 2026
+
+Merged `origin/master` through `fa09a7ab` into `antartica`, including the current
+shared receipt/invoice branding, billing layouts and payment-status fixes. The
+other alerts worktree's uncommitted changes were not imported or modified.
+
+Expedition migrations are now 135–141. 132 belongs to master site features;
+133–134 are left available for the in-progress alerts migrations. New migration
+142 records the one-use beta claim. Test references were updated with filenames.
+The real migration runner passed an empty-database master installation, expedition
+upgrade (eight new migrations), and an idempotent second run. If a development
+DB already applied the old expedition migration numbers, use a fresh development
+DB for this branch; do not rewrite a live migration ledger or replay table creates.
+No production database or migration ledger was changed.
+
+A single $0.01 USD full-payment Bitcoin booking is automatically available to
+an account with verified `nifty@btcpp.dev` email. No account-discount deployment
+flag is required. The expedition is unlisted, not access-restricted: anyone with
+the link may register and purchase at the normal fares.
+All normal checkout gates, published terms, tax calculation, inventory allocation,
+provider verification, fulfillment and receipts still apply. Other accounts keep
+standard fares. Neither an email address nor a custom price is accepted from the
+checkout request. The fixed email is checked again inside the reservation
+transaction; a globally unique beta claim prevents concurrent or subsequent
+second discounted bookings. Retries use the original reservation. The schedule
+and payment description identify the private beta purchase, with no later balance.
+The claim remains consumed after payment, refund or expiry; it is not a coupon
+that can be reused. A failed/expired test requiring a new reservation needs an
+explicit operator decision. No live payment has been made, and provider acceptance
+of a one-cent charge is still to be rehearsed. Use Lightning for the tiny payment;
+do not assume the existing on-chain refund workflow can conveniently return it.
+
+Refund/cancellation inspection: `/expeditions/admin/bookings/{booking-id}` is
+read-only. `/admin/service-refunds` reviews existing refund/access/tax records;
+`/admin/service-closure` reviews and verifies manual on-chain wallet payouts for
+prepaid-service closure. They are not an expedition cancellation/refund action.
+There is currently no admin button that cancels a trip, releases its allocation,
+and sends a Bitcoin refund. The existing verified payout recorder never initiates
+wallet transfers, and Lightning refund recording is not implemented. A trip
+cancellation and Lightning refund workflow remains necessary before rehearsing
+the complete one-cent cancellation/refund journey. Do not mark a trip refunded
+without verified payout evidence or treat abandonment/forfeiture as a refund.
+
+### Approved guest cancellation policy — October 23, 2026
+
+This decision supersedes earlier draft cancellation discussions in this document.
+
+Cancellation requests received before 12:00 a.m. on October 1, 2027, in America/Chicago time are eligible for a refund of passage payments received, less the initial 20% deposit, which is non-refundable. No refund is available for guest cancellations received at or after that cutoff. Send cancellation requests to inbox@btcpp.dev. Passenger substitutions are not permitted.
+
+Bitcoin payments are valued in USD at their value on the day each payment was received. Refund entitlement is calculated from those recorded USD amounts, less the non-refundable deposit. A refund paid in Bitcoin is converted from the refundable USD amount at the exchange rate when the refund is sent; the number of satoshis returned may differ from the number originally paid.
+
+Final guest payment remains due at the end of October 1, 2027, Texas time; this is distinct from the start-of-day refund cutoff. These terms describe voluntary cancellation, not overdue abandonment. Customer policy activation and the administrative cancellation/refund execution remain separate deployment requirements.

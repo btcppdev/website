@@ -187,3 +187,18 @@ func TestFormatTZOffset(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderAllDayExclusiveEnd(t *testing.T) {
+	e := Event{Method: MethodPublish, UID: "trip@example.test", AllDay: true,
+		Start: time.Date(2028, 1, 24, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2028, 2, 6, 0, 0, 0, 0, time.UTC), TZ: time.FixedZone("Argentina", -3*3600)}
+	got := string(Render(e))
+	for _, want := range []string{"DTSTART;VALUE=DATE:20280124\r\n", "DTEND;VALUE=DATE:20280206\r\n", "METHOD:PUBLISH\r\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if strings.Contains(got, "TZID") || strings.Contains(got, "VTIMEZONE") {
+		t.Fatal("all-day dates must not shift by timezone")
+	}
+}

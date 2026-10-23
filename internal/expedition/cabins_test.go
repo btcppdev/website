@@ -34,7 +34,7 @@ func TestCabinGroups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.CabinID == a.CabinID || g.CabinID == b.CabinID || g.Quantity != 2 || g.Schedule.TotalCents != 3121510 {
+	if g.CabinID == a.CabinID || g.CabinID == b.CabinID || g.Quantity != 2 || g.Schedule.TotalCents != 3173000 {
 		t.Fatal("group split or mispriced", g)
 	}
 	if _, err = book("coed", 3); !errors.Is(err, ErrInvalid) {

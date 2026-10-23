@@ -33,7 +33,7 @@ type Attendee struct {
 
 // Event is the inputs for one VEVENT inside a VCALENDAR. UID and
 // Sequence come from CalNotif; the rest is per-talk / per-shift
-// content. End is required (no all-day support); TZ may be nil
+// content. End is required and exclusive for all-day events; TZ may be nil
 // (renders in UTC with Z-suffix and no VTIMEZONE block).
 type Event struct {
 	Method string // MethodRequest or MethodCancel
@@ -47,9 +47,11 @@ type Event struct {
 	Description string
 	Location    string
 
-	Start time.Time
-	End   time.Time
-	TZ    *time.Location
+	// AllDay emits DATE values using Start/End calendar dates, without a timezone.
+	AllDay bool
+	Start  time.Time
+	End    time.Time
+	TZ     *time.Location
 
 	// Organizer is the mailbox shown as the meeting organizer in
 	// the recipient's calendar. RFC-5545 metadata; doesn't affect
@@ -86,7 +88,7 @@ func Render(e Event) []byte {
 	writeLine(&b, "METHOD:"+method)
 
 	tzID := ""
-	if e.TZ != nil {
+	if e.TZ != nil && !e.AllDay {
 		tzID = e.TZ.String()
 		writeVTimezone(&b, e.TZ, e.Start)
 	}
@@ -94,7 +96,10 @@ func Render(e Event) []byte {
 	writeLine(&b, "BEGIN:VEVENT")
 	writeLine(&b, "UID:"+e.UID)
 	writeLine(&b, "DTSTAMP:"+formatUTC(time.Now()))
-	if tzID != "" {
+	if e.AllDay {
+		writeLine(&b, "DTSTART;VALUE=DATE:"+e.Start.Format("20060102"))
+		writeLine(&b, "DTEND;VALUE=DATE:"+e.End.Format("20060102"))
+	} else if tzID != "" {
 		writeLine(&b, "DTSTART;TZID="+tzID+":"+formatLocal(e.Start, e.TZ))
 		writeLine(&b, "DTEND;TZID="+tzID+":"+formatLocal(e.End, e.TZ))
 	} else {

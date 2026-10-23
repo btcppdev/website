@@ -1223,6 +1223,13 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/services/quotes/{quote}/confirm", func(w http.ResponseWriter, r *http.Request) {
 		ServiceQuoteConfirm(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/expeditions/bookings/{booking}", func(w http.ResponseWriter, r *http.Request) { ExpeditionBooking(w, r, app) }).Methods("GET")
+	r.HandleFunc("/expeditions/bookings/{booking}/installments/{number}", func(w http.ResponseWriter, r *http.Request) { ExpeditionInstallment(w, r, app) }).Methods("GET", "POST")
+	r.HandleFunc("/expeditions/admin/bookings/{booking}", func(w http.ResponseWriter, r *http.Request) { ExpeditionBookingAudit(w, r, app) }).Methods("GET")
+	r.HandleFunc("/antarctica", func(w http.ResponseWriter, r *http.Request) { AntarcticaLanding(w, r, app) }).Methods("GET")
+	r.HandleFunc("/expeditions/antarctica/checkout", func(w http.ResponseWriter, r *http.Request) { AntarcticaCheckout(w, r, app) }).Methods("GET", "POST")
+	r.HandleFunc("/expeditions/antarctica/waitlist", func(w http.ResponseWriter, r *http.Request) { AntarcticaWaitlist(w, r, app) }).Methods("GET", "POST")
+	r.HandleFunc("/expeditions/antarctica/terms", func(w http.ResponseWriter, r *http.Request) { AntarcticaTerms(w, r, app) }).Methods("GET")
 	r.HandleFunc("/services/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
 		ServiceOrder(w, r, app)
 	}).Methods("GET")
@@ -4782,7 +4789,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 
 	if conf.Tag == "antarctica" || conf.Tag == "antarctica27" {
 		if r.URL.Query().Get("checkout") == "1" {
-			renderAntarcticaCheckout(w, ctx, newAntarcticaPage(conf, false))
+			AntarcticaCheckout(w, r, ctx)
 			return
 		}
 		renderAntarcticaConference(w, ctx, conf)

@@ -47,32 +47,35 @@ func testStore(t *testing.T, capacity int) (*Store, *time.Time) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	sql, err := os.ReadFile("../../db/migrations/132_expedition_reservations.sql")
+	sql, err := os.ReadFile("../../db/migrations/135_expedition_reservations.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, string(sql)); err != nil {
 		t.Fatal(err)
 	}
-	sql, err = os.ReadFile("../../db/migrations/133_expedition_cabins.sql")
+	sql, err = os.ReadFile("../../db/migrations/136_expedition_cabins.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, string(sql)); err != nil {
 		t.Fatal(err)
 	}
-	sql, err = os.ReadFile("../../db/migrations/134_expedition_staff_reserve.sql")
+	sql, err = os.ReadFile("../../db/migrations/137_expedition_staff_reserve.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, string(sql)); err != nil {
 		t.Fatal(err)
 	}
-	sql, err = os.ReadFile("../../db/migrations/135_expedition_party_allocations.sql")
+	sql, err = os.ReadFile("../../db/migrations/138_expedition_party_allocations.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, string(sql)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `ALTER TABLE expedition_reservations ADD COLUMN released_at timestamptz`); err != nil {
 		t.Fatal(err)
 	}
 	_, err = pool.Exec(ctx, `INSERT INTO expedition_inventory(berth,capacity,sales_open,booking_closes_at,hold_seconds) VALUES('shared',$1,true,'2028-01-01',900),('quad',$1,false,'2028-01-01',900)`, capacity)

@@ -27,7 +27,7 @@ func TestPartyReservationAtomic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Quantity != 3 || r.Schedule.TotalCents != 4728700 {
+	if r.Quantity != 3 || r.Schedule.TotalCents != 4830000 {
 		t.Fatal(r)
 	}
 	retry, err := s.ReserveParty(ctx, "buyer", key, Full, Stripe, 3, selection)

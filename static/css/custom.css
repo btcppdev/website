@@ -16364,3 +16364,14 @@ button.organization-review-action.is-secondary {
 .account-settings-page .person-emails-page .dashboard-subscription-card .profile-edit-section__body {
 	padding-bottom: 24px;
 }
+/* Account expedition summaries stay visible above paginated payment history. */
+.dashboard-expeditions { margin: 28px 0; }
+.dashboard-expedition-card { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:24px; margin:16px 0; border:1px solid var(--border-color, #d4d4d4); border-radius:12px; }
+.dashboard-expedition-card__details { min-width:0; }
+.dashboard-expedition-card h3 { margin:0 0 8px; font-size:1.2rem; }
+.dashboard-expedition-card p { margin:8px 0; }
+.dashboard-expedition-card__totals { display:flex; flex-wrap:wrap; gap:16px 32px; margin:16px 0; }
+.dashboard-expedition-card__totals dt { font-size:.85rem; }
+.dashboard-expedition-card__totals dd { margin:4px 0 0; font-weight:700; }
+.dashboard-expedition-card__link { flex-shrink:0; font-weight:700; white-space:nowrap; }
+@media(max-width:640px) { .dashboard-expedition-card { align-items:flex-start; flex-direction:column; padding:20px; gap:12px; } }

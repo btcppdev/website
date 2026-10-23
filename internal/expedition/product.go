@@ -32,9 +32,9 @@ type Fare struct {
 
 func Fares() []Fare {
 	return []Fare{
-		{"shared", "Two-person cabin", "Share a twin cabin. Nine cabins, two berths each.", 1642900},
-		{"triple", "Three-person bunk", "Share three ways. Save $830 per person.", 1559900},
-		{"quad", "Four-person bunk", "A little closer together. Save $2,000 per person.", 1442900},
+		{"shared", "Two-person cabin", "Share a twin cabin. Nine cabins, two berths each.", 1670000},
+		{"triple", "Three-person cabin", "Share three ways. Save $900 per person.", 1580000},
+		{"quad", "Four-person cabin", "A little closer together. Save $1,800 per person.", 1490000},
 	}
 }
 
@@ -47,6 +47,7 @@ type Installment struct {
 }
 
 type Schedule struct {
+	BetaTrial     bool             `json:"beta_trial,omitempty"`
 	Selections    []CabinSelection `json:"selections,omitempty"`
 	Quantity      int              `json:"quantity"`
 	Version       int              `json:"version"`

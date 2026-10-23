@@ -1,12 +1,20 @@
 package handlers
 
 import (
+	"btcpp-web/external/getters"
+	"btcpp-web/internal/emaildirectory"
+	"btcpp-web/internal/emails"
+	"btcpp-web/internal/expedition"
 	"bytes"
+	"github.com/alexedwards/scs/v2"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -15,11 +23,11 @@ import (
 func TestAntarcticaFares(t *testing.T) {
 	page := newAntarcticaPage(nil, true)
 	want := [][2]string{
-		{"$16,429", "$3,285.80"},
-		{"$15,599", "$3,119.80"},
-		{"$14,429", "$2,885.80"},
+		{"$16,700", "$3,340"},
+		{"$15,800", "$3,160"},
+		{"$14,900", "$2,980"},
 	}
-	wantFull := [][2]string{{"$15,607.55", "$821.45"}, {"$14,819.05", "$779.95"}, {"$13,707.55", "$721.45"}}
+	wantFull := [][2]string{{"$15,865", "$835"}, {"$15,010", "$790"}, {"$14,155", "$745"}}
 	for i, berth := range page.Berths {
 		if full := [2]string{berth.PayInFull, berth.PayInFullSavings}; full != wantFull[i] {
 			t.Errorf("%s pay in full: got %v, want %v", berth.ID, full, wantFull[i])
@@ -54,12 +62,12 @@ func TestAntarcticaTemplate(t *testing.T) {
 	if err := app.TemplateCache.ExecuteTemplate(&out, "conf/antarctica.tmpl", newAntarcticaPage(nil, true)); err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"Private design preview", "Reservations are not open", "$16,429", "$15,599", "$14,429", "No deposit or payment is collected", "January 1, 2027", "April 1, 2027", "July 1, 2027", "October 1, 2027", "Pay in full with bitcoin", "Pay in full via Stripe"} {
+	for _, required := range []string{"Early access", "Reservations are now open", "$16,700", "$15,800", "$14,900", "https://btcpp.dev/static/img/antarctica/social-card.png", "summary_large_image", "January 1, 2027", "April 1, 2027", "July 1, 2027", "October 1, 2027", "Pay in full with bitcoin", "Standard passage fare"} {
 		if !strings.Contains(out.String(), required) {
 			t.Errorf("missing %q", required)
 		}
 	}
-	for _, removed := range []string{"bitcoin-explorer", "Stay in bitcoin", "December 1, 2026", "data-held", "Settle before sailing"} {
+	for _, removed := range []string{"bitcoin-explorer", "Stay in bitcoin", "December 1, 2026", "data-held", "Settle before sailing", "Reservations opening soon", "Booking information preview", "Review draft terms", "Reservations remain closed"} {
 		if strings.Contains(out.String(), removed) {
 			t.Errorf("removed payment plan still present: %q", removed)
 		}
@@ -73,13 +81,13 @@ func TestAntarcticaCheckout(t *testing.T) {
 	if err := app.TemplateCache.ExecuteTemplate(&out, "conf/antarctica-checkout.tmpl", newAntarcticaPage(nil, true)); err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"Number of spots to reserve", "cabin-allocations", "Roommate", "newsletter-opt-in", "Payments opening soon"} {
+	for _, required := range []string{"Number of spots to reserve", "cabin-allocations", "Roommate", "Payment unavailable in this demonstration"} {
 		if !strings.Contains(strings.ToLower(out.String()), strings.ToLower(required)) {
 			t.Errorf("missing checkout content %q", required)
 		}
 	}
-	if strings.Contains(out.String(), `id="newsletter-opt-in" checked`) {
-		t.Fatal("newsletter preselected")
+	if strings.Contains(out.String(), `newsletter-opt-in`) {
+		t.Fatal("newsletter still present")
 	}
 }
 
@@ -89,15 +97,149 @@ func TestAntarcticaDemo(t *testing.T) {
 		t.Skip("local expedition design preview")
 	}
 	app := antarcticaTestTemplates(t)
+	app.Session = scs.New()
 	mux := http.NewServeMux()
+	mux.HandleFunc("/expeditions/antarctica/billing-preview", func(w http.ResponseWriter, r *http.Request) {
+		booking := sampleExpeditionBooking()
+		booking.ID = "sample-booking"
+		booking.Provider = "Bitcoin"
+		var out bytes.Buffer
+		if err := app.TemplateCache.ExecuteTemplate(&out, "dashboard_purchases.tmpl", accountPurchasesPage{Expeditions: []expeditionBookingPage{booking}}); err != nil {
+			http.Error(w, "Unable to render preview", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(bytes.Replace(out.Bytes(), []byte(`<main class="profile-edit-shell person-emails-page">`), []byte(`<main class="profile-edit-shell person-emails-page"><p><strong>Sample account · Illustrative data only · No booking created</strong></p>`), 1))
+	})
+	mux.HandleFunc("/expeditions/bookings/sample-booking", func(w http.ResponseWriter, r *http.Request) {
+		booking := sampleExpeditionBooking()
+		booking.Provider = "Bitcoin"
+		renderExpeditionBooking(w, app, booking)
+	})
+	mux.HandleFunc("/expeditions/antarctica/installment-preview", func(w http.ResponseWriter, r *http.Request) {
+		due := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
+		deadline, _ := expedition.InstallmentDeadline(due, "America/Chicago")
+		offset, err := strconv.Atoi(r.URL.Query().Get("day"))
+		if err != nil {
+			offset = -14
+		}
+		job := &getters.ExpeditionLifecycleMailJob{EventID: "sample-event", Audience: "customer", Recipient: "guest@example.test", Kind: "reminder", Snapshot: getters.ExpeditionLifecycleSnapshot{BookingID: "sample-booking", Recipient: "guest@example.test", Name: "Sample traveler", Policy: "preview-policy", Number: 2, Quantity: 1, Offset: offset, Due: due, Deadline: deadline, ForfeitAt: deadline.AddDate(0, 0, 30), Zone: "America/Chicago", Cents: 334000, RetainedCents: 334000, Payments: []byte(`[{"order":"sample-order","total_cents":334000,"provider":"opennode"}]`)}}
+		if offset == 30 {
+			job.Kind = "abandoned"
+			job.Snapshot.OccurredAt = job.Snapshot.ForfeitAt
+		}
+		if r.URL.Query().Get("staff") == "1" {
+			job.Kind = "abandoned"
+			job.Audience = "staff"
+			job.Recipient = "inbox@btcpp.dev"
+			job.Snapshot.OccurredAt = job.Snapshot.ForfeitAt
+		}
+		message, err := emails.AntarcticaInstallmentMail(job, "http://127.0.0.1:8110")
+		if err != nil {
+			http.Error(w, "Unable to render preview", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(`<div style="padding:16px;text-align:center;background:white;font:16px/2 Arial">Sample emails — nothing is sent.<br><a href="?day=-14">Two weeks before</a> · <a href="?day=-4">Four days before</a> · <a href="?day=0">Due today</a> · <a href="?day=2">Two days overdue</a> · <a href="?day=28">28 days overdue</a> · <a href="?day=30">Forfeited</a> · <a href="?day=30&staff=1">Staff notice</a></div>`))
+		w.Write(message.HTMLBody)
+	})
+	mux.HandleFunc("/expeditions/antarctica/confirmation-preview", func(w http.ResponseWriter, r *http.Request) {
+		order := &getters.ServiceOrderView{PublicID: "sample-order", Status: "paid", Currency: "USD", PaymentVerified: true, TotalCents: 334000, Quote: getters.ServiceQuote{ProductCode: expedition.ProductCode, ResourceID: "sample-booking", Quantity: 1, Fulfillment: []byte(`{"version":1,"reservation_id":"sample-booking","installment":1}`)}}
+		booking := &getters.ExpeditionBooking{ID: "sample-booking", State: "confirmed", Quantity: 1, Plan: expedition.Installments, Payments: []getters.ExpeditionBookingPayment{{Number: 1, Applied: true, OrderPublicID: "sample-order", OrderStatus: "paid", Cents: 334000}}}
+		message, err := emails.AntarcticaBookingMail(order, booking, "preview@example.test", "http://127.0.0.1:8110")
+		if err != nil {
+			http.Error(w, "Unable to render preview", 500)
+			return
+		}
+		if r.URL.Query().Get("calendar") == "1" {
+			file := message.Files[0]
+			w.Header().Set("Content-Type", file.ContentType)
+			w.Header().Set("Content-Disposition", `attachment; filename="`+file.Name+`"`)
+			w.Write(file.Bytes)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(`<div style="padding:12px;text-align:center;background:#063747;color:white">Sample email preview — no booking or email has been created.</div>`))
+		w.Write(message.HTMLBody)
+	})
+	mux.HandleFunc("/expeditions/antarctica/waitlist", func(w http.ResponseWriter, r *http.Request) { antarcticaDemoWaitlist(w, r, app) })
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	mux.HandleFunc("/expeditions/antarctica/terms", func(w http.ResponseWriter, r *http.Request) { AntarcticaTerms(w, r, app) })
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("booking") == "1" {
+			renderExpeditionBooking(w, app, sampleExpeditionBooking())
+			return
+		}
 		if r.URL.Query().Get("checkout") == "1" {
-			renderAntarcticaCheckout(w, app, newAntarcticaPage(nil, true))
+			page := newAntarcticaPage(nil, true)
+			if r.URL.Query().Get("soldout") == "1" {
+				page.RemainingBerths = 0
+			}
+			renderAntarcticaCheckout(w, app, page)
 			return
 		}
 		renderAntarcticaPage(w, app, newAntarcticaPage(nil, true))
 	})
 	t.Log("Antarctica preview: http://127.0.0.1:8110")
-	t.Fatal(http.ListenAndServe("127.0.0.1:8110", mux))
+	t.Fatal(http.ListenAndServe("127.0.0.1:8110", app.Session.LoadAndSave(mux)))
+}
+
+// This route exists only in the opt-in, database-free design demo. Session state
+// lets the preview exercise the full interaction without claiming a real signup.
+func antarcticaDemoWaitlist(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
+	w.Header().Set("Cache-Control", "no-store")
+	csrf, err := ensureAuthMethodsCSRF(app, r)
+	if err != nil {
+		http.Error(w, "Unable to prepare preview.", 500)
+		return
+	}
+	if r.Method == "POST" {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if r.ParseForm() != nil || !secureTokenEqual(csrf, r.PostForm.Get("csrf")) {
+			http.Error(w, "Reload the preview and try again.", 403)
+			return
+		}
+		switch r.PostForm.Get("action") {
+		case "join":
+			email, err := emaildirectory.NormalizeEmail(r.PostForm.Get("email"))
+			if err != nil {
+				http.Error(w, "Enter a valid email address.", 400)
+				return
+			}
+			app.Session.Put(r.Context(), "antarctica-demo-waitlist-email", email)
+			app.Session.Put(r.Context(), "antarctica-demo-waitlist-joined", true)
+		case "leave":
+			app.Session.Put(r.Context(), "antarctica-demo-waitlist-joined", false)
+		default:
+			http.Error(w, "Invalid preview action.", 400)
+			return
+		}
+		http.Redirect(w, r, "/expeditions/antarctica/waitlist", 303)
+		return
+	}
+	page := antarcticaWaitlistPage{Preview: true, CSRF: csrf, Email: app.Session.GetString(r.Context(), "antarctica-demo-waitlist-email"), Joined: app.Session.GetBool(r.Context(), "antarctica-demo-waitlist-joined")}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := app.TemplateCache.ExecuteTemplate(w, "conf/antarctica-waitlist.tmpl", page); err != nil {
+		app.Err.Printf("waitlist preview: %v", err)
+	}
+}
+
+func TestAntarcticaPublishedCancellationTerms(t *testing.T) {
+	app := antarcticaTestTemplates(t)
+	w := httptest.NewRecorder()
+	AntarcticaTerms(w, httptest.NewRequest("GET", "/expeditions/antarctica/terms", nil), app)
+	for _, required := range []string{"before 12:00 a.m. on October 1, 2027", "America/Chicago", "initial 20% deposit", "at or after that cutoff", "day each payment was received", "exchange rate when the refund is sent"} {
+		if !strings.Contains(w.Body.String(), required) {
+			t.Errorf("missing cancellation term %q", required)
+		}
+	}
+}
+
+func TestAntarcticaDirectLanding(t *testing.T) {
+	app := antarcticaTestTemplates(t)
+	w := httptest.NewRecorder()
+	AntarcticaLanding(w, httptest.NewRequest("GET", "/antarctica", nil), app)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `href="/expeditions/antarctica/checkout"`) || !strings.Contains(w.Body.String(), `property="og:image"`) {
+		t.Fatal("direct landing missing checkout or sharing metadata")
+	}
 }

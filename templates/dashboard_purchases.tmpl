@@ -7,9 +7,25 @@
 <main class="profile-edit-shell person-emails-page">
 <header class="profile-edit-hero account-settings-hero"><div class="account-settings-hero__copy">
 <p class="profile-edit-tag">§ YOUR ACCOUNT</p><h1>Purchases <span>&amp; billing.</span></h1>
-<p>Your tickets, merchandise, and subscription payments in one place.</p>
+<p>Your tickets, merchandise, expedition bookings, and subscription payments in one place.</p>
 </div></header>
 {{ template "billing_tabs" (dict "Active" "history" "ShowServices" .IsGlobalAdmin) }}
+{{ if .Expeditions }}
+<section class="dashboard-expeditions" aria-labelledby="your-expeditions">
+<h2 id="your-expeditions">Your {{ if eq (len .Expeditions) 1 }}expedition{{ else }}expeditions{{ end }}</h2>
+{{ range .Expeditions }}
+<article class="dashboard-expedition-card">
+<div class="dashboard-expedition-card__details"><h3>Antarctica · Cold Storage Edition</h3>
+<p>January 24–February 5, 2028 · {{ .Quantity }} {{ if eq .Quantity 1 }}passenger{{ else }}passengers{{ end }}</p>
+<p><strong>{{ .State }}</strong></p>
+{{ if .Terminal }}<p>{{ .TerminalMessage }}</p>{{ else if .Review }}<p>Your booking or payment needs review. Contact the expedition team before making another payment.</p>{{ end }}
+<dl class="dashboard-expedition-card__totals"><div><dt>Passage payments applied</dt><dd>{{ .Paid }} USD</dd></div><div><dt>{{ if .Terminal }}Unpaid passage at closure{{ else }}Remaining scheduled passage{{ end }}</dt><dd>{{ .Remaining }} USD</dd></div></dl>
+{{ if not .Terminal }}{{ if not .Review }}<p><strong>Next payment:</strong> {{ .NextDue }}</p>{{ end }}{{ end }}
+</div><a class="dashboard-expedition-card__link" href="/expeditions/bookings/{{ .ID }}">Manage booking →</a>
+</article>
+{{ end }}
+</section>
+{{ end }}
 <section class="dashboard-purchase-ledger dashboard-purchase-ledger--full" aria-label="Purchase history">
 <div class="dashboard-purchase-ledger__head"><h2>Purchase history</h2></div>
 <p class="dashboard-purchase-ledger__notice">Amounts show original purchase totals. Refunds are noted in the payment status.</p>
@@ -19,6 +35,7 @@
 <div class="dashboard-purchase-row__main"><strong>{{ .Description }}</strong>
 <span>{{ .CreatedAt.Format "Jan 2, 2006" }} · {{ .StatusLabel }}{{ if .Provider }} · {{ .PaymentMethod }}{{ end }}</span>
 </div><div class="dashboard-purchase-row__side"><strong>{{ .Amount }} {{ .Currency }}</strong>
+{{ if .BookingID }}<a href="/expeditions/bookings/{{ .BookingID }}">View expedition booking</a>{{ end }}
 {{ if eq .Kind "service" }}<a href="/services/orders/{{ .Reference }}">View payment &amp; receipt</a>
 {{ else if eq .Kind "order" }}<a href="/dashboard/orders/{{ .Reference }}">View details</a>
 {{ if or (eq .Status "paid") (eq .Status "fulfilled") (eq .Status "refunded") (eq .Status "partially_refunded") }}<a href="/dashboard/orders/{{ .Reference }}/receipt">Download receipt</a>{{ end }}

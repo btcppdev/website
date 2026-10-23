@@ -22,5 +22,130 @@
 #checkout-totals { border-top: 3px solid var(--accent); padding: 20px 0; }
 #checkout-totals strong { font-size: 24px; }
 #checkout-error { color: #9b301d; }
-.newsletter-choice { margin-top: 32px; }
 @media(max-width:600px) { .checkout-shell { padding: 24px 20px 60px; } .checkout-shell h1 { font-size: 36px; } .allocation-fields, .checkout-merch { grid-template-columns: 1fr; } .cabin-allocation { padding: 16px; } }
+
+/* Compact, touch-friendly quantities and aligned prices. */
+.checkout-merch { grid-template-columns: 140px minmax(0, 1fr); align-items: center; padding: 24px 0; margin: 0; border-bottom: 1px solid var(--line); }
+.checkout-merch h2 { font: 26px/1.2 Georgia, serif; margin: 0 0 8px; }
+.checkout-merch p { margin: 4px 0 16px; }
+.checkout-merch img { width: 140px; aspect-ratio: 1; object-fit: contain; }
+.merch-purchase { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+.merch-purchase label, .merch-line-total span { display: block; font-size: 12px; margin-bottom: 8px; }
+.quantity-stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.quantity-stepper button { width: 44px; height: 44px; padding: 0; border: 0; background: white; color: var(--deep); font-size: 22px; }
+.quantity-stepper button:hover:not(:disabled) { background: #eef3f3; }
+.checkout-shell .quantity-stepper input { width: 48px; height: 44px; margin: 0; padding: 0; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); text-align: center; appearance: textfield; -moz-appearance: textfield; }
+.quantity-stepper input::-webkit-inner-spin-button, .quantity-stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.quantity-stepper :focus-visible { outline: 2px solid var(--deep); outline-offset: -3px; }
+.merch-line-total { text-align: right; }
+.merch-line-total strong { display: block; font-size: 20px; line-height: 44px; }
+.merch-total-bar { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 24px 0; border-bottom: 2px solid var(--deep); }
+.merch-total-bar span { display: block; font-weight: bold; }
+.merch-total-bar small { display: block; margin-top: 6px; line-height: 1.5; }
+.merch-total-bar > strong { font-size: 28px; white-space: nowrap; }
+#checkout-totals { margin-top: 32px; }
+#checkout-totals h2 { font: 30px Georgia, serif; margin: 0 0 20px; }
+.checkout-total-row { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; padding: 10px 0; line-height: 1.5; }
+#checkout-totals .checkout-total-row strong { font-size: 18px; white-space: nowrap; }
+.checkout-total-row strong, .merch-total-bar strong, .merch-line-total strong, .quantity-stepper input { font-variant-numeric: tabular-nums; }
+.checkout-saving { color: #256246; }
+.checkout-booking-total { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 20px; }
+.checkout-due { background: var(--deep); color: white; padding: 24px; margin-top: 20px; }
+#checkout-totals .checkout-due strong { font-size: 30px; }
+#checkout-totals > p { font-size: 13px; }
+#checkout-totals h3 { font-size: 16px; margin-top: 28px; }
+.checkout-schedule-row { border-bottom: 1px solid var(--line); font-size: 14px; }
+#checkout-totals .checkout-schedule-row strong { font-size: 15px; }
+@media(max-width:600px) {
+  .checkout-merch { grid-template-columns: 80px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .checkout-merch h2 { font-size: 22px; }
+  .merch-purchase { flex-wrap: wrap; }
+  .merch-line-total { text-align: left; }
+  .merch-total-bar > strong { font-size: 24px; }
+  .checkout-due { flex-direction: column; gap: 8px; padding: 20px; }
+}
+
+#checkout-next { margin-left: auto; }
+.checkout-shell [data-step="3"] > .button { display: block; margin-left: auto; }
+
+.spots-remaining { font-size: 22px; margin: 0 0 24px; color: var(--deep); }
+.spot-options { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
+.spot-options button { min-width: 64px; min-height: 60px; padding: 12px 20px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--deep); font-size: 22px; font-weight: bold; }
+.spot-options button[aria-pressed="true"] { background: var(--deep); color: white; border-color: var(--deep); }
+.spot-options button:hover:not([aria-pressed="true"]) { background: #eef3f3; }
+.spot-options button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media(max-width:600px) { .spot-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.berth-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 24px 0; border-top: 1px solid var(--line); border-bottom: 2px solid var(--deep); margin-top: 28px; }
+.berth-toolbar strong { display: block; font-size: 22px; }
+.berth-toolbar p { margin: 8px 0 0; font-size: 14px; }
+#add-cabin { flex-shrink: 0; background: var(--deep); color: white; border-color: var(--deep); font-weight: bold; border-radius: 4px; min-height: 48px; }
+.cabin-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.cabin-heading h2 { margin: 0; }
+.remove-cabin { background: transparent; border: 0; color: var(--deep); text-decoration: underline; padding: 12px 0 12px 12px; font-size: 14px !important; }
+.cabin-allocation { border-radius: 6px; padding: 24px; }
+.cabin-allocation label { font-size: 14px; font-weight: bold; }
+.roommate-request { padding-top: 16px; border-top: 1px solid var(--line); margin-top: 4px; }
+.roommate-request p { margin: 0; font-size: 14px; }
+.cabin-undo { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 16px; background: #eef3f3; margin-top: 20px; }
+#undo-cabin { background: none; color: var(--deep); border: 0; text-decoration: underline; font-weight: bold; padding: 10px; }
+.cabins-empty { padding: 32px 24px; border: 1px dashed var(--line); margin: 24px 0; }
+.cabins-empty h2 { font: 26px Georgia, serif; margin-top: 0; }
+.cabins-empty p { margin-bottom: 0; }
+@media(max-width:600px) { .berth-toolbar { align-items: stretch; flex-direction: column; gap: 16px; } .cabin-allocation { padding: 20px 16px; } .cabin-heading { margin-bottom: 16px; } }
+
+.checkout-shell .cabin-fare { font-size: 13px; margin: -8px 0 16px; }
+
+.cabin-spots-label { display: block; font-size: 14px; font-weight: bold; }
+.allocation-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.cabin-spot-options { display: flex; gap: 8px; margin: 8px 0 16px; }
+.cabin-spot-options button { min-width: 48px; min-height: 48px; padding: 8px 14px; font-size: 18px; }
+@media(max-width:600px) { .allocation-fields { grid-template-columns: 1fr; gap: 8px; } .cabin-spot-options { display: flex; } }
+
+.allocation-people { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 12px; max-width: 550px; }
+.allocation-person { width: 24px; height: 40px; color: var(--deep); }
+.allocation-person svg { display: block; width: 100%; height: 100%; }
+.allocation-person.assigned { color: #cbd5d8; }
+.cabin-spot-options button:disabled { opacity: .35; background: #eef3f3; }
+
+.fare-line-detail { display: block; font-size: 13px; margin-top: 6px; font-weight: normal; }
+.checkout-fare-row { padding: 16px 0; border-bottom: 1px solid var(--line); }
+
+/* Keep labels and amounts on the same inset throughout the summary. */
+#checkout-totals { --total-inset: 24px; }
+#checkout-totals > h2, #checkout-totals > h3, #checkout-totals > p { padding-inline: var(--total-inset); }
+.checkout-total-row { padding-inline: var(--total-inset); }
+.checkout-due { padding-inline: var(--total-inset); }
+@media(max-width:600px) {
+  #checkout-totals { --total-inset: 20px; }
+  #checkout-totals .checkout-due strong { align-self: flex-end; }
+}
+
+.booking-terms { border-top: 1px solid var(--line); margin-top: 32px; padding-top: 24px; }
+.booking-terms h2 { font: 28px Georgia, serif; }
+.policy-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
+.booking-reference { overflow-wrap: anywhere; }
+.booking-payment { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 20px 24px; }
+.booking-payment h3 { margin: 0 !important; }
+.booking-payment details { flex-basis: 100%; }
+.booking-payment p { margin: 8px 0; }
+
+.booking-cabin-summary { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.booking-cabin-summary .allocation-people { margin: 0; flex-shrink: 0; }
+.booking-cabin-summary p { font-size: 13px; margin: 6px 0 0; }
+.booking-cabin-summary > div:last-child { flex: 1 1 180px; }
+
+.checkout-shell .payment-methods { border: 0; padding: 0; }
+.payment-methods legend { font-weight: bold; margin-bottom: 12px; }
+.payment-method-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.payment-method-option { display: flex; align-items: flex-start; gap: 12px; padding: 20px; border: 2px solid var(--line); border-radius: 6px; cursor: pointer; }
+.payment-method-option:has(input:checked) { border-color: var(--deep); background: var(--deep); color: white; }
+.payment-method-option:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 3px; }
+.payment-method-option input { width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--accent); }
+.payment-method-option strong { display: block; font-size: 20px; }
+.payment-method-option small { display: block; font-size: 13px; line-height: 1.5; margin-top: 8px; }
+@media(max-width:600px) { .payment-method-option { padding: 16px 12px; gap: 8px; } .payment-method-option strong { font-size: 18px; } }
+
+.checkout-billing { display: grid; gap: 1rem; margin: 1.5rem 0; }
+.checkout-billing label { display: grid; gap: .4rem; }
+.checkout-billing input { padding: .75rem; border: 1px solid #aaa; border-radius: 4px; font: inherit; }

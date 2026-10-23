@@ -5,11 +5,11 @@ import "testing"
 func TestPartyQuote(t *testing.T) {
 	selections := []CabinSelection{{"shared", 2, "male"}, {"shared", 1, "female"}}
 	q, err := QuoteParty(3, selections, Full, Bitcoin, bookingTime)
-	if err != nil || q.TotalCents != 4682265 || q.Selections[0].Preference != "coed" || q.Selections[1].Preference != "female" {
+	if err != nil || q.TotalCents != 4759500 || q.Selections[0].Preference != "coed" || q.Selections[1].Preference != "female" {
 		t.Fatal(q, err)
 	}
 	q, err = QuoteParty(3, selections, Installments, Stripe, bookingTime)
-	if err != nil || len(q.Installments) != 5 || q.Installments[0].Cents != 985740 {
+	if err != nil || len(q.Installments) != 5 || q.Installments[0].Cents != 1002000 {
 		t.Fatal(q, err)
 	}
 	if _, err = QuoteParty(4, selections, Full, Stripe, bookingTime); err == nil {

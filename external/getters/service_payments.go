@@ -3,7 +3,6 @@ package getters
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -112,10 +111,10 @@ func BeginServicePayment(app *config.AppContext, personID, orderID string) (*Ser
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	var purchaseID, status string
+	var purchaseID, status, purchaseKey string
 	var raw []byte
-	err = tx.QueryRow(ctx, `SELECT r.id::text,r.quote_snapshot,o.status FROM service_purchase_requests r
-		JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND o.id=$2 FOR UPDATE OF o`, personID, orderID).Scan(&purchaseID, &raw, &status)
+	err = tx.QueryRow(ctx, `SELECT r.id::text,r.quote_snapshot,o.status,r.request_key FROM service_purchase_requests r
+		JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND o.id=$2 FOR UPDATE OF o`, personID, orderID).Scan(&purchaseID, &raw, &status, &purchaseKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrServicePayment
 	}
@@ -136,7 +135,7 @@ func BeginServicePayment(app *config.AppContext, personID, orderID string) (*Ser
 			if err = json.Unmarshal(quote.Fulfillment, &f); err != nil {
 				return nil, ErrServiceQuote
 			}
-			key := fmt.Sprintf("expedition:%s:%d", f.ReservationID, f.Installment)
+			key := purchaseKey
 			if err = validateExpeditionQuoteTx(ctx, tx, app, personID, key, quote); err != nil {
 				return nil, err
 			}

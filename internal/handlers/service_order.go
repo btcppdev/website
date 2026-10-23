@@ -70,7 +70,11 @@ func ServiceOrder(w http.ResponseWriter, r *http.Request, app *config.AppContext
 }
 
 func serviceOrderCanPay(order *getters.ServiceOrderView, app *config.AppContext, now time.Time) bool {
-	return app != nil && app.Env != nil && strings.TrimSpace(app.Env.OpenNode.Key) != "" && order.Status == "pending" && !order.PaymentVerified && order.Quote.Provider == "opennode" && order.Quote.ExpiresAt.After(now) && order.Currency == "USD" && order.TotalCents == order.Quote.TotalCents && order.TaxCents == order.Quote.TaxCents
+	available := app != nil && app.Env != nil && ((order.Quote.Provider == "opennode" && strings.TrimSpace(app.Env.OpenNode.Key) != "") || (order.Quote.Provider == "stripe" && order.Quote.ProductCode == expedition.ProductCode && app.Env.StripeKey != ""))
+	if order.Quote.ProductCode == expedition.ProductCode {
+		available = available && antarcticaCheckoutReady(app) && antarcticaPaymentProviderAllowed(app, order.Quote.Provider)
+	}
+	return available && order.Status == "pending" && !order.PaymentVerified && order.Quote.ExpiresAt.After(now) && order.Currency == "USD" && order.TotalCents == order.Quote.TotalCents && order.TaxCents == order.Quote.TaxCents
 }
 
 func ServiceOrderPay(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -104,8 +108,14 @@ func ServiceOrderPay(w http.ResponseWriter, r *http.Request, app *config.AppCont
 		http.Error(w, "This order is not available for payment. Return to the order page to check its status.", 409)
 		return
 	}
-	destination, err := getters.OpenNodeServiceCheckout(r.Context(), app, id.PersonID, order.ID)
+	var destination string
+	if order.Quote.Provider == "stripe" {
+		destination, err = expeditionStripeCheckout(r.Context(), app, id.PersonID, order)
+	} else {
+		destination, err = getters.OpenNodeServiceCheckout(r.Context(), app, id.PersonID, order.ID)
+	}
 	if err != nil {
+		app.Err.Printf("service order payment handoff: %v", err)
 		http.Error(w, "We could not open checkout. Return to the order page to check payment status before trying again.", 503)
 		return
 	}
@@ -145,6 +155,10 @@ func serviceOrderPresentation(order *getters.ServiceOrderView) serviceOrderPage 
 	case order.PaymentVerified:
 		page.Heading = "Payment confirmed — access pending"
 		page.Message = "Your payment is recorded. Access is still being activated. Please refresh shortly; contact support if this persists."
+	}
+	if order.Quote.ProductCode == expedition.ProductCode && order.PaymentVerified && order.Status != "paid" {
+		page.Heading = "Payment recorded — booking needs review"
+		page.Message = "Check your expedition booking and the payment or refund details below. Contact support before making another payment."
 	}
 	if order.Quote.ProductCode == expedition.ProductCode && order.PaymentVerified && order.Status == "paid" {
 		page.Heading = "Payment received — berth confirmation pending"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,10 +41,14 @@ func chargeFor(r Reservation, number int) (Charge, error) {
 	if number == 1 {
 		expires = r.HoldExpiresAt
 	}
+	name := fmt.Sprintf("Antarctica 2028 — %d passenger(s), payment %d/%d", r.Quantity, number, len(r.Schedule.Installments))
+	if r.Schedule.BetaTrial {
+		name = "Antarctica 2028 — private beta test, one berth"
+	}
 	return Charge{
 		Key: fmt.Sprintf("expedition:%s:%d", r.ID, number), ProductCode: ProductCode,
 		ResourceID: r.ID, BuyerID: r.BuyerID, Provider: r.Provider, Currency: "USD",
-		Name:       fmt.Sprintf("Antarctica 2028 — %d passenger(s), payment %d/%d", r.Quantity, number, len(r.Schedule.Installments)),
+		Name:       name,
 		TotalCents: i.Cents, ExpiresAt: expires, Fulfillment: raw,
 	}, nil
 }
@@ -77,11 +82,11 @@ func (s *Store) ChargeTx(ctx context.Context, tx pgx.Tx, buyerID, id string, num
 	if err != nil {
 		return Charge{}, err
 	}
-	if r.State == "review" {
-		return Charge{}, ErrReview
-	}
 	if r.State == "expired" || (r.State == "held" && !now.Before(r.HoldExpiresAt)) {
 		return Charge{}, ErrExpired
+	}
+	if r.State != "held" && r.State != "confirmed" {
+		return Charge{}, ErrReview
 	}
 	charge, err := chargeFor(r, number)
 	if err != nil {
@@ -95,7 +100,7 @@ func (s *Store) ChargeTx(ctx context.Context, tx pgx.Tx, buyerID, id string, num
 	if err != nil {
 		return Charge{}, err
 	}
-	if number != next || now.Before(r.Schedule.Installments[number-1].DueAt) {
+	if number != next || now.Before(installmentOpens(r.Schedule.Installments[number-1])) {
 		return Charge{}, ErrNotDue
 	}
 	return charge, nil
@@ -166,7 +171,7 @@ func (s *Store) FulfillPaidTx(ctx context.Context, tx pgx.Tx, paid Charge, order
 	if err != nil {
 		return err
 	}
-	if paid.Key != expected.Key || paid.ProductCode != expected.ProductCode || paid.ResourceID != r.ID || paid.BuyerID != r.BuyerID || paid.Provider != r.Provider || paid.Currency != "USD" || paid.TotalCents != expected.TotalCents || !paid.ExpiresAt.Equal(expected.ExpiresAt) {
+	if !ValidChargeKey(paid.Key, expected.Key, f.Installment) || paid.ProductCode != expected.ProductCode || paid.ResourceID != r.ID || paid.BuyerID != r.BuyerID || paid.Provider != r.Provider || paid.Currency != "USD" || paid.TotalCents != expected.TotalCents || !paid.ExpiresAt.Equal(expected.ExpiresAt) {
 		return ErrConflict
 	}
 	var prior *string
@@ -177,7 +182,7 @@ func (s *Store) FulfillPaidTx(ctx context.Context, tx pgx.Tx, paid Charge, order
 		if *prior != orderID {
 			return ErrConflict
 		}
-		if r.State == "review" {
+		if r.State != "confirmed" {
 			return ErrReview
 		}
 		return nil
@@ -191,17 +196,38 @@ func (s *Store) FulfillPaidTx(ctx context.Context, tx pgx.Tx, paid Charge, order
 		return err
 	}
 	state := "confirmed"
-	if r.State == "review" || r.State == "expired" || (r.State == "held" && !now.Before(r.HoldExpiresAt)) || next != f.Installment || now.Before(r.Schedule.Installments[f.Installment-1].DueAt) || !now.Before(expected.ExpiresAt) {
+	if (r.State != "held" && r.State != "confirmed") || (r.State == "held" && !now.Before(r.HoldExpiresAt)) || next != f.Installment || now.Before(installmentOpens(r.Schedule.Installments[f.Installment-1])) || !now.Before(expected.ExpiresAt) {
 		state = "review"
 	}
 	if _, err = tx.Exec(ctx, `UPDATE expedition_installments SET paid_order_id=$3 WHERE reservation_id=$1 AND number=$2`, r.ID, f.Installment, orderID); err != nil {
 		return err
 	}
+	if r.State == "abandoned" || r.State == "cancelled" {
+		state = r.State
+	}
 	if _, err = tx.Exec(ctx, `UPDATE expedition_reservations SET state=$2, confirmed_at=CASE WHEN $2='confirmed' THEN COALESCE(confirmed_at,$3) ELSE confirmed_at END WHERE id=$1`, r.ID, state, now); err != nil {
 		return err
 	}
-	if state == "review" {
+	if state != "confirmed" {
 		return ErrReview
 	}
 	return nil
+}
+
+// Later installment orders may be requoted after expiry without overwriting receipts.
+func ValidChargeKey(key, canonical string, number int) bool {
+	if key == canonical {
+		return true
+	}
+	if number < 2 || !strings.HasPrefix(key, canonical+":") {
+		return false
+	}
+	_, err := uuid.Parse(strings.TrimPrefix(key, canonical+":"))
+	return err == nil
+}
+func installmentOpens(i Installment) time.Time {
+	if i.Number == 1 {
+		return i.DueAt
+	}
+	return i.DueAt.AddDate(0, 0, -14)
 }

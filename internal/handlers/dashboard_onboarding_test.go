@@ -38,6 +38,26 @@ func TestPendingEmailDashboardOnboardingPostgres(t *testing.T) {
 	if err := auth.LoginEmail(app, req, email); err != nil {
 		t.Fatal(err)
 	}
+	app.Env.AntarcticaCheckoutEnabled = true
+	app.Env.AntarcticaTaxMode = "billing-inclusive"
+	app.Env.AntarcticaStripeTaxCode = "txcd_fixture"
+	app.Env.StripeKey = "sk_test_fixture"
+	checkout := httptest.NewRequest(http.MethodGet, "/expeditions/antarctica/checkout", nil).WithContext(ctx)
+	checkoutResponse := httptest.NewRecorder()
+	AntarcticaCheckout(checkoutResponse, checkout, app)
+	checkoutLocation, checkoutErr := url.Parse(checkoutResponse.Header().Get("Location"))
+	if checkoutErr != nil || checkoutResponse.Code != http.StatusSeeOther || checkoutLocation.Path != "/dashboard/profile" || checkoutLocation.Query().Get("next") != "/expeditions/antarctica/checkout" {
+		t.Fatalf("new email checkout did not reach setup: %d %s %v", checkoutResponse.Code, checkoutResponse.Header().Get("Location"), checkoutErr)
+	}
+	if manager.GetString(ctx, auth.SessionEmailKey) != email {
+		t.Fatal("checkout lost verified email")
+	}
+	// A pending email may not create a booking by posting around profile setup.
+	checkoutResponse = httptest.NewRecorder()
+	AntarcticaCheckout(checkoutResponse, httptest.NewRequest(http.MethodPost, "/expeditions/antarctica/checkout", nil).WithContext(ctx), app)
+	if checkoutResponse.Code != http.StatusUnauthorized {
+		t.Fatal("pending email authorized purchase", checkoutResponse.Code)
+	}
 	w := httptest.NewRecorder()
 	Dashboard(w, req, app)
 	location, err := url.Parse(w.Header().Get("Location"))

@@ -61,8 +61,27 @@ func validateExpeditionQuoteTx(ctx context.Context, tx pgx.Tx, app *config.AppCo
 	if err != nil {
 		return err
 	}
+	if f.Installment > 1 {
+		var conflict bool
+		// The reservation lock held by ChargeTx serializes creation and forfeiture.
+		// Do not open a second order while another checkout is live or ambiguous.
+		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_purchase_requests p JOIN shop_orders o ON o.id=p.order_id
+   WHERE p.person_id=$1 AND p.quote_snapshot->>'product_code'=$2 AND p.quote_snapshot->>'resource_id'=$3
+   AND p.quote_snapshot->'fulfillment'->>'installment'=$4 AND p.request_key<>$5
+   AND (o.status='paid' OR (o.status='pending' AND o.checkout_expires_at>now())
+     OR EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=p.id AND a.settled_at IS NULL AND NOT EXISTS(SELECT 1 FROM expedition_payment_checks pc WHERE pc.attempt_id=a.id AND pc.status='expired' AND pc.checked_at>now()-interval '5 minutes'))))`, buyer, expedition.ProductCode, f.ReservationID, fmt.Sprint(f.Installment), key).Scan(&conflict)
+		if err != nil {
+			return err
+		}
+		if conflict {
+			return ErrServicePurchaseConflict
+		}
+		if err = expeditionLifecyclePayableTx(ctx, tx, f.ReservationID); err != nil {
+			return err
+		}
+	}
 	start, end := expeditionPeriod()
-	if key != c.Key || q.ProductCode != c.ProductCode || q.Provider != c.Provider || q.Name != c.Name || q.Quantity != 1 || q.UnitCents != c.TotalCents || q.TotalCents != c.TotalCents || q.ExpiresAt.After(c.ExpiresAt) || q.PeriodStart == nil || q.PeriodEnd == nil || !q.PeriodStart.Equal(start) || !q.PeriodEnd.Equal(end) || q.RecurringInvoice || q.BillingMonths != 0 || q.BaseOrderID != "" || q.AccountRevision != "" {
+	if !expedition.ValidChargeKey(key, c.Key, f.Installment) || q.ProductCode != c.ProductCode || q.Provider != c.Provider || q.Name != c.Name || q.Quantity != 1 || q.UnitCents != c.TotalCents || q.TotalCents != c.TotalCents || q.ExpiresAt.After(c.ExpiresAt) || q.PeriodStart == nil || q.PeriodEnd == nil || !q.PeriodStart.Equal(start) || !q.PeriodEnd.Equal(end) || q.RecurringInvoice || q.BillingMonths != 0 || q.BaseOrderID != "" || q.AccountRevision != "" {
 		return ErrServiceQuote
 	}
 	return nil
@@ -125,6 +144,34 @@ func FulfillExpeditionPurchase(app *config.AppContext, orderID string) error {
 	if fulfillErr != nil && fulfillErr != expedition.ErrReview {
 		return fulfillErr
 	}
+	// A settlement observed after the contractual cutoff needs manual review even
+	// if the periodic abandonment worker has not run yet. Use recorded payment
+	// time, never fulfillment processing time, to protect delayed callbacks.
+	if fulfillErr == nil && f.Installment > 1 {
+		var due, paidAt time.Time
+		var zone string
+		err = tx.QueryRow(ctx, `SELECT i.due_at,o.paid_at,l.time_zone
+          FROM expedition_installments i
+          JOIN service_purchase_requests p ON p.request_key='expedition:'||i.reservation_id::text||':1'
+          JOIN expedition_lifecycle_policies l ON l.version=p.quote_snapshot->'legal_acceptance'->>'version'
+          JOIN shop_orders o ON o.id=$3
+          WHERE i.reservation_id=$1 AND i.number=$2`, f.ReservationID, f.Installment, orderID).Scan(&due, &paidAt, &zone)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			deadline, deadlineErr := expedition.InstallmentDeadline(due, zone)
+			if deadlineErr != nil {
+				return deadlineErr
+			}
+			if !paidAt.Before(deadline.AddDate(0, 0, 30)) {
+				if _, err = tx.Exec(ctx, `UPDATE expedition_reservations SET state='review' WHERE id=$1 AND state='confirmed'`, f.ReservationID); err != nil {
+					return err
+				}
+				fulfillErr = expedition.ErrReview
+			}
+		}
+	}
 	if fulfillErr == nil {
 		if _, err = tx.Exec(ctx, `UPDATE shop_order_items SET fulfilled_quantity=quantity,status='fulfilled' WHERE order_id=$1 AND status='pending'`, orderID); err != nil {
 			return err
@@ -134,4 +181,50 @@ func FulfillExpeditionPurchase(app *config.AppContext, orderID string) error {
 		return err
 	}
 	return fulfillErr
+}
+
+// New immutable quote/order for a later installment. The UUID is a browser retry
+// key; expired quotes with no provider attempt can be replaced with a fresh key.
+func CreateExpeditionInstallmentPurchase(app *config.AppContext, buyer, reservation string, number int, key string, tax TaxQuoteInput, version string) (*ServicePurchase, error) {
+	if number < 2 {
+		return nil, ErrServiceQuote
+	}
+	c, err := (&expedition.Store{DB: app.DB}).Charge(app.DatabaseContext(), buyer, reservation, number)
+	if err != nil {
+		return nil, err
+	}
+	if !expedition.ValidChargeKey(key, c.Key, number) {
+		return nil, ErrServiceQuote
+	}
+	start, end := expeditionPeriod()
+	expiry := c.ExpiresAt
+	if tax.ExpiresAt != nil && tax.ExpiresAt.Before(expiry) {
+		expiry = *tax.ExpiresAt
+	}
+	q := ServiceQuote{ProductCode: c.ProductCode, ResourceID: c.ResourceID, Name: c.Name, Provider: c.Provider, Quantity: 1, UnitCents: c.TotalCents, TotalCents: c.TotalCents, TaxCents: int64(tax.SalesTaxAmountCents), PeriodStart: &start, PeriodEnd: &end, ExpiresAt: expiry, Fulfillment: c.Fulfillment}
+	return CreateTaxedServicePurchaseWithPolicy(app, buyer, key, q, tax, version)
+}
+
+func expeditionLifecyclePayableTx(ctx context.Context, tx pgx.Tx, reservation string) error {
+	var due time.Time
+	var zone string
+	err := tx.QueryRow(ctx, `SELECT i.due_at,l.time_zone FROM expedition_reservations r
+ JOIN service_purchase_requests p ON p.request_key='expedition:'||r.id::text||':1' AND p.person_id::text=r.buyer_id
+ JOIN expedition_lifecycle_policies l ON l.version=p.quote_snapshot->'legal_acceptance'->>'version'
+ JOIN LATERAL(SELECT due_at FROM expedition_installments WHERE reservation_id=r.id AND paid_order_id IS NULL ORDER BY number LIMIT 1)i ON true
+ WHERE r.id=$1`, reservation).Scan(&due, &zone)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	deadline, err := expedition.InstallmentDeadline(due, zone)
+	if err != nil {
+		return err
+	}
+	if !time.Now().Before(deadline.AddDate(0, 0, 30)) {
+		return expedition.ErrExpired
+	}
+	return nil
 }

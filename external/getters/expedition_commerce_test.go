@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"io"
 	"log"
@@ -23,9 +24,9 @@ func TestExpeditionSharedCommerce(t *testing.T) {
 }
 
 func testExpeditionSharedCommerce(t *testing.T, provider string) {
-	total := int64(4928700)
+	total := int64(5010000)
 	if provider == expedition.Bitcoin {
-		total = 4682265
+		total = 4759500
 	}
 	url := os.Getenv("EXPEDITION_COMMERCE_TEST_DATABASE_URL")
 	if url == "" {
@@ -64,12 +65,15 @@ func testExpeditionSharedCommerce(t *testing.T, provider string) {
 		t.Fatal("missing terms allowed", err)
 	}
 	version := uuid.NewString()
-	p := ServiceLegalPolicy{ProductCode: expedition.ProductCode, Version: version, TermsText: "Test-only terms", PrivacyText: "Test-only privacy", EffectiveAt: time.Now().UTC().Add(-time.Minute).Truncate(time.Second)}
+	p := ServiceLegalPolicy{ProductCode: expedition.ProductCode, Version: version, TermsText: "Test-only terms", PrivacyText: "Test-only privacy", EffectiveAt: time.Now().UTC().Truncate(time.Microsecond)}
 	if err = RegisterServiceLegalPolicy(app, p); err != nil {
 		t.Fatal(err)
 	}
 	if err = ActivateServiceLegalPolicy(app, p.ProductCode, p.Version); err != nil {
 		t.Fatal(err)
+	}
+	if _, err = CreateExpeditionPurchase(app, buyer, r.ID, 1, tax, "outdated-version"); !errors.Is(err, ErrServiceLegalReview) {
+		t.Fatal("stale terms allowed", err)
 	}
 	purchase, err := CreateExpeditionPurchase(app, buyer, r.ID, 1, tax, version)
 	if err != nil {
@@ -128,6 +132,17 @@ func testExpeditionSharedCommerce(t *testing.T, provider string) {
 	}
 	if _, err = CreateExpeditionPurchase(app, buyer, r.ID, 1, tax, version); err != nil {
 		t.Fatal("paid order retry", err)
+	}
+	booking, err := ExpeditionBookingForPerson(ctx, app, buyer, r.ID)
+	if err != nil || booking.Quantity != 3 || len(booking.Schedule.Selections) != 2 || len(booking.Payments) != 1 || !booking.Payments[0].Applied || booking.Payments[0].Legal.Version != version {
+		t.Fatal("booking view", booking, err)
+	}
+	if _, err = ExpeditionBookingForPerson(ctx, app, uuid.NewString(), r.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("another buyer can read booking", err)
+	}
+	history, _, err := AccountPurchases(app, buyer, 1)
+	if err != nil || len(history) != 1 || history[0].BookingID != r.ID {
+		t.Fatal("booking missing from purchase history", history, err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE shop_orders SET status='refunded' WHERE id=$1`, purchase.OrderID); err != nil {
 		t.Fatal(err)

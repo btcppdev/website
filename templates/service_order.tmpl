@@ -13,7 +13,7 @@
 <dt>Order number</dt><dd>{{ .Order.PublicID }}</dd>
 {{ if not .Order.CreatedAt.IsZero }}<dt>Order placed (UTC)</dt><dd>{{ .Order.CreatedAt.UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 <dt>Purchased</dt><dd>{{ .Order.Quote.Name }}</dd>
-<dt>Quantity</dt><dd>{{ .Order.Quote.Quantity }}</dd>
+{{ if eq .Order.Quote.ProductCode "expedition.antarctica2028.passage" }}<dt>Expedition booking</dt><dd><a href="/expeditions/bookings/{{ .Order.Quote.ResourceID }}">View berths, travelers and payment schedule →</a></dd>{{ else }}<dt>Quantity</dt><dd>{{ .Order.Quote.Quantity }}</dd>{{ end }}
 {{ if eq .Order.Quote.Provider "stripe" }}<dt>Payment method</dt><dd>Card via Stripe</dd>{{ else if eq .Order.Quote.Provider "opennode" }}<dt>Payment method</dt><dd>Bitcoin via OpenNode</dd>{{ end }}
 <dt>Order total (USD, including tax)</dt><dd>{{ .Total }}</dd>
 <dt>Included tax on original order</dt><dd>{{ .Tax }}</dd>
@@ -22,8 +22,10 @@
 {{ if gt .Order.RefundedSatoshis 0 }}<dt>Bitcoin refunded</dt><dd>{{ .Order.RefundedSatoshis }} sats</dd>{{ end }}
 <dt>Net paid after refunds (USD)</dt><dd>{{ .NetPaid }}</dd>
 {{ end }}
+{{ if eq .Order.Quote.ProductCode "expedition.antarctica2028.passage" }}<dt>Expedition dates</dt><dd>January 24–February 5, 2028</dd>{{ else }}
 {{ with .Order.Quote.PeriodStart }}<dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 {{ with .Order.Quote.PeriodEnd }}<dt>Access ends (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
+{{ end }}
 {{ with .Order.Quote.LegalAcceptance }}
 <dt>Accepted policy version</dt><dd>{{ .Version }}</dd>
 <dt>Accepted (UTC)</dt><dd>{{ .AcceptedAt.UTC.Format "January 2, 2006, 15:04" }}</dd>
@@ -38,8 +40,8 @@
 {{ if .CanPay }}
 <form method="post" action="/services/orders/{{ .Order.PublicID }}/pay">
 <input type="hidden" name="csrf" value="{{ .CSRF }}">
-<button type="submit" class="service-primary">Pay {{ .Total }} with Bitcoin →</button>
-<p>Continue to OpenNode to pay with Lightning or on-chain Bitcoin.</p>
+<button type="submit" class="service-primary">Pay {{ .Total }} {{ if eq .Order.Quote.Provider "stripe" }}by card{{ else }}with Bitcoin{{ end }} →</button>
+{{ if eq .Order.Quote.Provider "stripe" }}<p>Continue to Stripe to pay by card.</p>{{ else }}<p>Continue to OpenNode to pay with Lightning or on-chain Bitcoin.</p>{{ end }}
 </form>
 {{ end }}
 <p><a href="/services/orders/{{ .Order.PublicID }}">Refresh payment status</a></p>
