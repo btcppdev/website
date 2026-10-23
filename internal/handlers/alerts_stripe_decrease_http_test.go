@@ -229,6 +229,15 @@ func TestAlertsStripeDecreaseHTTPPostgres(t *testing.T) {
 	if code != 200 || !strings.Contains(body, "View subscription change") || strings.Contains(body, "Cancel future renewals") {
 		t.Fatal(code, body)
 	}
+	quote, err := getters.AlertsStripeDecreaseQuoteForPerson(ctx, app, person, quoteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"decrease from 2 to 1 on " + time.Unix(quote.Preview.EffectiveAt, 0).UTC().Format("January 2, 2006"), "new annual total will be $24.00", "three free projects remain included"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("scheduled change missing %q: %s", want, body)
+		}
+	}
 	for i := 0; i < 2; i++ {
 		if code, body, location := call(path, url.Values{"csrf": {csrf}, "action": {"withdraw"}}); code != 303 || location != path {
 			t.Fatal(code, body, location)

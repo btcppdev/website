@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"net/http"
@@ -215,7 +216,13 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 			page.DecreasePath = "/services/alerts/decrease/" + decreaseID
 			switch decreaseState {
 			case "scheduled":
-				page.Message = "A lower project quantity is scheduled for renewal. View the saved change for its price and effective date."
+				quote, err := getters.AlertsStripeDecreaseQuoteForPerson(r.Context(), app, identity.PersonID, decreaseID)
+				if err != nil {
+					http.Error(w, "Unable to read scheduled subscription change", http.StatusServiceUnavailable)
+					return
+				}
+				change := quote.Preview
+				page.Message = fmt.Sprintf("Your paid project allowance will decrease from %d to %d on %s. Your new annual total will be %s, including applicable tax. Your three free projects remain included.", change.PreviousSlots, change.PaidSlots, time.Unix(change.EffectiveAt, 0).UTC().Format("January 2, 2006"), fmt.Sprintf("$%d.%02d", change.AnnualCents/100, change.AnnualCents%100))
 			case "pending":
 				page.Message = "Your subscription change is saved and awaiting Stripe confirmation."
 			default:
