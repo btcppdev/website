@@ -14,19 +14,19 @@ import (
 
 func TestAntarcticaFares(t *testing.T) {
 	page := newAntarcticaPage(nil, true)
-	want := [][3]string{
-		{"$16,429", "$3,285.80", "$12,321.75"},
-		{"$15,599", "$3,119.80", "$11,699.25"},
-		{"$14,429", "$2,885.80", "$10,821.75"},
+	want := [][2]string{
+		{"$16,429", "$3,285.80"},
+		{"$15,599", "$3,119.80"},
+		{"$14,429", "$2,885.80"},
 	}
-	wantSplit := [][2]string{{"$4,107.25", "$8,214.50"}, {"$3,899.75", "$7,799.50"}, {"$3,607.25", "$7,214.50"}}
+	wantFull := [][2]string{{"$15,607.55", "$821.45"}, {"$14,819.05", "$779.95"}, {"$13,707.55", "$721.45"}}
 	for i, berth := range page.Berths {
-		got := [3]string{berth.Price, berth.Deposit, berth.BitcoinContribution}
+		if full := [2]string{berth.PayInFull, berth.PayInFullSavings}; full != wantFull[i] {
+			t.Errorf("%s pay in full: got %v, want %v", berth.ID, full, wantFull[i])
+		}
+		got := [2]string{berth.Price, berth.Deposit}
 		if got != want[i] {
 			t.Errorf("%s: got %v, want %v", berth.ID, got, want[i])
-		}
-		if split := [2]string{berth.ReservationCost, berth.HeldBitcoinValue}; split != wantSplit[i] {
-			t.Errorf("%s split: got %v, want %v", berth.ID, split, wantSplit[i])
 		}
 	}
 }
@@ -54,10 +54,32 @@ func TestAntarcticaTemplate(t *testing.T) {
 	if err := app.TemplateCache.ExecuteTemplate(&out, "conf/antarctica.tmpl", newAntarcticaPage(nil, true)); err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"Private design preview", "Reservations are not open", "$16,429", "$15,599", "$14,429", "No deposit or payment is collected", "January 1, 2027", "April 1, 2027", "July 1, 2027", "October 1, 2027", "December 1, 2026"} {
+	for _, required := range []string{"Private design preview", "Reservations are not open", "$16,429", "$15,599", "$14,429", "No deposit or payment is collected", "January 1, 2027", "April 1, 2027", "July 1, 2027", "October 1, 2027", "Pay in full with bitcoin", "Pay in full via Stripe"} {
 		if !strings.Contains(out.String(), required) {
 			t.Errorf("missing %q", required)
 		}
+	}
+	for _, removed := range []string{"bitcoin-explorer", "Stay in bitcoin", "December 1, 2026", "data-held", "Settle before sailing"} {
+		if strings.Contains(out.String(), removed) {
+			t.Errorf("removed payment plan still present: %q", removed)
+		}
+	}
+}
+
+// Explicit opt-in, loopback-only design preview. No database or payment provider.
+func TestAntarcticaCheckout(t *testing.T) {
+	app := antarcticaTestTemplates(t)
+	var out bytes.Buffer
+	if err := app.TemplateCache.ExecuteTemplate(&out, "conf/antarctica-checkout.tmpl", newAntarcticaPage(nil, true)); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{"Number of spots to reserve", "cabin-allocations", "Roommate", "newsletter-opt-in", "Payments opening soon"} {
+		if !strings.Contains(strings.ToLower(out.String()), strings.ToLower(required)) {
+			t.Errorf("missing checkout content %q", required)
+		}
+	}
+	if strings.Contains(out.String(), `id="newsletter-opt-in" checked`) {
+		t.Fatal("newsletter preselected")
 	}
 }
 
@@ -70,6 +92,10 @@ func TestAntarcticaDemo(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("checkout") == "1" {
+			renderAntarcticaCheckout(w, app, newAntarcticaPage(nil, true))
+			return
+		}
 		renderAntarcticaPage(w, app, newAntarcticaPage(nil, true))
 	})
 	t.Log("Antarctica preview: http://127.0.0.1:8110")

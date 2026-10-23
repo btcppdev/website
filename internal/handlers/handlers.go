@@ -4775,6 +4775,10 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 
 	if conf.Tag == "antarctica" || conf.Tag == "antarctica27" {
+		if r.URL.Query().Get("checkout") == "1" {
+			renderAntarcticaCheckout(w, ctx, newAntarcticaPage(conf, false))
+			return
+		}
 		renderAntarcticaConference(w, ctx, conf)
 		return
 	}
