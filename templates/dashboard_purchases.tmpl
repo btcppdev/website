@@ -24,6 +24,7 @@
 {{ if or (eq .Status "paid") (eq .Status "fulfilled") (eq .Status "refunded") (eq .Status "partially_refunded") }}<a href="/dashboard/orders/{{ .Reference }}/receipt">Download receipt</a>{{ end }}
 {{ else if eq .Kind "pos" }}<a href="/dashboard/pos-purchases/{{ .Reference }}">View receipt</a>
 {{ else }}<a href="/dashboard">View event tickets</a>{{ end }}
+{{ if or (eq .Kind "order") (eq .Kind "service") }}{{ if or (eq .Status "paid") (eq .Status "refunded") (eq .Status "partially_refunded") }}<a href="/dashboard/orders/{{ .Reference }}/invoice">Invoice / PDF</a>{{ end }}{{ else }}<a href="mailto:inbox@btcpp.dev">Request invoice</a>{{ end }}
 </div></article>
 {{ else }}<p>No purchases on this page. Purchases linked to this account will appear here.</p>{{ end }}
 </div></section>

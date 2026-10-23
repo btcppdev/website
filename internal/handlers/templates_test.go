@@ -47,12 +47,12 @@ func TestLoadTemplates(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Alerts subscription", "50000 sats", "Ticket revoked", "/services/orders/paid-service", "pos-purchases/sale", "page=2", "/dashboard/subscriptions", "&lt;script&gt;"} {
+	for _, want := range []string{"Alerts subscription", "50000 sats", "Ticket revoked", "/services/orders/paid-service", "pos-purchases/sale", "page=2", "/dashboard/subscriptions", "&lt;script&gt;", "/dashboard/orders/paid-service/invoice"} {
 		if !strings.Contains(purchases.String(), want) {
 			t.Fatalf("purchase history missing %q", want)
 		}
 	}
-	if strings.Contains(purchases.String(), "paid-service/receipt") || strings.Contains(purchases.String(), "/dashboard/orders/paid-service") || strings.Contains(purchases.String(), "pending-order/receipt") || strings.Contains(purchases.String(), "<script>test</script>") {
+	if strings.Contains(purchases.String(), "paid-service/receipt") || strings.Contains(purchases.String(), `href="/dashboard/orders/paid-service"`) || strings.Contains(purchases.String(), "pending-order/receipt") || strings.Contains(purchases.String(), "<script>test</script>") {
 		t.Fatal("unsafe purchase history")
 	}
 	// Product discovery is staged for global admins; ordinary customers still

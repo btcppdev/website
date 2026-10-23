@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>{{ .Number }}</title>
+<style>@page{margin:18mm}body{font:12px Arial,sans-serif;color:#111}h1{font-size:28px}h2{font-size:14px}section{margin:20px 0}.addresses{display:flex;gap:50px}.addresses>div{flex:1}.address{white-space:pre-line}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 0;border-bottom:1px solid #ddd}th:last-child,td:last-child{text-align:right}tr{break-inside:avoid}.totals{width:65%;margin:24px 0 24px auto}.note{font-size:10px;color:#444}</style></head><body>
+<h1>Invoice {{ .Number }}</h1>
+<p>Issued: {{ .IssuedAt.UTC.Format "January 2, 2006" }} · Order date: {{ .Snapshot.PurchasedAt.UTC.Format "January 2, 2006" }}<br>Order reference: {{ .Snapshot.OrderReference }}</p>
+<section class="addresses"><div><h2>Seller</h2><strong>{{ .Snapshot.SellerName }}</strong><p class="address">{{ .Snapshot.SellerAddress }}</p><p>EIN: {{ .Snapshot.SellerEIN }}</p></div><div><h2>Bill to</h2><strong>{{ .Snapshot.Buyer.Name }}</strong><p class="address">{{ .Snapshot.Buyer.Address }}
+{{ .Snapshot.Buyer.City }} {{ .Snapshot.Buyer.Region }} {{ .Snapshot.Buyer.PostalCode }}
+{{ .Snapshot.Buyer.Country }}</p>{{ if .Snapshot.Buyer.TaxID }}<p>Buyer tax ID: {{ .Snapshot.Buyer.TaxID }}</p>{{ end }}</div></section>
+<p>Currency: {{ .Snapshot.Currency }} · Payment provider: {{ .Snapshot.PaymentMethod }}</p>
+<table><thead><tr><th>Description</th><th>Quantity</th><th>Line amount before tax</th></tr></thead><tbody>{{ range .Snapshot.Items }}<tr><td>{{ .Name }}</td><td>{{ .Quantity }}</td><td>{{ .Money }}</td></tr>{{ end }}</tbody></table>
+<table class="totals">{{ range .Snapshot.Totals }}<tr><th>{{ .Label }}</th><td>{{ .Amount }}</td></tr>{{ end }}</table>
+<p class="note">Amounts and taxes reflect the original purchase records. This invoice does not request a new payment. Refunds and credit notes are separate adjustments; check your account for the current payment status. Contact inbox@btcpp.dev for billing corrections.</p>
+</body></html>

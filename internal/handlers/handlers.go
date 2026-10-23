@@ -1586,6 +1586,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOrder(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/orders/{order}/invoice", func(w http.ResponseWriter, r *http.Request) { DashboardPurchaseInvoice(w, r, app) }).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/orders/{order}/receipt", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOrderReceipt(w, r, app)
 	}).Methods("GET")

@@ -1,0 +1,24 @@
+<!DOCTYPE html><html lang="en"><head><title>Purchase invoice · bitcoin++</title>{{ block "header" . }}{{ end }}</head>
+<body class="btcpp-profile-edit-page account-settings-page purchase-invoice-page"><main class="profile-edit-shell person-emails-page">
+<p><a href="/dashboard/orders">← Purchases &amp; billing</a></p>
+<header class="profile-edit-hero account-settings-hero"><div class="account-settings-hero__copy"><p class="profile-edit-tag">§ YOUR PURCHASE</p><h1>Purchase <span>invoice.</span></h1></div></header>
+{{ if .Notice }}<p role="alert">{{ .Notice }}. Contact inbox@btcpp.dev with your order reference if you need help.</p>{{ end }}
+{{ if .Invoice }}
+<p>Invoice <strong>{{ .Invoice.Number }}</strong> · issued {{ .Invoice.IssuedAt.UTC.Format "Jan 2, 2006" }}</p>
+<p>Billed to {{ .Invoice.Snapshot.Buyer.Name }}</p>
+<a class="purchase-invoice-button" href="/dashboard/orders/{{ .Reference }}/invoice?download=pdf">Download invoice (PDF)</a>
+<p>Issued billing details are saved with this invoice. For corrections or a credit note after a refund, contact <a href="mailto:inbox@btcpp.dev">inbox@btcpp.dev</a> and include the invoice number.</p>
+{{ else }}
+<p>Confirm the name and address to bill for order {{ .Reference }}. These details will be saved on the invoice; they do not change your account profile or the tax charged at checkout.</p>
+<form method="post" class="purchase-invoice-form">
+<input type="hidden" name="csrf" value="{{ .CSRF }}">
+<label>Full name or company legal name<input name="name" required maxlength="500" autocomplete="organization" value="{{ .Buyer.Name }}"></label>
+<label>Billing street address<textarea name="address" required maxlength="500" autocomplete="street-address">{{ .Buyer.Address }}</textarea></label>
+<label>City<input name="city" required maxlength="500" autocomplete="address-level2" value="{{ .Buyer.City }}"></label>
+<label>State / province / region<input name="region" maxlength="500" autocomplete="address-level1" value="{{ .Buyer.Region }}"></label>
+<label>Postal code<input name="postal" required maxlength="500" autocomplete="postal-code" value="{{ .Buyer.PostalCode }}"></label>
+<label>Country<input name="country" required maxlength="500" autocomplete="country-name" value="{{ .Buyer.Country }}"></label>
+<label>Company tax ID (optional)<input name="tax_id" maxlength="500" value="{{ .Buyer.TaxID }}"></label>
+<button type="submit" class="purchase-invoice-button">Issue invoice</button>
+</form>
+{{ end }}</main>{{ block "footer" . }}{{ end }}</body></html>
