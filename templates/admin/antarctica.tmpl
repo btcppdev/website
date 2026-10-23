@@ -3,9 +3,10 @@
 <p><a href="/admin">← Administration</a></p><h1>Antarctica checkout</h1>
 {{ if .Flash }}<p role="status">{{ .Flash }}</p>{{ end }}
 <section><h2>Reservations: {{ if .Enabled }}open{{ else }}paused{{ end }}</h2>
-<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="purchase-invoice-button" name="action" value="{{ if .Enabled }}pause{{ else }}open{{ end }}" {{ if and (not .Enabled) .Blockers }}disabled{{ end }}>{{ if .Enabled }}Pause Antarctica checkout{{ else }}Open Antarctica checkout{{ end }}</button></form>
+{{ if .Blockers }}<div role="status" style="padding:1rem;margin:1rem 0;border:1px solid #b45309;background:#fffbeb"><h3>Needed before opening</h3><p>Inventory setup does not automatically open checkout. Resolve these items, then click Open Antarctica checkout to check again.</p><ul>{{ range .Blockers }}<li>{{ . }}</li>{{ end }}</ul></div>{{ else }}<p>Checkout prerequisites are configured. Complete a real payment and verify the confirmation email before announcing the launch.</p>{{ end }}
+<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="purchase-invoice-button" name="action" value="{{ if .Enabled }}pause{{ else }}open{{ end }}">{{ if .Enabled }}Pause Antarctica checkout{{ else }}Open Antarctica checkout{{ end }}</button></form>
 <p>This controls new purchases immediately. Existing bookings, payment history and installment payments remain available. The expedition stays unlisted on the main site.</p>
-{{ if .Blockers }}<h3>Needed before opening</h3><ul>{{ range .Blockers }}<li>{{ . }}</li>{{ end }}</ul>{{ else }}<p>Checkout prerequisites are configured. Complete a real payment and verify the confirmation email before announcing the launch.</p>{{ end }}
+
 <p><a href="/antarctica">View expedition →</a> · <a href="/expeditions/antarctica/terms">View published booking terms →</a></p></section>
 <section><h2>Booking policy</h2>{{ with .Current }}<p>Current version: <strong>{{ .Version }}</strong> · Effective {{ .EffectiveAt.UTC.Format "January 2, 2006 15:04 MST" }}</p>{{ else }}<p>No policy has been published. The fields below contain the prepared expedition terms and privacy information for review.</p>{{ end }}
 <form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="publish">
