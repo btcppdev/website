@@ -19,7 +19,9 @@ func expeditionTaxQuote(ctx context.Context, app *config.AppContext, charge expe
 	return calculateExpeditionTax(ctx, app, charge, address, client.New)
 }
 func calculateExpeditionTax(ctx context.Context, app *config.AppContext, charge expedition.Charge, address *types.ShopAddress, calculate func(*stripe.TaxCalculationParams) (*stripe.TaxCalculation, error)) (*getters.TaxQuoteInput, error) {
-	taxCode := app.Env.AntarcticaStripeTaxCode
+	// Match the standard conference-ticket classification, without separate
+	// expedition tax configuration. Merchandise is handled separately.
+	taxCode := ticketStripeTaxCode(nil)
 	if address == nil || strings.TrimSpace(address.Country) == "" || strings.TrimSpace(address.Line1) == "" || strings.TrimSpace(address.City) == "" {
 		return nil, fmt.Errorf("billing address is required")
 	}
@@ -42,7 +44,7 @@ func calculateExpeditionTax(ctx context.Context, app *config.AppContext, charge 
 		return nil, fmt.Errorf("calculate expedition tax: %w", err)
 	}
 	now := time.Now().UTC()
-	if calculation == nil || !strings.HasPrefix(calculation.ID, "taxcalc_") || calculation.Currency != "usd" || calculation.AmountTotal != charge.TotalCents || calculation.TaxAmountExclusive != 0 || calculation.TaxAmountInclusive < 0 || calculation.TaxAmountInclusive > charge.TotalCents || calculation.ExpiresAt <= now.Unix() || calculation.LineItems == nil || len(calculation.LineItems.Data) != 1 {
+	if calculation == nil || !strings.HasPrefix(calculation.ID, "taxcalc_") || calculation.Currency != "usd" || calculation.AmountTotal != charge.TotalCents || calculation.TaxAmountExclusive != 0 || calculation.TaxAmountInclusive != 0 || calculation.ExpiresAt <= now.Unix() || calculation.LineItems == nil || len(calculation.LineItems.Data) != 1 {
 		return nil, fmt.Errorf("tax calculation does not match the inclusive expedition price")
 	}
 	line := calculation.LineItems.Data[0]

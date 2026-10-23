@@ -40,15 +40,16 @@ func TestExpeditionStripeSessionValidation(t *testing.T) {
 	}
 }
 func TestExpeditionTaxValidation(t *testing.T) {
-	app := &config.AppContext{Env: &types.EnvConfig{AntarcticaStripeTaxCode: "txcd_fixture"}}
+	app := &config.AppContext{Env: &types.EnvConfig{}}
 	charge := expedition.Charge{TotalCents: 1670000, Provider: expedition.Stripe, ExpiresAt: time.Now().Add(time.Hour)}
 	address := &types.ShopAddress{Line1: "123 Test St", City: "Austin", Country: "US"}
 	valid := func() *stripe.TaxCalculation {
-		return &stripe.TaxCalculation{ID: "taxcalc_fixture", Currency: "usd", AmountTotal: 1670000, ExpiresAt: time.Now().Add(time.Hour).Unix(), LineItems: &stripe.TaxCalculationLineItemList{Data: []*stripe.TaxCalculationLineItem{{Amount: 1670000, Quantity: 1, Reference: expedition.ProductCode, TaxBehavior: "inclusive", TaxCode: "txcd_fixture"}}}}
+		return &stripe.TaxCalculation{ID: "taxcalc_fixture", Currency: "usd", AmountTotal: 1670000, ExpiresAt: time.Now().Add(time.Hour).Unix(), LineItems: &stripe.TaxCalculationLineItemList{Data: []*stripe.TaxCalculationLineItem{{Amount: 1670000, Quantity: 1, Reference: expedition.ProductCode, TaxBehavior: "inclusive", TaxCode: types.StripeTaxCodeNontaxable}}}}
 	}
 	for name, mutate := range map[string]func(*stripe.TaxCalculation){
 		"valid":                    func(*stripe.TaxCalculation) {},
 		"wrong total":              func(c *stripe.TaxCalculation) { c.AmountTotal-- },
+		"unexpected included tax":  func(c *stripe.TaxCalculation) { c.TaxAmountInclusive = 100; c.LineItems.Data[0].AmountTax = 100 },
 		"exclusive tax":            func(c *stripe.TaxCalculation) { c.TaxAmountExclusive = 100 },
 		"wrong product":            func(c *stripe.TaxCalculation) { c.LineItems.Data[0].Reference = "hat" },
 		"wrong tax code":           func(c *stripe.TaxCalculation) { c.LineItems.Data[0].TaxCode = "txcd_other" },
@@ -58,7 +59,7 @@ func TestExpeditionTaxValidation(t *testing.T) {
 			c := valid()
 			mutate(c)
 			_, err := calculateExpeditionTax(context.Background(), app, charge, address, func(p *stripe.TaxCalculationParams) (*stripe.TaxCalculation, error) {
-				if *p.LineItems[0].Amount != charge.TotalCents || *p.LineItems[0].TaxBehavior != "inclusive" {
+				if *p.LineItems[0].Amount != charge.TotalCents || *p.LineItems[0].TaxBehavior != "inclusive" || *p.LineItems[0].TaxCode != ticketStripeTaxCode(nil) {
 					t.Fatal("untrusted tax request")
 				}
 				return c, nil

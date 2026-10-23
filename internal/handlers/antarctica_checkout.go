@@ -18,10 +18,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Opening sales is separate from publishing the preview. Tax mode is deliberately
-// explicit: this implementation supports reviewed, billing-address, inclusive tax.
+// Sales are controlled by global admin. Passage uses the conference-ticket tax
+// classification; shared billing still records a provider tax calculation.
 func antarcticaCheckoutReady(app *config.AppContext) bool {
-	return app != nil && app.DB != nil && app.Env != nil && antarcticaSalesEnabled(app) && app.Env.AntarcticaTaxMode == "billing-inclusive" && strings.HasPrefix(app.Env.AntarcticaStripeTaxCode, "txcd_") && app.Env.StripeKey != ""
+	return app != nil && app.DB != nil && app.Env != nil && antarcticaSalesEnabled(app) && app.Env.StripeKey != ""
 }
 
 // Stripe checkout is off for launch; Stripe Tax remains available for Bitcoin orders.

@@ -22,6 +22,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/expedition"
+	"btcpp-web/internal/types"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -59,10 +60,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	}
 	app := antarcticaTestTemplates(t)
 	beta := amount == 1
-	taxCents := int64(10000)
-	if beta {
-		taxCents = 0
-	}
+	taxCents := int64(0)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, uri)
 	if err != nil {
@@ -74,8 +72,6 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	defer enableAntarcticaSalesForTest(t, app)()
 	app.Env.AntarcticaStripeCheckoutEnabled = paymentProvider == "stripe"
 	app.Env.OpenNode.Key = "local-fixture"
-	app.Env.AntarcticaStripeTaxCode = "txcd_99999999"
-	app.Env.AntarcticaTaxMode = "billing-inclusive"
 	app.Env.StripeKey = "sk_test_fixture"
 	var buyer string
 	if err = pool.QueryRow(ctx, `INSERT INTO people(name) VALUES('Expedition HTTP fixture') RETURNING id::text`).Scan(&buyer); err != nil {
@@ -157,10 +153,10 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 			json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": chargeID, "order_id": attemptID.Load(), "status": status, "currency": "USD", "source_fiat_value": float64(amount) / 100, "price": amount, "fee": 0, "missing_amt": 0, "hosted_checkout_url": "https://checkout.opennode.com/" + chargeID}})
 		case r.URL.Path == "/v1/tax/calculations":
 			taxCalls++
-			if r.Form.Get("line_items[0][amount]") != strconv.FormatInt(amount, 10) || r.Form.Get("line_items[0][reference]") != expedition.ProductCode || r.Form.Get("line_items[0][tax_code]") != app.Env.AntarcticaStripeTaxCode {
+			if r.Form.Get("line_items[0][amount]") != strconv.FormatInt(amount, 10) || r.Form.Get("line_items[0][reference]") != expedition.ProductCode || r.Form.Get("line_items[0][tax_code]") != types.StripeTaxCodeNontaxable {
 				t.Error("wrong tax request", r.Form)
 			}
-			json.NewEncoder(w).Encode(map[string]any{"id": calculationID, "currency": "usd", "amount_total": amount, "tax_amount_inclusive": taxCents, "expires_at": time.Now().Add(time.Hour).Unix(), "line_items": map[string]any{"data": []any{map[string]any{"amount": amount, "amount_tax": taxCents, "quantity": 1, "reference": expedition.ProductCode, "tax_behavior": "inclusive", "tax_code": app.Env.AntarcticaStripeTaxCode}}}})
+			json.NewEncoder(w).Encode(map[string]any{"id": calculationID, "currency": "usd", "amount_total": amount, "tax_amount_inclusive": taxCents, "expires_at": time.Now().Add(time.Hour).Unix(), "line_items": map[string]any{"data": []any{map[string]any{"amount": amount, "amount_tax": taxCents, "quantity": 1, "reference": expedition.ProductCode, "tax_behavior": "inclusive", "tax_code": types.StripeTaxCodeNontaxable}}}})
 		case r.URL.Path == "/v1/checkout/sessions" && r.Method == "POST":
 			creates++
 			if r.Header.Get("Idempotency-Key") == "" || r.Form.Get("payment_method_types[0]") != "card" || r.Form.Get("line_items[0][price_data][unit_amount]") != "1670000" {

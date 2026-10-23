@@ -1050,3 +1050,17 @@ real purchase and receipt before announcing the launch.
 The inventory initialization button inserts only missing category rows (18/3/4),
 with one-hour unpaid holds and a January 1, 2027 00:00 UTC signup cutoff. Existing
 rows and the configured staff reserve are preserved. It does not reset bookings.
+
+### Conference-ticket tax treatment — October 24, 2026
+
+Per organizer instruction, new Antarctica passage payments use the existing
+conference-ticket default classification (`types.StripeTaxCodeNontaxable`,
+`txcd_00000000`). No sales tax is added to passage. Merchandise remains separate.
+This replaces the earlier requirement to configure an expedition-specific tax
+code/mode; both configuration fields have been removed. This records the chosen
+checkout treatment, not a determination of statutory tax liability.
+
+Shared billing still obtains and retains a Stripe Tax calculation for payment
+and refund accounting. A response containing nonzero tax is rejected rather than
+silently changing the approved fare. Shared Stripe credentials remain necessary,
+even though checkout is Bitcoin-only. Historical tax evidence is not rewritten.

@@ -50,9 +50,6 @@ func antarcticaLaunchBlockers(app *config.AppContext) []string {
 	if app.Env == nil || app.Env.StripeKey == "" {
 		blockers = append(blockers, "Configure the shared Stripe credential for tax calculation.")
 	}
-	if app.Env == nil || app.Env.AntarcticaTaxMode != "billing-inclusive" || !strings.HasPrefix(app.Env.AntarcticaStripeTaxCode, "txcd_") {
-		blockers = append(blockers, "Configure the approved expedition tax code and billing-inclusive tax treatment.")
-	}
 	if app.Env == nil || app.Env.OpenNode.Key == "" {
 		blockers = append(blockers, "Configure the shared OpenNode payment credential.")
 	}

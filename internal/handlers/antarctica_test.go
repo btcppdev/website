@@ -104,7 +104,7 @@ func TestAntarcticaDemo(t *testing.T) {
 			http.Error(w, "Local layout demonstration only", http.StatusMethodNotAllowed)
 			return
 		}
-		page := antarcticaAdminPage{Version: "antarctica-20261024-120000", Effective: "2026-10-24T12:00:00Z", Terms: expedition.BookingTerms, Privacy: expedition.BookingPrivacy, Flash: "Layout demonstration — no settings are changed.", Blockers: []string{"Configure the approved expedition tax code and billing-inclusive tax treatment.", "Publish the expedition booking terms and privacy policy below."}}
+		page := antarcticaAdminPage{Version: "antarctica-20261024-120000", Effective: "2026-10-24T12:00:00Z", Terms: expedition.BookingTerms, Privacy: expedition.BookingPrivacy, Flash: "Layout demonstration — no settings are changed.", Blockers: []string{"Enable the production worker setting SERVICE_FULFILLMENT_ENABLED.", "Publish the expedition booking terms and privacy policy below."}}
 		if err := app.TemplateCache.ExecuteTemplate(w, "admin/antarctica.tmpl", page); err != nil {
 			t.Log(err)
 		}

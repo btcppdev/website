@@ -152,8 +152,6 @@ func TestAntarcticaAdminPostgres(t *testing.T) {
 	app.Env.MailEndpoint = "http://never-contacted.invalid"
 	app.Env.StripeKey = "fixture"
 	app.Env.OpenNode.Key = "fixture"
-	app.Env.AntarcticaTaxMode = "billing-inclusive"
-	app.Env.AntarcticaStripeTaxCode = "txcd_fixture"
 	if w := request(admin, "test-csrf", action("inventory")); w.Code != 303 {
 		t.Fatalf("inventory %d", w.Code)
 	}
