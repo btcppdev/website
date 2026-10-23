@@ -93,3 +93,38 @@ func TestRejectCrossProductAndAlteredInvoices(t *testing.T) {
 		})
 	}
 }
+
+func TestInvoiceProductTaxCodeShapes(t *testing.T) {
+	for _, tc := range []struct {
+		name, legacy, current string
+		valid                 bool
+	}{
+		{"legacy", "txcd_10103000", "", true},
+		{"current", "", "txcd_10103000", true},
+		{"both", "txcd_10103000", "txcd_10103000", true},
+		{"missing", "", "", false},
+		{"wrong current", "", "txcd_wrong", false},
+		{"conflicting current", "txcd_10103000", "txcd_wrong", false},
+		{"conflicting legacy", "txcd_wrong", "txcd_10103000", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inv, price, b := invoiceFixture(t)
+			raw := `{"id":"prod_test"`
+			if tc.legacy != "" {
+				raw += `,"tax_code":"` + tc.legacy + `"`
+			}
+			if tc.current != "" {
+				raw += `,"tax_details":{"tax_code":"` + tc.current + `"}`
+			}
+			raw += `}`
+			price.Product = &stripe.Product{}
+			if err := json.Unmarshal([]byte(raw), price.Product); err != nil {
+				t.Fatal(err)
+			}
+			_, err := VerifyPaidInvoice(inv, price, b)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v error=%v", tc.valid, err)
+			}
+		})
+	}
+}

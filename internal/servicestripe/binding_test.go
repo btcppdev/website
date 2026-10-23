@@ -9,12 +9,15 @@ import (
 
 func TestCompletedProductBinding(t *testing.T) {
 	for _, code := range []string{servicebilling.InsiderMonthlyProduct, servicebilling.InsiderAnnualProduct} {
-		for _, change := range []string{"valid", "product", "account", "quantity", "tax", "interval", "price", "incomplete", "mode", "pagination"} {
+		for _, change := range []string{"valid", "current-tax-code", "product", "account", "quantity", "tax", "interval", "price", "incomplete", "mode", "pagination"} {
 			t.Run(code+"/"+change, func(t *testing.T) {
 				in := insiderIntent(code)
 				_, price, _ := insiderInvoice(t, code)
 				s := &stripe.CheckoutSession{ID: "cs_test", Mode: "subscription", Status: "complete", ClientReferenceID: in.ID, Metadata: map[string]string{"product": code, "account_id": in.PersonID, "checkout_intent": in.ID}, Customer: &stripe.Customer{ID: "cus_test"}, Subscription: &stripe.Subscription{ID: "sub_test"}, LineItems: &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: 1, Price: price}}}}
 				switch change {
+				case "current-tax-code":
+					price.Product.TaxDetails = &stripe.ProductTaxDetails{TaxCode: price.Product.TaxCode.ID}
+					price.Product.TaxCode = nil
 				case "product":
 					s.Metadata["product"] = servicebilling.AlertsProduct
 				case "account":
@@ -41,7 +44,7 @@ func TestCompletedProductBinding(t *testing.T) {
 					return s, nil
 				}}
 				b, err := c.CompletedBinding(context.Background(), in, "cs_test")
-				if change != "valid" {
+				if change != "valid" && change != "current-tax-code" {
 					if err == nil {
 						t.Fatal("mismatched binding accepted")
 					}
