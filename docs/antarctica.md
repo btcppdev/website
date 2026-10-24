@@ -1108,3 +1108,25 @@ Stripe card payment ($0.50, the USD card minimum). Prices are fixed server-side
 and displayed per method before payment. The single-berth, paid-in-full and
 one-lifetime-claim rules remain unchanged; ordinary purchasers cannot receive
 either beta fare.
+
+### Admin cancellation — October 24, 2026
+
+`/admin/antarctica/bookings` lists confirmed and closed bookings and supports
+exact purchaser-email search. Global admins can review a whole booking and
+confirm cancellation with a reason and CSRF-protected POST. A preview hash
+prevents confirming stale payment/refund totals. Migration 147 stores an immutable
+cancellation audit with actor, reason, accepted policy and settlement snapshot.
+
+Cancellation releases all booking berths, closes unpaid orders, suppresses queued
+installment reminders, and prevents future installment collection. It is distinct
+from abandonment and does not send money or manufacture a refund ledger entry.
+Unsettled provider attempts, unapplied payments and custom terms require review.
+Before October 1, 2027 in America/Chicago, the refund entitlement is payments
+received less the first installment/deposit (20% of the contracted fare for full
+payment, rounded up to a cent); prior recorded refunds are deducted. At/after the
+cutoff the entitlement is zero. Existing refund ledger entries remain intact.
+
+Admin and buyer booking views show refund still due. Stripe refunds are issued
+through Stripe and synchronized by shared billing; Bitcoin refunds use the
+existing manual/shared refund workflow and recorded USD payment values. No
+cancellation email or test-allowance reset is performed by this action.

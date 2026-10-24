@@ -19,7 +19,7 @@
     <div class="expedition-admin__overview">
       <section class="ea-card" aria-labelledby="reservations-title">
         <div class="ea-card__heading"><h2 id="reservations-title">Reservations</h2><span class="ea-status {{ if .Enabled }}ea-status--open{{ end }}">{{ if .Enabled }}Open{{ else }}Paused{{ end }}</span></div>
-        <p>Control new purchases. Existing bookings and installment payments remain available when checkout is paused.</p><p class="ea-help">Passage uses the standard conference-ticket tax classification. No sales tax is added; merchandise is separate.</p>
+        <p><a class="ea-button ea-button--secondary" href="/admin/antarctica/bookings">Manage bookings &amp; cancellations →</a></p><p>Control new purchases. Existing bookings and installment payments remain available when checkout is paused.</p><p class="ea-help">Passage uses the standard conference-ticket tax classification. No sales tax is added; merchandise is separate.</p>
         {{ if .Blockers }}
         <div class="ea-readiness" role="status"><h3>Needed before opening</h3><p>Resolve these items, then check again using the button below.</p><ul>{{ range .Blockers }}<li>{{ . }}</li>{{ end }}</ul></div>
         {{ else }}

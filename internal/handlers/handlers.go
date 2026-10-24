@@ -1228,6 +1228,8 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/expeditions/bookings/{booking}", func(w http.ResponseWriter, r *http.Request) { ExpeditionBooking(w, r, app) }).Methods("GET")
 	r.HandleFunc("/expeditions/bookings/{booking}/installments/{number}", func(w http.ResponseWriter, r *http.Request) { ExpeditionInstallment(w, r, app) }).Methods("GET", "POST")
+	r.HandleFunc("/admin/antarctica/bookings", func(w http.ResponseWriter, r *http.Request) { AdminExpeditionBookings(w, r, app) }).Methods("GET")
+	r.HandleFunc("/admin/antarctica/bookings/{booking}", func(w http.ResponseWriter, r *http.Request) { AdminExpeditionBookings(w, r, app) }).Methods("GET", "POST")
 	r.HandleFunc("/expeditions/admin/bookings/{booking}", func(w http.ResponseWriter, r *http.Request) { ExpeditionBookingAudit(w, r, app) }).Methods("GET")
 	r.HandleFunc("/antarctica", func(w http.ResponseWriter, r *http.Request) { AntarcticaLanding(w, r, app) }).Methods("GET")
 	r.HandleFunc("/expeditions/antarctica/checkout", func(w http.ResponseWriter, r *http.Request) { AntarcticaCheckout(w, r, app) }).Methods("GET", "POST")

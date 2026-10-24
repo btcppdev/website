@@ -55,3 +55,5 @@ body.expedition-admin { margin: 0; background: #f4f6f7; color: #19333b; font-fam
 .ea-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 800px) { .expedition-admin__overview { grid-template-columns: 1fr; } .expedition-admin__hero { align-items: flex-start; } }
 @media (max-width: 560px) { .expedition-admin__shell { width: calc(100% - 28px); padding: 22px 0 40px; } .expedition-admin__hero { flex-direction: column; gap: 18px; margin-bottom: 24px; } .ea-card { padding: 20px; } .ea-form-grid { grid-template-columns: 1fr; gap: 18px; } .ea-actions { align-items: stretch; flex-direction: column; } .ea-actions .ea-help { flex-basis: auto; } .ea-button { width: 100%; } .ea-readiness { padding: 15px; } .ea-publish { padding: 16px; } .ea-editor .ea-field { padding: 10px; } .ea-editor summary { padding: 14px; } .ea-policy-current { align-items: flex-start; } }
+
+.ea-cancel-form{display:grid;gap:20px;margin:24px 0}.ea-cancel-form textarea{min-height:110px}.ea-cancel-form .ea-actions{margin:0}.ea-cancel-form .ea-button{background:#8e3333}

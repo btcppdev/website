@@ -99,6 +99,16 @@ func TestAntarcticaDemo(t *testing.T) {
 	app := antarcticaTestTemplates(t)
 	app.Session = scs.New()
 	mux := http.NewServeMux()
+	mux.HandleFunc("/admin/antarctica/bookings/sample", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Layout demonstration only", 405)
+			return
+		}
+		page := expeditionCancellationPage{Booking: &getters.ExpeditionCancellation{ID: "SAMPLE", State: "confirmed", Provider: "stripe", Quantity: 1, Eligible: true, Terms: expedition.BookingTerms, PolicyVersion: "Sample terms — not a booking", Orders: []getters.ExpeditionCancellationOrder{{PublicID: "SAMPLE", Provider: "stripe", Reference: "Sample payment"}}}, CanCancel: true, Paid: "$0.50", Deposit: "$0.10", RefundDue: "$0.40", Refunded: "$0"}
+		if err := app.TemplateCache.ExecuteTemplate(w, "admin/antarctica-bookings.tmpl", page); err != nil {
+			t.Log(err)
+		}
+	})
 	mux.HandleFunc("/admin/antarctica", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Local layout demonstration only", http.StatusMethodNotAllowed)

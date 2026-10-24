@@ -145,7 +145,19 @@ func ExpeditionBooking(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		http.Error(w, "Unable to load this booking", 503)
 		return
 	}
-	renderExpeditionBooking(w, app, expeditionBookingPresentation(b, time.Now()))
+	page := expeditionBookingPresentation(b, time.Now())
+	if b.State == "cancelled" {
+		cancellation, err := getters.ExpeditionCancellationPreview(r.Context(), app, b.ID)
+		if err != nil {
+			app.Err.Printf("booking cancellation summary: %v", err)
+			http.Error(w, "Unable to load cancellation details", 503)
+			return
+		}
+		if cancellation.CancelledAt != nil {
+			page.TerminalMessage = "This booking has been cancelled and its berths released. No further installments are due. Refund still due: " + antarcticaMoney(cancellation.RefundDue) + " USD. Cancellation does not send a refund; completed refunds appear on your payment receipts. Contact inbox@btcpp.dev for help."
+		}
+	}
+	renderExpeditionBooking(w, app, page)
 }
 func renderExpeditionBooking(w http.ResponseWriter, app *config.AppContext, p expeditionBookingPage) {
 	var out bytes.Buffer

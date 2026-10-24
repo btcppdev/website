@@ -65,7 +65,7 @@ func testExpeditionSharedCommerce(t *testing.T, provider string) {
 		t.Fatal("missing terms allowed", err)
 	}
 	version := uuid.NewString()
-	p := ServiceLegalPolicy{ProductCode: expedition.ProductCode, Version: version, TermsText: "Test-only terms", PrivacyText: "Test-only privacy", EffectiveAt: time.Now().UTC().Truncate(time.Microsecond)}
+	p := ServiceLegalPolicy{ProductCode: expedition.ProductCode, Version: version, TermsText: expedition.BookingTerms, PrivacyText: "Test-only privacy", EffectiveAt: time.Now().UTC().Truncate(time.Microsecond)}
 	if err = RegisterServiceLegalPolicy(app, p); err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +111,13 @@ func testExpeditionSharedCommerce(t *testing.T, provider string) {
 	if err = BindServicePayment(app, attempt.ID, provider, ref); err != nil {
 		t.Fatal(err)
 	}
+	unresolved, err := ExpeditionCancellationPreview(ctx, app, r.ID)
+	if err != nil || !unresolved.Blocked {
+		t.Fatal("unsettled payment not blocked", unresolved, err)
+	}
+	if err = CancelExpeditionBooking(ctx, app, r.ID, buyer, unresolved.Token, "Unresolved payment"); !errors.Is(err, ErrExpeditionCancellation) {
+		t.Fatal("unsettled booking cancelled", err)
+	}
 	payment := VerifiedServicePayment{AttemptID: attempt.ID, Provider: provider, Reference: ref, EventID: "fixture-event-" + attempt.ID, Currency: "USD", TotalCents: total, PaidAt: time.Now().UTC().Truncate(time.Microsecond)}
 	for n := 0; n < 2; n++ {
 		if err = RecordServicePayment(app, payment); err != nil {
@@ -143,6 +150,45 @@ func testExpeditionSharedCommerce(t *testing.T, provider string) {
 	history, _, err := AccountPurchases(app, buyer, 1)
 	if err != nil || len(history) != 1 || history[0].BookingID != r.ID {
 		t.Fatal("booking missing from purchase history", history, err)
+	}
+	preview, err := ExpeditionCancellationPreview(ctx, app, r.ID)
+	if err != nil || preview.Blocked || preview.Paid != total || preview.RefundDue != total-(total+4)/5 {
+		t.Fatal("cancellation preview", preview, err)
+	}
+	if err = RecordServiceRefund(ctx, app, VerifiedServiceRefund{AttemptID: attempt.ID, Provider: provider, PaymentReference: ref, RefundReference: "cancellation-test-" + attempt.ID, AmountCents: 100, Currency: "USD", RefundedAt: time.Now().UTC(), Reason: "Existing refund"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = CancelExpeditionBooking(ctx, app, r.ID, buyer, preview.Token, "Changed refund balance"); !errors.Is(err, ErrExpeditionCancellation) {
+		t.Fatal("changed refund balance accepted", err)
+	}
+	preview, err = ExpeditionCancellationPreview(ctx, app, r.ID)
+	if err != nil || preview.Refunded != 100 || preview.RefundDue != total-(total+4)/5-100 {
+		t.Fatal("prior refund not deducted", preview, err)
+	}
+	if err = CancelExpeditionBooking(ctx, app, r.ID, buyer, "stale-token", "Test cancellation"); !errors.Is(err, ErrExpeditionCancellation) {
+		t.Fatal("stale preview accepted", err)
+	}
+	if err = CancelExpeditionBooking(ctx, app, r.ID, buyer, preview.Token, ""); !errors.Is(err, ErrExpeditionCancellation) {
+		t.Fatal("missing reason accepted", err)
+	}
+	for n := 0; n < 2; n++ {
+		if err = CancelExpeditionBooking(ctx, app, r.ID, buyer, preview.Token, "Guest requested cancellation"); err != nil {
+			t.Fatal("cancel or retry", err)
+		}
+	}
+	var released bool
+	if err = pool.QueryRow(ctx, `SELECT state,released_at IS NOT NULL FROM expedition_reservations WHERE id=$1`, r.ID).Scan(&state, &released); err != nil || state != "cancelled" || !released {
+		t.Fatal("cancellation did not release booking", state, released, err)
+	}
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM expedition_cancellations WHERE reservation_id=$1`, r.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatal("duplicate cancellation", count, err)
+	}
+	if _, err = store.Charge(ctx, buyer, r.ID, 1); !errors.Is(err, expedition.ErrReview) {
+		t.Fatal("cancelled booking still payable", err)
+	}
+	after, err := ExpeditionCancellationPreview(ctx, app, r.ID)
+	if err != nil || after.CancelledAt == nil || after.Refunded != 100 || after.RefundDue != preview.RefundDue {
+		t.Fatal("cancellation falsely recorded refund", after, err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE shop_orders SET status='refunded' WHERE id=$1`, purchase.OrderID); err != nil {
 		t.Fatal(err)
