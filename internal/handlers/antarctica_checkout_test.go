@@ -95,7 +95,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 		pool.Exec(ctx, `DELETE FROM expedition_installments WHERE reservation_id IN(SELECT id FROM expedition_reservations WHERE buyer_id=$1)`, buyer)
 		pool.Exec(ctx, `DELETE FROM expedition_reservations WHERE buyer_id=$1`, buyer)
 	}()
-	policy := getters.ServiceLegalPolicy{ProductCode: expedition.ProductCode, Version: uuid.NewString(), TermsText: "Test terms only", PrivacyText: "Test privacy only", EffectiveAt: time.Now().UTC().Truncate(time.Microsecond)}
+	policy := getters.ServiceLegalPolicy{ProductCode: expedition.ProductCode, Version: uuid.NewString(), TermsText: expedition.BookingTerms, PrivacyText: "Test privacy only", EffectiveAt: time.Now().UTC().Truncate(time.Microsecond)}
 	if err = getters.RegisterServiceLegalPolicy(app, policy); err != nil {
 		t.Fatal(err)
 	}
@@ -321,6 +321,51 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 		t.Fatal("redirect confirmed unpaid booking")
 	}
 	if paymentProvider == "stripe" {
+		if beta {
+			metadata := sessionResponse["metadata"].(map[string]string)
+			if err := getters.RecordServicePayment(app, getters.VerifiedServicePayment{AttemptID: metadata["service-attempt-id"], Provider: "stripe", Reference: sessionID, EventID: "fixture-" + sessionID, Currency: "USD", TotalCents: amount, PaidAt: time.Now().UTC()}); err != nil {
+				t.Fatal(err)
+			}
+			if err := getters.FulfillExpeditionPurchase(app, metadata["service-order-id"]); err != nil {
+				t.Fatal(err)
+			}
+			var bookingID string
+			if err := pool.QueryRow(ctx, `SELECT id::text FROM expedition_reservations WHERE buyer_id=$1 AND state='confirmed'`, buyer).Scan(&bookingID); err != nil {
+				t.Fatal(err)
+			}
+			preview, err := getters.ExpeditionCancellationPreview(ctx, app, bookingID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = getters.CancelExpeditionBooking(ctx, app, bookingID, buyer, preview.Token, "Repeat checkout test"); err != nil {
+				t.Fatal(err)
+			}
+			oldKey := request.Key
+			code, html = get("/expeditions/antarctica/checkout")
+			if code != 200 {
+				t.Fatal("cancelled checkout did not restart", code, html)
+			}
+			request.Key = attr("data-request-key")
+			request.CSRF = attr("data-csrf")
+			if request.Key == oldKey {
+				t.Fatal("cancelled checkout reused request key")
+			}
+			code, second := post(request)
+			if code != 200 || second == body {
+				t.Fatal("second beta booking failed", code, second)
+			}
+			var oldState, active string
+			if err = pool.QueryRow(ctx, `SELECT state FROM expedition_reservations WHERE id=$1`, bookingID).Scan(&oldState); err != nil || oldState != "cancelled" {
+				t.Fatal("old booking changed", oldState, err)
+			}
+			if err = pool.QueryRow(ctx, `SELECT reservation_id::text FROM expedition_beta_claims WHERE buyer_id=$1`, buyer).Scan(&active); err != nil || active == bookingID {
+				t.Fatal("active beta claim not moved", active, err)
+			}
+			request.Key = uuid.NewString()
+			if code, _ := post(request); code != 409 {
+				t.Fatal("multiple active test bookings allowed", code)
+			}
+		}
 		if plan == "installments" {
 			metadata := sessionResponse["metadata"].(map[string]string)
 			orderID := metadata["service-order-id"]

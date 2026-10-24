@@ -124,7 +124,7 @@ func (s *Store) reserveParty(ctx context.Context, buyerID, key, plan, provider s
 	}
 	if beta {
 		var claimed bool
-		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM expedition_beta_claims)`).Scan(&claimed); err != nil {
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM expedition_beta_claims c JOIN expedition_reservations r ON r.id=c.reservation_id WHERE r.state<>'cancelled' OR r.released_at IS NULL)`).Scan(&claimed); err != nil {
 			return empty, err
 		}
 		if claimed {
@@ -220,8 +220,12 @@ func (s *Store) reserveParty(ctx context.Context, buyerID, key, plan, provider s
 		return empty, err
 	}
 	if beta {
-		if _, err = tx.Exec(ctx, `INSERT INTO expedition_beta_claims(email,buyer_id,reservation_id) VALUES('nifty@btcpp.dev',$1,$2)`, buyerID, r.ID); err != nil {
+		if claim, err := tx.Exec(ctx, `INSERT INTO expedition_beta_claims(email,buyer_id,reservation_id) VALUES('nifty@btcpp.dev',$1,$2)
+ ON CONFLICT(email) DO UPDATE SET buyer_id=excluded.buyer_id,reservation_id=excluded.reservation_id,created_at=now()
+ WHERE EXISTS(SELECT 1 FROM expedition_reservations old WHERE old.id=expedition_beta_claims.reservation_id AND old.state='cancelled' AND old.released_at IS NOT NULL)`, buyerID, r.ID); err != nil {
 			return empty, err
+		} else if claim.RowsAffected() != 1 {
+			return empty, ErrConflict
 		}
 	}
 	for _, a := range assigned {

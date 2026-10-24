@@ -103,6 +103,16 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 			page.RequestKey = uuid.NewString()
 			app.Session.Put(r.Context(), sessionKey, page.RequestKey)
 		}
+		// A completed cancellation starts a new checkout; never revive the old order.
+		var cancelled bool
+		if err = app.DB.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM expedition_reservations WHERE buyer_id=$1 AND request_key=$2 AND state='cancelled' AND released_at IS NOT NULL)`, identity.PersonID, page.RequestKey).Scan(&cancelled); err != nil {
+			http.Error(w, "Unable to check previous booking.", 503)
+			return
+		}
+		if cancelled {
+			page.RequestKey = uuid.NewString()
+			app.Session.Put(r.Context(), sessionKey, page.RequestKey)
+		}
 		// Resume an existing order after a reload instead of making another hold.
 		var existing string
 		lookupErr := app.DB.QueryRow(r.Context(), `SELECT o.public_id FROM expedition_reservations e JOIN service_purchase_requests p ON p.request_key='expedition:'||e.id::text||':1' AND p.person_id::text=e.buyer_id JOIN shop_orders o ON o.id=p.order_id WHERE e.buyer_id=$1 AND e.request_key=$2`, identity.PersonID, page.RequestKey).Scan(&existing)

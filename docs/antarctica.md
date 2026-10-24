@@ -1130,3 +1130,12 @@ Admin and buyer booking views show refund still due. Stripe refunds are issued
 through Stripe and synchronized by shared billing; Bitcoin refunds use the
 existing manual/shared refund workflow and recorded USD payment values. No
 cancellation email or test-allowance reset is performed by this action.
+
+### Repeat checkout after cancellation — October 24, 2026
+
+Checkout rotates its session request key after a booking is cancelled and its
+berths released. The verified beta identity can have one active test booking at
+a time, rather than one lifetime booking. The claim pointer moves to the new
+reservation under the inventory lock; cancelled reservations, cancellation audits
+and all payment/refund records remain intact. A cancellation does not itself issue
+a refund. Uncancelled, abandoned and unresolved bookings do not reset the allowance.
