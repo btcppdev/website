@@ -45,7 +45,7 @@ func TestAntarcticaCheckoutHTTPPostgres(t *testing.T) {
 		provider, plan string
 		amount         int64
 	}{
-		{"stripe", "full", 1670000}, {"stripe", "installments", 334000}, {"opennode", "full", 1586500}, {"opennode", "installments", 334000}, {"opennode", "full", 1},
+		{"stripe", "full", 1670000}, {"stripe", "installments", 334000}, {"opennode", "full", 1586500}, {"opennode", "installments", 334000}, {"opennode", "full", 1}, {"stripe", "full", 50},
 	} {
 		t.Run(scenario.provider+"_"+scenario.plan+fmt.Sprint(scenario.amount), func(t *testing.T) {
 			testAntarcticaCheckoutHTTP(t, scenario.provider, scenario.plan, scenario.amount)
@@ -58,7 +58,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 		t.Skip("requires isolated migrated database")
 	}
 	app := antarcticaTestTemplates(t)
-	beta := amount == 1
+	beta := amount == 1 || amount == 50
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, uri)
 	if err != nil {

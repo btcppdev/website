@@ -68,7 +68,11 @@ func (s *Store) ReserveParty(ctx context.Context, buyerID, key, plan, provider s
 // ReserveBetaParty is available only to the verified, fixed test identity. The
 // price is fixed server-side; no request can choose its own discount.
 func (s *Store) ReserveBetaParty(ctx context.Context, buyerID, key string, selections []CabinSelection) (Reservation, error) {
-	return s.reserveParty(ctx, buyerID, key, Full, Bitcoin, 1, selections, true)
+	return s.ReserveBetaPartyWithProvider(ctx, buyerID, key, Bitcoin, selections)
+}
+
+func (s *Store) ReserveBetaPartyWithProvider(ctx context.Context, buyerID, key, provider string, selections []CabinSelection) (Reservation, error) {
+	return s.reserveParty(ctx, buyerID, key, Full, provider, 1, selections, true)
 }
 func (s *Store) reserveParty(ctx context.Context, buyerID, key, plan, provider string, spots int, selections []CabinSelection, beta bool) (Reservation, error) {
 	var empty Reservation
@@ -93,7 +97,7 @@ func (s *Store) reserveParty(ctx context.Context, buyerID, key, plan, provider s
 		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM person_emails e JOIN people p ON p.id=e.person_id WHERE e.person_id::text=$1 AND lower(e.email::text)='nifty@btcpp.dev' AND e.verified_at IS NOT NULL AND NOT p.is_deleted_account)`, buyerID).Scan(&eligible); err != nil {
 			return empty, err
 		}
-		if !eligible || spots != 1 || plan != Full || provider != Bitcoin {
+		if !eligible || spots != 1 || plan != Full || (provider != Bitcoin && provider != Stripe) {
 			return empty, ErrInvalid
 		}
 	}
@@ -126,8 +130,8 @@ func (s *Store) reserveParty(ctx context.Context, buyerID, key, plan, provider s
 		if claimed {
 			return empty, ErrConflict
 		}
-		quote.TotalCents = 1
-		quote.Installments = []Installment{{Number: 1, DueAt: now, Cents: 1}}
+		quote.TotalCents = BetaFareCents(provider)
+		quote.Installments = []Installment{{Number: 1, DueAt: now, Cents: quote.TotalCents}}
 	}
 	available, err := s.availability(ctx, tx, staff)
 	if err != nil {
@@ -204,7 +208,7 @@ func (s *Store) reserveParty(ctx context.Context, buyerID, key, plan, provider s
 	first := assigned[0]
 	schedule := Schedule{BetaTrial: beta, Version: 2, Quantity: spots, Berth: first.Selection.Berth, Plan: plan, Provider: provider, Currency: "USD", StandardCents: standard, TotalCents: quote.TotalCents, Installments: quote.Installments, Selections: quote.Selections}
 	if beta {
-		schedule.StandardCents = 1
+		schedule.StandardCents = quote.TotalCents
 	}
 	r = Reservation{ID: uuid.NewString(), BuyerID: buyerID, Berth: first.Selection.Berth, Plan: plan, Provider: provider, State: "held", CreatedAt: now, HoldExpiresAt: expires, Schedule: schedule, CabinID: first.Cabin, Sharing: first.Selection.Preference, Quantity: spots}
 	raw, err := json.Marshal(schedule)

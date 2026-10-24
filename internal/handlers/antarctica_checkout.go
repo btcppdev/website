@@ -170,11 +170,11 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 	}
 	schedule, err := expedition.QuoteParty(request.Spots, request.Selections, request.Plan, request.Provider, time.Now())
 	if beta && err == nil {
-		if request.Spots != 1 || len(request.Selections) != 1 || request.Plan != expedition.Full || request.Provider != expedition.Bitcoin {
-			http.Error(w, "Beta checkout allows one berth, paid in full with Bitcoin.", 422)
+		if request.Spots != 1 || len(request.Selections) != 1 || request.Plan != expedition.Full {
+			http.Error(w, "Beta checkout allows one berth, paid in full.", 422)
 			return
 		}
-		schedule.TotalCents = 1
+		schedule.TotalCents = expedition.BetaFareCents(request.Provider)
 	}
 	if err != nil || schedule.TotalCents != request.ExpectedTotal {
 		http.Error(w, "Your fare or cabin selection has changed. Reload checkout and review it.", 422)
@@ -182,7 +182,7 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 	}
 	var reservation expedition.Reservation
 	if beta {
-		reservation, err = (&expedition.Store{DB: app.DB}).ReserveBetaParty(r.Context(), identity.PersonID, request.Key, request.Selections)
+		reservation, err = (&expedition.Store{DB: app.DB}).ReserveBetaPartyWithProvider(r.Context(), identity.PersonID, request.Key, request.Provider, request.Selections)
 	} else {
 		reservation, err = (&expedition.Store{DB: app.DB}).ReserveParty(r.Context(), identity.PersonID, request.Key, request.Plan, request.Provider, request.Spots, request.Selections)
 	}

@@ -178,6 +178,7 @@
     }
     const full = form.elements.plan.value === 'full';
     const bitcoin = form.elements.provider.value === 'opennode';
+    if (form.dataset.beta === 'true') Object.values(fare).forEach(f => { f.cents = bitcoin ? 1 : 50; });
     const standard = allocations.reduce((sum, a) => sum + a.quantity * fare[a.type].cents, 0);
     const discounted = allocations.reduce((sum, a) => sum + a.quantity * Math.round(fare[a.type].cents * 95 / 100), 0);
     const total = full && bitcoin ? discounted : standard;

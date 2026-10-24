@@ -118,3 +118,11 @@ func NewGroupSchedule(berth, plan, provider string, quantity int, bookedAt time.
 	}
 	return s, nil
 }
+
+// BetaFareCents keeps the Bitcoin test at one cent and meets Stripe's USD minimum.
+func BetaFareCents(provider string) int64 {
+	if provider == Stripe {
+		return 50
+	}
+	return 1
+}

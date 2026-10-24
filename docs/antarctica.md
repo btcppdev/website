@@ -1100,3 +1100,11 @@ Bitcoin-only launch sentence, replacing only that sentence in a new immutable
 revision. Privacy text, historical acceptances and the lifecycle timezone are
 preserved. Installations with custom wording must review their active policy in
 admin; the migration does not rewrite arbitrary custom terms.
+
+### Both beta payment methods — October 24, 2026
+
+The verified nifty@btcpp.dev beta checkout now offers Bitcoin ($0.01) and
+Stripe card payment ($0.50, the USD card minimum). Prices are fixed server-side
+and displayed per method before payment. The single-berth, paid-in-full and
+one-lifetime-claim rules remain unchanged; ordinary purchasers cannot receive
+either beta fare.
