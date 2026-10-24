@@ -21,7 +21,7 @@ import (
 )
 
 func TestAntarcticaFares(t *testing.T) {
-	page := newAntarcticaPage(nil, true)
+	page := newAntarcticaPageAt(nil, true, time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC))
 	want := [][2]string{
 		{"$16,700", "$3,340"},
 		{"$15,800", "$3,160"},
@@ -59,7 +59,7 @@ func antarcticaTestTemplates(t *testing.T) *config.AppContext {
 func TestAntarcticaTemplate(t *testing.T) {
 	app := antarcticaTestTemplates(t)
 	var out bytes.Buffer
-	if err := app.TemplateCache.ExecuteTemplate(&out, "conf/antarctica.tmpl", newAntarcticaPage(nil, true)); err != nil {
+	if err := app.TemplateCache.ExecuteTemplate(&out, "conf/antarctica.tmpl", newAntarcticaPageAt(nil, true, time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC))); err != nil {
 		t.Fatal(err)
 	}
 	for _, required := range []string{"Early access", "Reservations are now open", "$16,700", "$15,800", "$14,900", "https://btcpp.dev/static/img/antarctica/social-card.png", "summary_large_image", "January 1, 2027", "April 1, 2027", "July 1, 2027", "October 1, 2027", "Pay in full with bitcoin", "Standard passage fare"} {
@@ -261,5 +261,20 @@ func TestAntarcticaDirectLanding(t *testing.T) {
 	AntarcticaLanding(w, httptest.NewRequest("GET", "/antarctica", nil), app)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `href="/expeditions/antarctica/checkout"`) || !strings.Contains(w.Body.String(), `property="og:image"`) {
 		t.Fatal("direct landing missing checkout or sharing metadata")
+	}
+}
+
+func TestAntarcticaLateBookingDisplay(t *testing.T) {
+	for _, tc := range []struct {
+		month time.Month
+		count int
+		due   string
+	}{
+		{1, 4, "$4,175"}, {4, 3, "$5,566.66"}, {7, 2, "$8,350"}, {10, 1, "$16,700"},
+	} {
+		page := newAntarcticaPageAt(nil, true, time.Date(2027, tc.month, 2, 12, 0, 0, 0, time.UTC))
+		if page.PaymentCount != tc.count || page.Berths[0].Deposit != tc.due || page.InstallmentsAvailable != (tc.count > 1) {
+			t.Fatalf("month %d: %+v", tc.month, page)
+		}
 	}
 }

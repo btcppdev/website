@@ -220,7 +220,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 		}
 		return m[1]
 	}
-	request := antarcticaCheckoutRequest{CSRF: attr("data-csrf"), Key: attr("data-request-key"), Spots: 1, Selections: []expedition.CabinSelection{{Berth: "shared", Quantity: 1, Preference: "female"}}, Plan: plan, Provider: paymentProvider, TermsVersion: policy.Version, Accepted: true, ExpectedTotal: amount}
+	request := antarcticaCheckoutRequest{CSRF: attr("data-csrf"), Key: attr("data-request-key"), Spots: 1, Selections: []expedition.CabinSelection{{Berth: "shared", Quantity: 1, Preference: "female"}}, Plan: plan, Provider: paymentProvider, TermsVersion: policy.Version, Accepted: true, ExpectedTotal: amount, ExpectedDue: amount}
 	if plan == "installments" {
 		request.ExpectedTotal = 1670000
 	}
@@ -249,6 +249,11 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	bad.TermsVersion = "old"
 	if code, _ = post(bad); code != 422 {
 		t.Fatal("stale terms", code)
+	}
+	bad = request
+	bad.ExpectedDue++
+	if code, _ = post(bad); code != 422 {
+		t.Fatal("stale signup amount", code)
 	}
 	bad = request
 	bad.ExpectedTotal = amount + 1

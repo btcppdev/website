@@ -13,7 +13,7 @@ import (
 	"btcpp-web/external/getters"
 )
 
-var expeditionInstallmentTemplate = template.Must(template.New("installment").Parse(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#edf3f5;color:#063747;font:16px/1.6 Arial,sans-serif"><table role="presentation" width="100%"><tr><td align="center"><table role="presentation" width="640" style="max-width:640px;width:100%;background:white"><tr><td style="padding:28px"><p style="letter-spacing:2px;font-size:12px">COLD STORAGE EDITION</p><h1 style="font:36px/1.15 Georgia,serif">{{.Title}}</h1><p>{{.Intro}}</p><div style="background:#eaf3f5;padding:18px"><strong>Payment {{.Number}} of 5 · {{.Amount}} USD</strong><br>Due {{.Due}} · America/Chicago<br>Booking {{.Booking}}<br>January 24–February 5, 2028 expedition</div><p>{{.Body}}</p>{{if .Staff}}<p>Purchaser: {{.Name}} · {{.Recipient}}<br>Passengers: {{.Quantity}}<br>Payments retained: {{.Retained}} USD<br>Processed: {{.Occurred}}<br>Accepted policy: {{.Policy}}<br>Event: {{.Event}}</p><h2>Released berths</h2>{{range .Selections}}<p>{{.Quantity}} × {{.Berth}} · {{.Preference}}</p>{{end}}<h2>Payment records</h2><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{.Payments}}</pre><p>The customer notice is queued separately. Check delivery status in the staff booking record.</p>{{end}}<p><a href="{{.Link}}" style="display:inline-block;background:#eb7549;color:#063747;padding:12px 20px;text-decoration:none;font-weight:bold">{{.CTA}} →</a></p><p>Questions or a payment that hasn’t appeared? Reply to <a href="mailto:inbox@btcpp.dev">inbox@btcpp.dev</a>.</p><p style="font-size:12px">This is a transactional booking update, separate from newsletters.</p></td></tr></table></td></tr></table></body></html>`))
+var expeditionInstallmentTemplate = template.Must(template.New("installment").Parse(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#edf3f5;color:#063747;font:16px/1.6 Arial,sans-serif"><table role="presentation" width="100%"><tr><td align="center"><table role="presentation" width="640" style="max-width:640px;width:100%;background:white"><tr><td style="padding:28px"><p style="letter-spacing:2px;font-size:12px">COLD STORAGE EDITION</p><h1 style="font:36px/1.15 Georgia,serif">{{.Title}}</h1><p>{{.Intro}}</p><div style="background:#eaf3f5;padding:18px"><strong>Payment {{.Number}} of {{.Count}} · {{.Amount}} USD</strong><br>Due {{.Due}} · America/Chicago<br>Booking {{.Booking}}<br>January 24–February 5, 2028 expedition</div><p>{{.Body}}</p>{{if .Staff}}<p>Purchaser: {{.Name}} · {{.Recipient}}<br>Passengers: {{.Quantity}}<br>Payments retained: {{.Retained}} USD<br>Processed: {{.Occurred}}<br>Accepted policy: {{.Policy}}<br>Event: {{.Event}}</p><h2>Released berths</h2>{{range .Selections}}<p>{{.Quantity}} × {{.Berth}} · {{.Preference}}</p>{{end}}<h2>Payment records</h2><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{.Payments}}</pre><p>The customer notice is queued separately. Check delivery status in the staff booking record.</p>{{end}}<p><a href="{{.Link}}" style="display:inline-block;background:#eb7549;color:#063747;padding:12px 20px;text-decoration:none;font-weight:bold">{{.CTA}} →</a></p><p>Questions or a payment that hasn’t appeared? Reply to <a href="mailto:inbox@btcpp.dev">inbox@btcpp.dev</a>.</p><p style="font-size:12px">This is a transactional booking update, separate from newsletters.</p></td></tr></table></td></tr></table></body></html>`))
 
 func AntarcticaInstallmentMail(j *getters.ExpeditionLifecycleMailJob, base string) (*Mail, error) {
 	if j == nil || j.EventID == "" || (j.Kind != "reminder" && j.Kind != "abandoned") || (j.Audience != "customer" && j.Audience != "staff") || (j.Audience == "staff" && (j.Kind != "abandoned" || j.Recipient != "inbox@btcpp.dev")) {
@@ -27,6 +27,10 @@ func AntarcticaInstallmentMail(j *getters.ExpeditionLifecycleMailJob, base strin
 		return nil, fmt.Errorf("invalid booking URL")
 	}
 	s := j.Snapshot
+	count := s.PaymentCount
+	if count == 0 {
+		count = 5
+	} // Older immutable reminder snapshots used five payments.
 	loc, err := time.LoadLocation(s.Zone)
 	if err != nil {
 		return nil, err
@@ -45,7 +49,7 @@ func AntarcticaInstallmentMail(j *getters.ExpeditionLifecycleMailJob, base strin
 		title = fmt.Sprintf("Your Antarctica installment is %d days overdue", s.Offset)
 		intro = "We haven’t recorded this installment payment yet."
 	}
-	body := "Please pay in Bitcoin using your booking page. If this installment remains unpaid through " + cutoff + ", your reservation will be marked abandoned, your berths released, and all payments already made forfeited."
+	body := "Please pay using the payment method on your booking page. If this installment remains unpaid through " + cutoff + ", your reservation will be marked abandoned, your berths released, and all payments already made forfeited."
 	link := strings.TrimRight(base, "/") + "/expeditions/bookings/" + url.PathEscape(s.BookingID) + "/installments/" + fmt.Sprint(s.Number)
 	cta := "Review installment and pay"
 	if j.Kind == "abandoned" {
@@ -69,15 +73,15 @@ func AntarcticaInstallmentMail(j *getters.ExpeditionLifecycleMailJob, base strin
 	}
 	d := struct {
 		Title, Intro, Body, Amount, Due, Booking, Link, CTA, Name, Recipient, Retained, Occurred, Policy, Event, Payments string
-		Number, Quantity                                                                                                  int
+		Number, Quantity, Count                                                                                           int
 		Staff                                                                                                             bool
 		Selections                                                                                                        any
-	}{title, intro, body, money(s.Cents), due, s.BookingID, link, cta, s.Name, s.Recipient, money(s.RetainedCents), s.OccurredAt.In(loc).Format(time.RFC3339), s.Policy, j.EventID, pretty.String(), s.Number, s.Quantity, j.Audience == "staff", s.Selections}
+	}{title, intro, body, money(s.Cents), due, s.BookingID, link, cta, s.Name, s.Recipient, money(s.RetainedCents), s.OccurredAt.In(loc).Format(time.RFC3339), s.Policy, j.EventID, pretty.String(), s.Number, s.Quantity, count, j.Audience == "staff", s.Selections}
 	var html bytes.Buffer
 	if err = expeditionInstallmentTemplate.Execute(&html, d); err != nil {
 		return nil, err
 	}
-	text := fmt.Sprintf("%s\n\n%s\nPayment %d of 5: %s USD\nDue: %s (America/Chicago, end of day)\nBooking: %s\n\n%s\n\n%s: %s\nQuestions: inbox@btcpp.dev\n", title, intro, s.Number, money(s.Cents), due, s.BookingID, body, cta, link)
+	text := fmt.Sprintf("%s\n\n%s\nPayment %d of %d: %s USD\nDue: %s (America/Chicago, end of day)\nBooking: %s\n\n%s\n\n%s: %s\nQuestions: inbox@btcpp.dev\n", title, intro, s.Number, count, money(s.Cents), due, s.BookingID, body, cta, link)
 	if j.Audience == "staff" {
 		text += fmt.Sprintf("\nPurchaser: %s <%s>\nPassengers: %d\nRetained: %s USD\nProcessed: %s\nPolicy: %s\nEvent: %s\nAllocations: %+v\nPayments:\n%s\nCustomer notice queued separately; see delivery status at the staff link.\n", s.Name, s.Recipient, s.Quantity, money(s.RetainedCents), d.Occurred, s.Policy, j.EventID, s.Selections, pretty.String())
 	}

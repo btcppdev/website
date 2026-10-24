@@ -39,7 +39,7 @@ type expeditionBookingPage struct {
 }
 
 func expeditionBookingPresentation(b *getters.ExpeditionBooking, now time.Time) expeditionBookingPage {
-	p := expeditionBookingPage{ID: b.ID, Quantity: b.Quantity, Total: antarcticaMoney(b.Schedule.TotalCents), Plan: "Five installments", Provider: "Card via Stripe"}
+	p := expeditionBookingPage{ID: b.ID, Quantity: b.Quantity, Total: antarcticaMoney(b.Schedule.TotalCents), Plan: fmt.Sprintf("%d installments", len(b.Payments)), Provider: "Card via Stripe"}
 	if b.Plan == expedition.Full {
 		p.Plan = "Full payment at signup"
 	}

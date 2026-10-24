@@ -55,11 +55,7 @@ func expeditionCancellationSnapshot(ctx context.Context, tx pgx.Tx, id string) (
 	if err = json.Unmarshal(raw, &schedule); err != nil {
 		return nil, err
 	}
-	// Full-payment bookings retain 20% of the contracted fare, rounded up to a cent.
-	c.Deposit = (schedule.TotalCents + 4) / 5
-	if schedule.Plan == expedition.Installments && len(schedule.Installments) > 0 {
-		c.Deposit = schedule.Installments[0].Cents
-	}
+	c.Deposit = expeditionNonrefundableDeposit(schedule)
 	c.Eligible, err = expeditionCancellationBeforeCutoff(now)
 	if err != nil {
 		return nil, err
@@ -191,4 +187,13 @@ func expeditionCancellationBeforeCutoff(now time.Time) (bool, error) {
 		return false, err
 	}
 	return now.Before(time.Date(2027, 10, 1, 0, 0, 0, 0, zone)), nil
+}
+
+// Keep the original five-payment deposit rounding; shorter plans still retain
+// only 20% of the fare, not the larger first payment.
+func expeditionNonrefundableDeposit(schedule expedition.Schedule) int64 {
+	if schedule.Plan == expedition.Installments && len(schedule.Installments) == 5 {
+		return schedule.Installments[0].Cents
+	}
+	return (schedule.TotalCents + 4) / 5
 }

@@ -1,6 +1,9 @@
 (() => {
   const form = document.getElementById('expedition-checkout');
   if (!form) return;
+  const paymentDates = JSON.parse(form.dataset.installmentDates || '[]');
+  const paymentCount = paymentDates.length + 1;
+  const paymentDateLabel = date => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
   const fare = Object.fromEntries([...document.querySelectorAll('[data-berth]')].map(el => [el.dataset.berth, { name: el.dataset.name, cents: Number(el.dataset.price) }]));
   const capacities = { shared: 2, triple: 3, quad: 4 };
   const cabinLimits = { shared: 9, triple: 1, quad: 1 }; // Explicit preview inventory, never checkout authority.
@@ -182,7 +185,7 @@
     const standard = allocations.reduce((sum, a) => sum + a.quantity * fare[a.type].cents, 0);
     const discounted = allocations.reduce((sum, a) => sum + a.quantity * Math.round(fare[a.type].cents * 95 / 100), 0);
     const total = full && bitcoin ? discounted : standard;
-    const installment = allocations.reduce((sum, a) => sum + a.quantity * Math.floor(fare[a.type].cents / 5), 0);
+    const installment = allocations.reduce((sum, a) => sum + a.quantity * Math.floor(fare[a.type].cents / paymentCount), 0);
     const totals = document.getElementById('checkout-totals');
     totals.replaceChildren();
     const add = (tag, text) => { const el = document.createElement(tag); el.textContent = text; totals.append(el); };
@@ -208,7 +211,7 @@
     if (full) add('p', 'Paid in full. No remaining passage installments.');
     else {
       add('h3', 'Remaining passage payments');
-      ['January 1, 2027', 'April 1, 2027', 'July 1, 2027', 'October 1, 2027'].forEach((date, index) => row(date, index === 3 ? total - installment * 4 : installment, 'checkout-schedule-row'));
+      paymentDates.forEach((date, index) => row(paymentDateLabel(date), index === paymentDates.length - 1 ? total - installment * (paymentCount - 1) : installment, 'checkout-schedule-row'));
     }
   }
   function showStep() {
@@ -233,7 +236,7 @@
     const plan = form.querySelector('[name=plan]:checked').value;
     const provider = form.querySelector('[name=provider]:checked').value;
     const expected = allocations.reduce((sum, a) => sum + a.quantity * (plan === 'full' && provider === 'opennode' ? Math.round(fare[a.type].cents * 95 / 100) : fare[a.type].cents), 0);
-    const payload = { csrf: form.dataset.csrf, key: form.dataset.requestKey, spots: Number(party.value), selections: allocations.map(a => ({ berth: a.type, quantity: a.quantity, preference: a.preference })), plan, provider, terms_version: form.querySelector('[name=terms_version]').value, accepted: true, expected_total: expected };
+    const payload = { csrf: form.dataset.csrf, key: form.dataset.requestKey, spots: Number(party.value), selections: allocations.map(a => ({ berth: a.type, quantity: a.quantity, preference: a.preference })), plan, provider, terms_version: form.querySelector('[name=terms_version]').value, accepted: true, expected_total: expected, expected_due: plan === 'full' ? expected : allocations.reduce((sum, a) => sum + a.quantity * Math.floor(fare[a.type].cents / paymentCount), 0) };
     // Freeze this attempt after submission: uncertain responses must retry the
     // same reservation, never silently create another hold or charge.
     try { sessionStorage.setItem('antarctica-pending-checkout', JSON.stringify(payload)); } catch (_) {}
@@ -273,7 +276,7 @@
       if (pending?.key === form.dataset.requestKey) {
         allocations = pending.selections.map(a => ({ type: a.berth, quantity: a.quantity, preference: a.preference }));
         party.value = String(pending.spots);
-        form.elements.plan.value = pending.plan; form.elements.provider.value = pending.provider;
+        form.elements.plan.value = paymentCount > 1 ? pending.plan : 'full'; form.elements.provider.value = pending.provider;
         step = 3; showStep();
         error.textContent = 'Your previous checkout is ready to retry. Review the details and accept the terms to continue.';
       }

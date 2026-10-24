@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
@@ -20,21 +22,25 @@ type antarcticaBerth struct {
 const antarcticaBookingInformationUpdated = "October 24, 2026"
 
 type antarcticaPage struct {
-	DefaultTerms, DefaultPrivacy string
-	TermsUpdated                 string
-	BetaTrial                    bool
-	CheckoutEnabled              bool
-	StripeEnabled                bool
-	CSRF, RequestKey             string
-	Policy                       *getters.ServiceLegalPolicy
-	StaffBerths, RemainingBerths int
-	Merch                        []antarcticaMerch
-	MerchSnapshot                bool
-	CheckoutURL                  string
-	Conf                         *types.Conf
-	Preview                      bool
-	Berths                       []antarcticaBerth
-	Speakers                     []*types.Speaker
+	PaymentDates                       []time.Time
+	PaymentCount                       int
+	PaymentShare, InstallmentDatesJSON string
+	InstallmentsAvailable              bool
+	DefaultTerms, DefaultPrivacy       string
+	TermsUpdated                       string
+	BetaTrial                          bool
+	CheckoutEnabled                    bool
+	StripeEnabled                      bool
+	CSRF, RequestKey                   string
+	Policy                             *getters.ServiceLegalPolicy
+	StaffBerths, RemainingBerths       int
+	Merch                              []antarcticaMerch
+	MerchSnapshot                      bool
+	CheckoutURL                        string
+	Conf                               *types.Conf
+	Preview                            bool
+	Berths                             []antarcticaBerth
+	Speakers                           []*types.Speaker
 }
 
 func antarcticaMoney(cents int64) string {
@@ -50,7 +56,23 @@ func antarcticaMoney(cents int64) string {
 }
 
 func newAntarcticaPage(conf *types.Conf, preview bool) *antarcticaPage {
+	return newAntarcticaPageAt(conf, preview, time.Now())
+}
+func newAntarcticaPageAt(conf *types.Conf, preview bool, now time.Time) *antarcticaPage {
 	page := &antarcticaPage{DefaultTerms: expedition.BookingTerms, DefaultPrivacy: expedition.BookingPrivacy, TermsUpdated: antarcticaBookingInformationUpdated, Conf: conf, Preview: preview, StripeEnabled: preview, CheckoutURL: "?checkout=1", StaffBerths: expedition.DefaultStaffBerths, RemainingBerths: expedition.TotalBerths - expedition.DefaultStaffBerths}
+	page.PaymentDates = expedition.RemainingPaymentDates(now)
+	page.PaymentCount = len(page.PaymentDates) + 1
+	page.InstallmentsAvailable = page.PaymentCount > 1
+	page.PaymentShare = fmt.Sprintf("%.0f%%", 100/float64(page.PaymentCount))
+	if page.PaymentCount == 3 {
+		page.PaymentShare = "≈33.3%"
+	}
+	dates := make([]string, 0, len(page.PaymentDates))
+	for _, date := range page.PaymentDates {
+		dates = append(dates, date.Format("2006-01-02"))
+	}
+	raw, _ := json.Marshal(dates)
+	page.InstallmentDatesJSON = string(raw)
 	if !preview {
 		page.CheckoutURL = "/expeditions/antarctica/checkout"
 	}
@@ -59,8 +81,8 @@ func newAntarcticaPage(conf *types.Conf, preview bool) *antarcticaPage {
 			ID: b.ID, Name: b.Name, Description: b.Description, PriceCents: b.Cents,
 			PayInFull:        antarcticaMoney(expedition.FullBitcoinCents(b.Cents)),
 			PayInFullSavings: antarcticaMoney(b.Cents - expedition.FullBitcoinCents(b.Cents)),
-			Price:            antarcticaMoney(b.Cents), Deposit: antarcticaMoney(b.Cents / 5),
-			FinalInstallment: antarcticaMoney(b.Cents/5 + b.Cents%5),
+			Price:            antarcticaMoney(b.Cents), Deposit: antarcticaMoney(b.Cents / int64(page.PaymentCount)),
+			FinalInstallment: antarcticaMoney(b.Cents/int64(page.PaymentCount) + b.Cents%int64(page.PaymentCount)),
 		})
 	}
 	return page

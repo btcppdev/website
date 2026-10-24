@@ -51,7 +51,58 @@ func TestSchedules(t *testing.T) {
 			t.Fatal("invalid request accepted", v, err)
 		}
 	}
-	if _, err := NewSchedule("shared", Installments, Stripe, time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)); !errors.Is(err, ErrClosed) {
+	if _, err := NewSchedule("shared", Installments, Stripe, time.Date(2027, 10, 1, 5, 0, 0, 0, time.UTC)); !errors.Is(err, ErrClosed) {
 		t.Fatal("late installment signup accepted")
+	}
+}
+
+func TestRemainingInstallments(t *testing.T) {
+	for _, tc := range []struct {
+		at    string
+		count int
+	}{
+		{"2027-01-01T05:59:59Z", 5}, {"2027-01-01T06:00:00Z", 4},
+		{"2027-04-01T04:59:59Z", 4}, {"2027-04-01T05:00:00Z", 3},
+		{"2027-07-01T05:00:00Z", 2}, {"2027-10-01T04:59:59Z", 2},
+		{"2027-10-01T05:00:00Z", 1},
+	} {
+		t.Run(tc.at, func(t *testing.T) {
+			at, _ := time.Parse(time.RFC3339, tc.at)
+			for _, fare := range Fares() {
+				for _, provider := range []string{Stripe, Bitcoin} {
+					s, err := NewSchedule(fare.ID, Installments, provider, at)
+					if tc.count == 1 {
+						if !errors.Is(err, ErrClosed) {
+							t.Fatal("installments must close", err)
+						}
+						continue
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					if len(s.Installments) != tc.count {
+						t.Fatalf("got %d payments", len(s.Installments))
+					}
+					var sum int64
+					for i, p := range s.Installments {
+						sum += p.Cents
+						want := fare.Cents / int64(tc.count)
+						if i == tc.count-1 {
+							want += fare.Cents % int64(tc.count)
+						}
+						if p.Cents != want {
+							t.Fatalf("payment %d: %d != %d", i, p.Cents, want)
+						}
+						deadline, _ := InstallmentDeadline(p.DueAt, "America/Chicago")
+						if i > 0 && !deadline.After(at) {
+							t.Fatal("past installment included")
+						}
+					}
+					if sum != fare.Cents {
+						t.Fatal("schedule does not sum to fare")
+					}
+				}
+			}
+		})
 	}
 }

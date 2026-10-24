@@ -114,7 +114,7 @@ func AdminAntarctica(w http.ResponseWriter, r *http.Request, app *config.AppCont
 			message = "Booking policy published for checkout and Texas-time installment reminders/abandonment."
 		case "inventory":
 			// Initialize only missing rows. Never overwrite existing capacity or live bookings.
-			_, err = app.DB.Exec(r.Context(), `INSERT INTO expedition_inventory(berth,capacity,sales_open,booking_closes_at,hold_seconds) VALUES ('shared',18,true,'2027-01-01T00:00:00Z',3600),('triple',3,true,'2027-01-01T00:00:00Z',3600),('quad',4,true,'2027-01-01T00:00:00Z',3600) ON CONFLICT(berth) DO NOTHING`)
+			_, err = app.DB.Exec(r.Context(), `INSERT INTO expedition_inventory(berth,capacity,sales_open,booking_closes_at,hold_seconds) VALUES ('shared',18,true,'2027-10-02T05:00:00Z',3600),('triple',3,true,'2027-10-02T05:00:00Z',3600),('quad',4,true,'2027-10-02T05:00:00Z',3600) ON CONFLICT(berth) DO NOTHING`)
 			message = "Missing inventory categories initialized. Existing inventory settings were preserved."
 		default:
 			http.Error(w, "Unknown action", 400)

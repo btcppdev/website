@@ -21,7 +21,7 @@ type ExpeditionLifecycleCandidate struct {
 
 type ExpeditionLifecycleSnapshot struct {
 	BookingID, Buyer, Recipient, Name, Policy, Zone string
-	Number, Offset, Quantity                        int
+	Number, Offset, Quantity, PaymentCount          int
 	Due, Deadline, ForfeitAt, OccurredAt            time.Time
 	Cents, RetainedCents                            int64
 	Selections                                      []expedition.CabinSelection
@@ -186,7 +186,7 @@ func ProcessExpeditionLifecycle(ctx context.Context, app *config.AppContext, c E
 	if err != nil || !policyOK {
 		return false, err
 	}
-	snapshot := ExpeditionLifecycleSnapshot{BookingID: c.ID, Buyer: c.Buyer, Recipient: c.Recipient, Name: c.Name, Policy: c.Policy, Zone: c.Zone, Number: next, Offset: offset, Quantity: quantity, Due: c.Due, Deadline: deadline, ForfeitAt: forfeit, OccurredAt: now, Cents: c.Cents, Selections: schedule.Selections}
+	snapshot := ExpeditionLifecycleSnapshot{BookingID: c.ID, Buyer: c.Buyer, Recipient: c.Recipient, Name: c.Name, Policy: c.Policy, Zone: c.Zone, Number: next, PaymentCount: len(schedule.Installments), Offset: offset, Quantity: quantity, Due: c.Due, Deadline: deadline, ForfeitAt: forfeit, OccurredAt: now, Cents: c.Cents, Selections: schedule.Selections}
 	err = tx.QueryRow(ctx, `SELECT COALESCE(sum(o.total_cents),0),COALESCE(jsonb_agg(jsonb_build_object('order',o.public_id,'total_cents',o.total_cents,'tax_cents',o.sales_tax_amount_cents,'provider',o.payment_provider,'provider_reference',o.payment_provider_id,'bitcoin',
  (SELECT e.opennode_bitcoin FROM service_payment_events e JOIN service_payment_attempts a ON a.id=e.attempt_id WHERE a.purchase_id=p.id AND a.settled_at IS NOT NULL LIMIT 1))),'[]'::jsonb)
  FROM expedition_installments i JOIN shop_orders o ON o.id::text=i.paid_order_id JOIN service_purchase_requests p ON p.order_id=o.id WHERE i.reservation_id=$1 AND o.status='paid'`, c.ID).Scan(&snapshot.RetainedCents, &snapshot.Payments)

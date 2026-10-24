@@ -286,3 +286,22 @@ func TestConfirmedReviewRetainsBerth(t *testing.T) {
 		t.Fatal("review freed confirmed berth", err)
 	}
 }
+
+func TestLateScheduleRemainsFrozen(t *testing.T) {
+	store, now := testStore(t, 18)
+	*now = time.Date(2027, 4, 2, 12, 0, 0, 0, time.UTC)
+	buyer, key := uuid.NewString(), uuid.NewString()
+	selections := []CabinSelection{{Berth: "shared", Quantity: 1, Preference: "coed"}}
+	r, err := store.ReserveParty(context.Background(), buyer, key, Installments, Stripe, 1, selections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Schedule.Installments) != 3 || r.Schedule.Installments[0].Cents != 556666 {
+		t.Fatalf("wrong schedule %+v", r.Schedule)
+	}
+	*now = time.Date(2027, 7, 2, 12, 0, 0, 0, time.UTC)
+	retry, err := store.ReserveParty(context.Background(), buyer, key, Installments, Stripe, 1, selections)
+	if err != nil || len(retry.Schedule.Installments) != 3 || retry.Schedule.Installments[0].Cents != 556666 {
+		t.Fatal("retry changed contract", err, retry)
+	}
+}

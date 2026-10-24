@@ -26,6 +26,16 @@ func TestAntarcticaInstallmentMail(t *testing.T) {
 	if m.Sub != "" || m.Missive != "" || m.JobKey != "expedition-lifecycle:event:customer" {
 		t.Fatal("nontransactional or unstable identity")
 	}
+	j.Snapshot.PaymentCount = 3
+	short, err := AntarcticaInstallmentMail(j, "https://btcpp.dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{string(short.HTMLBody), string(short.TextBody)} {
+		if !strings.Contains(body, "Payment 2 of 3") {
+			t.Fatal("incorrect shortened schedule", body)
+		}
+	}
 	j.Kind = "abandoned"
 	j.Audience = "staff"
 	j.Recipient = "inbox@btcpp.dev"

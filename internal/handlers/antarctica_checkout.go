@@ -51,6 +51,7 @@ type antarcticaCheckoutRequest struct {
 	Provider      string                      `json:"provider"`
 	TermsVersion  string                      `json:"terms_version"`
 	Accepted      bool                        `json:"accepted"`
+	ExpectedDue   int64                       `json:"expected_due"`
 	ExpectedTotal int64                       `json:"expected_total"`
 }
 
@@ -171,22 +172,32 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 		return
 	}
 	if !antarcticaPaymentProviderAllowed(app, request.Provider) {
-		http.Error(w, "Expedition checkout currently accepts Bitcoin only.", http.StatusUnprocessableEntity)
+		http.Error(w, "The selected payment method is unavailable. Reload checkout.", http.StatusUnprocessableEntity)
 		return
 	}
 	if request.Provider == expedition.Bitcoin && app.Env.OpenNode.Key == "" {
 		http.Error(w, "Bitcoin payments are temporarily unavailable.", 503)
 		return
 	}
-	schedule, err := expedition.QuoteParty(request.Spots, request.Selections, request.Plan, request.Provider, time.Now())
+	quotedAt := time.Now()
+	var originalAt time.Time
+	lookupErr := app.DB.QueryRow(r.Context(), `SELECT created_at FROM expedition_reservations WHERE buyer_id=$1 AND request_key=$2`, identity.PersonID, request.Key).Scan(&originalAt)
+	if lookupErr == nil {
+		quotedAt = originalAt
+	} else if !errors.Is(lookupErr, pgx.ErrNoRows) {
+		http.Error(w, "Unable to check previous checkout.", 503)
+		return
+	}
+	schedule, err := expedition.QuoteParty(request.Spots, request.Selections, request.Plan, request.Provider, quotedAt)
 	if beta && err == nil {
 		if request.Spots != 1 || len(request.Selections) != 1 || request.Plan != expedition.Full {
 			http.Error(w, "Beta checkout allows one berth, paid in full.", 422)
 			return
 		}
 		schedule.TotalCents = expedition.BetaFareCents(request.Provider)
+		schedule.Installments[0].Cents = schedule.TotalCents
 	}
-	if err != nil || schedule.TotalCents != request.ExpectedTotal {
+	if err != nil || schedule.TotalCents != request.ExpectedTotal || len(schedule.Installments) == 0 || schedule.Installments[0].Cents != request.ExpectedDue {
 		http.Error(w, "Your fare or cabin selection has changed. Reload checkout and review it.", 422)
 		return
 	}
@@ -211,7 +222,7 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 		return
 	}
 	charge, err := (&expedition.Store{DB: app.DB}).Charge(r.Context(), identity.PersonID, reservation.ID, 1)
-	if err != nil {
+	if err != nil || charge.TotalCents != request.ExpectedDue {
 		http.Error(w, "This reservation has expired or needs review. Check your booking before starting again.", 409)
 		return
 	}

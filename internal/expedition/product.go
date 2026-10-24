@@ -60,9 +60,7 @@ type Schedule struct {
 	Installments  []Installment    `json:"installments"`
 }
 
-// NewSchedule creates a finite contract, never a subscription. Until a late-
-// booking policy is approved, installment signups close at the first milestone.
-// Milestone dates use UTC; booking availability is separately configured.
+// NewSchedule freezes equal payments at signup and each remaining milestone.
 func NewSchedule(berth, plan, provider string, bookedAt time.Time) (Schedule, error) {
 	var s Schedule
 	if bookedAt.IsZero() || (provider != Stripe && provider != Bitcoin) || (plan != Full && plan != Installments) {
@@ -86,16 +84,16 @@ func NewSchedule(berth, plan, provider string, bookedAt time.Time) (Schedule, er
 		s.Installments = []Installment{{1, bookedAt.UTC(), s.TotalCents}}
 		return s, nil
 	}
-	first := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
-	if !bookedAt.Before(first) {
+	dates := RemainingPaymentDates(bookedAt)
+	if len(dates) == 0 {
 		return Schedule{}, ErrClosed
 	}
-	s.Installments = []Installment{{1, bookedAt.UTC(), s.TotalCents / 5}}
-	for i, month := range []time.Month{1, 4, 7, 10} {
-		s.Installments = append(s.Installments, Installment{i + 2, time.Date(2027, month, 1, 0, 0, 0, 0, time.UTC), s.TotalCents / 5})
+	count := int64(len(dates) + 1)
+	s.Installments = []Installment{{1, bookedAt.UTC(), s.TotalCents / count}}
+	for i, due := range dates {
+		s.Installments = append(s.Installments, Installment{i + 2, due, s.TotalCents / count})
 	}
-	// Keep the contract total exact even if a future fare is not divisible by five.
-	s.Installments[4].Cents += s.TotalCents % 5
+	s.Installments[len(s.Installments)-1].Cents += s.TotalCents % count
 	return s, nil
 }
 
@@ -125,4 +123,23 @@ func BetaFareCents(provider string) int64 {
 		return 50
 	}
 	return 1
+}
+
+// Milestones on the signup date are folded into the signup payment. Contract
+// dates remain UTC date labels; selection and deadlines use America/Chicago.
+func RemainingPaymentDates(bookedAt time.Time) []time.Time {
+	zone, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		return nil
+	}
+	local := bookedAt.In(zone)
+	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, zone)
+	var dates []time.Time
+	for _, month := range []time.Month{1, 4, 7, 10} {
+		milestone := time.Date(2027, month, 1, 0, 0, 0, 0, zone)
+		if milestone.After(today) {
+			dates = append(dates, time.Date(2027, month, 1, 0, 0, 0, 0, time.UTC))
+		}
+	}
+	return dates
 }
