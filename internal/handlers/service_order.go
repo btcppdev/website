@@ -58,6 +58,12 @@ func ServiceOrder(w http.ResponseWriter, r *http.Request, app *config.AppContext
 	}
 	page.CanPay = serviceOrderCanPay(order, app, time.Now())
 	if page.CanPay {
+		page.Heading = "Complete your payment"
+		if order.Quote.Provider == "opennode" {
+			page.Message = "Continue to OpenNode to pay with Lightning or on-chain Bitcoin. If you already paid, refresh this page to check confirmation."
+		} else {
+			page.Message = "Continue to Stripe to pay by card. If you already paid, refresh this page to check confirmation."
+		}
 		page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 		if err != nil {
 			http.Error(w, "Unable to prepare checkout", 500)

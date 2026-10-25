@@ -274,7 +274,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		if code != 303 || location != orderPath {
 			t.Fatal("failed provider handoff lost order", code, location)
 		}
-		if code, body, _ := call(orderPath, nil); code != 200 || !strings.Contains(body, "Awaiting payment") {
+		if code, body, _ := call(orderPath, nil); code != 200 || !strings.Contains(body, "Complete your payment") {
 			t.Fatal("failed handoff recovery", code, body)
 		}
 		return
@@ -294,7 +294,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		t.Fatal("confirmed quote did not resume original order", code, resume)
 	}
 	code, body, _ = call(orderPath, nil)
-	if code != 200 || !strings.Contains(body, "Pay $48.00 with Bitcoin") || !strings.Contains(body, "Accepted policy version") || !strings.Contains(body, policyVersion) || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
+	if code != 200 || !strings.Contains(body, "Complete your payment") || !strings.Contains(body, "Continue to OpenNode") || !strings.Contains(body, "Pay $48.00 with Bitcoin") || !strings.Contains(body, "Accepted policy version") || !strings.Contains(body, policyVersion) || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
 		t.Fatal("order", code, body)
 	}
 	csrf = regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)
