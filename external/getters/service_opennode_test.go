@@ -49,7 +49,7 @@ func TestOpenNodeServiceChargePostgres(t *testing.T) {
 					w.WriteHeader(400)
 					return
 				}
-				if payload["amount"] != "12.34" || payload["currency"] != "USD" || payload["customer_email"] != email || payload["callback_url"] != "http://localhost:8898/callback/services/opennode" {
+				if payload["description"] != "Bitcoin++ service order "+purchase.PublicID || payload["amount"] != "12.34" || payload["currency"] != "USD" || payload["customer_email"] != email || payload["callback_url"] != "http://localhost:8898/callback/services/opennode" {
 					t.Error("trusted purchase data not preserved")
 				}
 				switch outcome {

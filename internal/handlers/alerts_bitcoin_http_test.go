@@ -67,6 +67,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 	}
 	chargeID := uuid.NewString()
 	calculationID := "taxcalc_" + strings.ReplaceAll(user, "-", "")
+	var chargeDescription atomic.Value
 	var attemptID atomic.Value
 	var paid atomic.Bool
 	var creates atomic.Int32
@@ -98,6 +99,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 			if payload["amount"] != "48.00" || payload["currency"] != "USD" || payload["customer_email"] != user+"@example.test" {
 				t.Error("untrusted charge terms", payload)
 			}
+			chargeDescription.Store(payload["description"].(string))
 			attemptID.Store(payload["order_id"].(string))
 			json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": chargeID, "order_id": attemptID.Load()}})
 			return
@@ -245,6 +247,9 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 	stored, err := getters.ServiceCheckoutQuoteForPerson(app, user, quoteID)
 	if err != nil || stored.Quote.TotalCents != 4800 || stored.Quote.TaxCents != 200 || stored.Quote.Provider != "opennode" || stored.Quote.BillingMonths != 12 || stored.Quote.Quantity != 2 {
 		t.Fatal(stored, err)
+	}
+	if !failHandoff && chargeDescription.Load() != "bitcoin++ alerts subscription - order "+publicID {
+		t.Fatal("incorrect OpenNode receipt description", chargeDescription.Load())
 	}
 	quotePath := "/services/quotes/" + quoteID
 	orderPath := "/services/orders/" + publicID

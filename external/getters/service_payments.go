@@ -14,6 +14,7 @@ import (
 var ErrServicePayment = errors.New("service payment does not match its purchase")
 
 type ServicePaymentAttempt struct {
+	ProductCode   string
 	BuyerEmail    string
 	OrderPublicID string
 	ID            string
@@ -169,6 +170,7 @@ func BeginServicePayment(app *config.AppContext, personID, orderID string) (*Ser
 	if err != nil {
 		return nil, err
 	}
+	attempt.ProductCode = quote.ProductCode
 	attempt.TotalCents = quote.TotalCents
 	attempt.CanCreateCharge = status == "pending" && quote.ExpiresAt.After(time.Now()) && attempt.Reference == ""
 	if attempt.CanCreateCharge && attempt.Provider == "opennode" {

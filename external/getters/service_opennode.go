@@ -48,9 +48,13 @@ func initOpenNodeServiceCharge(ctx context.Context, app *config.AppContext, pers
 	if !attempt.CanCreateCharge {
 		return "", ErrServiceChargeReconciliation
 	}
+	description := "Bitcoin++ service order " + attempt.OrderPublicID
+	if attempt.ProductCode == "alerts.repository-slots" {
+		description = "bitcoin++ alerts subscription - order " + attempt.OrderPublicID
+	}
 	payload, err := json.Marshal(map[string]any{
 		"amount":   fmt.Sprintf("%d.%02d", attempt.TotalCents/100, attempt.TotalCents%100),
-		"currency": "USD", "description": "Bitcoin++ service order " + attempt.OrderPublicID,
+		"currency": "USD", "description": description,
 		"customer_email": attempt.BuyerEmail, "order_id": attempt.ID, "auto_settle": false,
 		"callback_url": app.Env.GetURI() + "/callback/services/opennode",
 		"success_url":  app.Env.GetURI() + "/services/orders/" + url.PathEscape(attempt.OrderPublicID),
