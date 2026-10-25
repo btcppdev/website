@@ -79,6 +79,10 @@ func ServiceQuoteReview(w http.ResponseWriter, r *http.Request, app *config.AppC
 }
 
 func ServiceQuoteConfirm(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
+	confirmServiceQuote(w, r, app, false)
+}
+
+func confirmServiceQuote(w http.ResponseWriter, r *http.Request, app *config.AppContext, payNow bool) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	if r.Method != http.MethodPost {
@@ -181,6 +185,10 @@ func ServiceQuoteConfirm(w http.ResponseWriter, r *http.Request, app *config.App
 	if err != nil {
 		app.Err.Printf("service quote confirmation: %v", err)
 		http.Error(w, "Unable to confirm this quote. You can safely retry; no payment has been started.", 503)
+		return
+	}
+	if payNow {
+		serviceOrderPay(w, mux.SetURLVars(r, map[string]string{"order": purchase.PublicID}), app, true)
 		return
 	}
 	http.Redirect(w, r, "/services/orders/"+url.PathEscape(purchase.PublicID), 303)

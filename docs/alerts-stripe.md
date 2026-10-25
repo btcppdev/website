@@ -782,3 +782,22 @@ a new Bitcoin order. Active plans without scheduled cancellation, partial refund
 retained access, unknown invoices and provider failures remain blocked. Fully
 refunded Alerts receipts link to a fresh Bitcoin quote rather than reusing the old
 card order. Other users' subscriptions are never changed in bulk.
+
+
+## Direct Bitcoin checkout
+
+The Bitcoin prepay page shows the account-derived inclusive price and access
+period alongside the billing address and current terms. The server stores a
+short-lived pricing preview in the session, without an address. Submission
+validates that preview, selection, policy and billing revision, calculates the
+included tax, confirms the durable order, and opens OpenNode directly. Separate
+quote review and order-payment pages are recovery paths, not normal checkout
+steps. Prorated increases show the actual added quantity and price before consent.
+
+Provider handoff failures return to the same order. Repeated submissions resume
+that purchase rather than creating another charge. Existing refund/cancellation
+consent checks still apply when switching away from a card plan.
+
+New annual card subscriptions already use one plan-and-terms page followed by
+Stripe Checkout, which collects the billing address and card details. Existing
+card-plan upgrades retain their dedicated prorated change review.

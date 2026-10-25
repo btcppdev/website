@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,9 +17,16 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/servicebilling"
 	"btcpp-web/internal/types"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	stripeTaxCalculation "github.com/stripe/stripe-go/v86/tax/calculation"
 )
 
 type alertsBitcoinStartPage struct {
+	Policy                               *getters.ServiceLegalPolicy
+	Key                                  string
+	AddedSlots                           int64
+	Increase                             bool
 	Account, CSRF, Total                 string
 	SwitchID, RenewOrderID, Starts, Ends string
 	Slots                                int64
@@ -54,8 +62,8 @@ func alertsBitcoinAddress(values url.Values) (*types.ShopAddress, error) {
 	return a, nil
 }
 
-// Only server-generated pricing and tax evidence reach the stored quote. Order
-// confirmation and OpenNode charge creation remain separate, owned POST actions.
+// GET displays server-owned pricing and terms. POST validates that preview,
+// calculates included tax, confirms the order and opens its OpenNode checkout.
 func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
@@ -157,6 +165,12 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 			switchStart = time.Now().UTC().Truncate(time.Second)
 		}
 	}
+	policy, err := getters.CurrentServiceLegalPolicy(app, servicebilling.AlertsProduct)
+	if err != nil {
+		http.Error(w, "Unable to load checkout policy", 503)
+		return
+	}
+
 	if r.Method == http.MethodPost {
 		if !enabled {
 			http.Error(w, "Bitcoin checkout is not configured here yet", 503)
@@ -167,38 +181,45 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 			http.Error(w, "Enter a complete billing address with a two-letter country code", 422)
 			return
 		}
-		var quote *getters.ServiceQuote
-		var tax *getters.TaxQuoteInput
-		if switchID != "" || renewOrder != "" {
-			quote, tax, err = AlertsTermTaxQuote(r.Context(), "opennode", slots, 12, switchStart, address)
-			if err == nil {
-				quote.AccountRevision, err = getters.AlertsBillingRevision(app, account)
-				quote.AlertsSwitchID = switchID
-				quote.AlertsRenewOrderID = renewOrder
-				quote.BillingMonths = 12
-			}
-		} else {
-			quote, tax, err = PrepareAlertsCheckout(r.Context(), app, account, "opennode", slots, months, address)
-		}
-
-		// Another tab may have confirmed an order since the initial check.
-		if errors.Is(err, ErrAlertsPendingPurchase) && resumeAlertsPendingPurchase(w, r, app, account) {
+		var preview alertsBitcoinPreview
+		if len(values["key"]) != 1 || json.Unmarshal([]byte(app.Session.GetString(r.Context(), "alerts-bitcoin:"+values.Get("key"))), &preview) != nil ||
+			preview.Account != account || preview.Slots != slots || preview.Months != months || preview.SwitchID != switchID || preview.RenewOrderID != renewOrder || !preview.Expires.After(time.Now()) {
+			http.Error(w, "Your checkout changed or expired. Reload checkout to review the current price.", 409)
 			return
 		}
-		if errors.Is(err, ErrAlertsPendingPurchase) || errors.Is(err, ErrAlertsPlanReview) || errors.Is(err, ErrAlertsRenewalChange) || errors.Is(err, ErrAlertsZeroCharge) {
-			http.Error(w, "Your existing Alerts plan needs review before this purchase. Return to My alerts to check your billing.", 409)
+		if policy != nil && (len(values["accept_terms"]) != 1 || values.Get("accept_terms") != "yes" || len(values["legal_version"]) != 1 || values.Get("legal_version") != policy.Version) {
+			http.Error(w, "Reload checkout and accept the current Alerts Terms before paying.", 409)
 			return
 		}
+		if preview.QuoteID != "" {
+			confirmServiceQuote(w, mux.SetURLVars(r, map[string]string{"quote": preview.QuoteID}), app, true)
+			return
+		}
+		revision, err := getters.AlertsBillingRevision(app, account)
+		if err != nil || revision != preview.Revision {
+			http.Error(w, "Your billing changed. Reload checkout to review your plan before paying.", 409)
+			return
+		}
+		quote, tax, err := alertsPriceTaxQuote(r.Context(), "opennode", preview.Price, address, stripeTaxCalculation.New)
 		if err != nil {
-			http.Error(w, "Unable to prepare a tax-inclusive quote. Check your billing address and try again. No payment has been started.", 503)
+			http.Error(w, "Unable to calculate included tax. Check your billing address and try again. No payment has been started.", 503)
 			return
 		}
+		quote.AccountRevision = preview.Revision
+		quote.BillingMonths = months
+		quote.BaseOrderID = preview.BaseID
+		quote.AlertsSwitchID = switchID
+		quote.AlertsRenewOrderID = renewOrder
+
 		stored, err := getters.SaveAlertsCheckoutQuote(app, account, *quote, *tax)
 		if err != nil {
 			http.Error(w, "Unable to save your quote. No payment has been started.", 503)
 			return
 		}
-		http.Redirect(w, r, "/services/quotes/"+url.PathEscape(stored.ID), 303)
+		preview.QuoteID = stored.ID
+		raw, _ := json.Marshal(preview)
+		app.Session.Put(r.Context(), "alerts-bitcoin:"+values.Get("key"), string(raw))
+		confirmServiceQuote(w, mux.SetURLVars(r, map[string]string{"quote": stored.ID}), app, true)
 		return
 	}
 	csrf, err := ensureAuthMethodsCSRF(app, r)
@@ -206,15 +227,27 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "Unable to prepare checkout", 500)
 		return
 	}
-	total := slots * servicebilling.AlertsMonthlySlotCents * int64(months)
-	page := alertsBitcoinStartPage{Account: account, CSRF: csrf, Slots: slots, Months: months, Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
-	if switchID != "" || renewOrder != "" {
-		page.SwitchID = switchID
-		page.RenewOrderID = renewOrder
-		page.Starts = switchStart.Format("January 2, 2006")
-		term, _ := servicebilling.AlertsTerm("opennode", slots, 12, switchStart)
-		page.Ends = term.End.Format("January 2, 2006")
+	state, err := getters.LoadAlertsBillingState(app, account)
+	if err != nil {
+		http.Error(w, "Unable to load billing", 503)
+		return
 	}
+	preview := alertsBitcoinPreview{Account: account, Slots: slots, Months: months, SwitchID: switchID, RenewOrderID: renewOrder, Revision: state.Revision, Expires: time.Now().Add(10 * time.Minute)}
+	if switchID != "" || renewOrder != "" {
+		preview.Price, err = servicebilling.AlertsTerm("opennode", slots, months, switchStart)
+	} else {
+		preview.Price, preview.BaseID, err = prepareAlertsPrice(state, "opennode", slots, months, time.Now().UTC().Truncate(time.Second))
+	}
+	if err != nil || preview.Price.TotalCents <= 0 {
+		http.Error(w, "Your existing Alerts plan needs review before this purchase. Return to Alerts billing to check your plan.", 409)
+		return
+	}
+	key := uuid.NewString()
+	raw, _ := json.Marshal(preview)
+	app.Session.Put(r.Context(), "alerts-bitcoin:"+key, string(raw))
+	page := alertsBitcoinStartPage{Policy: policy, Key: key, Account: account, CSRF: csrf, Slots: slots, AddedSlots: preview.Price.Slots, Increase: preview.BaseID != "", Months: months, Total: fmt.Sprintf("$%d.%02d", preview.Price.TotalCents/100, preview.Price.TotalCents%100), Enabled: enabled,
+		SwitchID: switchID, RenewOrderID: renewOrder, Starts: preview.Price.Start.Format("January 2, 2006"), Ends: preview.Price.End.Format("January 2, 2006")}
+
 	var html bytes.Buffer
 
 	if err = app.TemplateCache.ExecuteTemplate(&html, "alerts_bitcoin_start.tmpl", page); err != nil {
@@ -246,4 +279,13 @@ func alertsPendingOrder(state *getters.AlertsBillingState, now time.Time) string
 		}
 	}
 	return ""
+}
+
+// Stored in the server-side session; no address or browser-supplied price is kept.
+type alertsBitcoinPreview struct {
+	Account, SwitchID, RenewOrderID, Revision, BaseID, QuoteID string
+	Slots                                                      int64
+	Months                                                     int
+	Expires                                                    time.Time
+	Price                                                      servicebilling.AlertsPrice
 }

@@ -31,6 +31,11 @@ import (
 )
 
 func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
+	t.Run("direct payment", func(t *testing.T) { testAlertsBitcoinHTTP(t, false) })
+	t.Run("provider failure", func(t *testing.T) { testAlertsBitcoinHTTP(t, true) })
+}
+
+func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 	if os.Getenv("BTCPP_POSTGRES_SMOKE") != "1" {
 		t.Skip("requires isolated migrated database")
 	}
@@ -79,6 +84,10 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 		}
 		if r.URL.Path == "/v1/charges" && r.Method == "POST" {
 			creates.Add(1)
+			if failHandoff {
+				http.Error(w, "temporary provider failure", http.StatusServiceUnavailable)
+				return
+			}
 			if r.Header.Get("Authorization") != "local-fixture" {
 				t.Error("missing provider authentication")
 			}
@@ -163,6 +172,15 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 		}
 		return res.StatusCode, string(raw), res.Header.Get("Location")
 	}
+	policyVersion := "bitcoin-policy-" + user
+	policy := getters.ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: policyVersion, TermsText: "Reviewed prepaid <terms>", PrivacyText: "Reviewed prepaid privacy", EffectiveAt: time.Now().Add(-time.Hour).UTC().Truncate(time.Second)}
+	if err := getters.RegisterServiceLegalPolicy(app, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := getters.ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
 	path := "/services/alerts/prepay?account=" + user + "&slots=2&months=12"
 	if code, _, location := call(path, nil); code != 303 || !strings.Contains(location, "months%3D12") {
 		t.Fatal(code, location)
@@ -184,6 +202,11 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 		t.Fatal(code)
 	}
 	form.Set("csrf", csrf[1])
+	previewKey := regexp.MustCompile(`name="key" value="([^"]+)"`).FindStringSubmatch(body)
+	if len(previewKey) != 2 || !strings.Contains(body, "Pay $48.00 with Bitcoin") || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
+		t.Fatal("missing price or policy on address page", body)
+	}
+	form.Set("key", previewKey[1])
 	form.Set("account", other)
 	if code, _, _ := call(path, form); code != 403 {
 		t.Fatal(code)
@@ -192,73 +215,44 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 	if taxCalls != 0 {
 		t.Fatal("unauthorized tax request")
 	}
-	code, body, location := call("/services/alerts/prepay?account="+other+"&slots=999&months=120", form)
-	if code != 303 || !strings.HasPrefix(location, "/services/quotes/") {
-		t.Fatal(code, body, location)
+	if code, _, _ := call(path, form); code != 409 || taxCalls != 0 {
+		t.Fatal("missing agreement started checkout", code, taxCalls)
 	}
-	stored, err := getters.ServiceCheckoutQuoteForPerson(app, user, strings.TrimPrefix(location, "/services/quotes/"))
-	if err != nil || stored.Quote.TotalCents != 4800 || stored.Quote.TaxCents != 200 || stored.Quote.Provider != "opennode" || stored.Quote.BillingMonths != 12 || stored.Quote.Quantity != 2 {
-		t.Fatal(stored, err)
+	form.Set("accept_terms", "yes")
+	form.Set("legal_version", "stale")
+	if code, _, _ := call(path, form); code != 409 || taxCalls != 0 {
+		t.Fatal("stale agreement started checkout", code, taxCalls)
 	}
-	var orders int
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_purchase_requests WHERE person_id=$1`, user).Scan(&orders); err != nil || orders != 0 || taxCalls != 1 {
-		t.Fatal("quote started payment", orders, taxCalls, err)
+	form.Set("legal_version", policyVersion)
+	// A browser cannot change a reviewed selection or price.
+	form.Set("slots", "3")
+	if code, _, _ := call(path, form); code != 409 || taxCalls != 0 {
+		t.Fatal("changed selection started checkout", code, taxCalls)
 	}
-	policyVersion := "bitcoin-policy-" + user
-	policy := getters.ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: policyVersion, TermsText: "Reviewed prepaid <terms>", PrivacyText: "Reviewed prepaid privacy", EffectiveAt: time.Now().Add(-time.Hour).UTC().Truncate(time.Second)}
-	if err := getters.RegisterServiceLegalPolicy(app, policy); err != nil {
-		t.Fatal(err)
-	}
-	if err := getters.ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
-	quotePath := location
-	code, body, _ = call(quotePath, nil)
-	if code != 200 || !strings.Contains(body, "$48.00") || !strings.Contains(body, "$2.00") {
-		t.Fatal("quote review", code, body)
-	}
-	csrf = regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)
-	if len(csrf) != 2 {
-		t.Fatal(body)
-	}
-	confirm := url.Values{"csrf": {csrf[1]}, "quantity": {"999"}, "price": {"1"}}
-	if !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") || !strings.Contains(body, `name="accept_terms" value="yes" required`) {
-		t.Fatal("missing policy review", body)
-	}
-	if code, _, _ := call(quotePath+"/confirm", confirm); code != 409 {
-		t.Fatal("missing agreement created order", code)
-	}
-	confirm.Set("accept_terms", "yes")
-	confirm.Set("legal_version", "stale")
-	if code, _, _ := call(quotePath+"/confirm", confirm); code != 409 {
-		t.Fatal("stale agreement created order", code)
-	}
-	confirm.Set("legal_version", policyVersion)
-	// Choosing Bitcoin automatically closes an unsubmitted card reservation.
+	form.Set("slots", "2")
 	pendingCard, err := getters.ReserveAlertsStripeCheckoutWithPolicy(app, user, "bitcoin-conflict-"+user, 2, "https://btcpp.dev", policyVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
-	confirm.Set("legal_version", "stale")
-	if code, _, _ := call(quotePath+"/confirm", confirm); code != 409 {
-		t.Fatal("stale policy switched payment methods", code)
+	code, body, location := call("/services/alerts/prepay?account="+other+"&slots=999&months=120", form)
+	if !failHandoff && (code != 303 || location != "https://checkout.opennode.com/"+chargeID) {
+		t.Fatal("address submission did not open OpenNode directly", code, body, location)
 	}
-	pending, err := getters.AlertsStripeCheckoutForPerson(app, user, pendingCard.Intent.ID)
-	if err != nil || pending.Closed {
-		t.Fatal("invalid confirmation cancelled card checkout", pending, err)
+	var quoteID, publicID string
+	if err := pool.QueryRow(ctx, `SELECT substring(r.request_key from 16),o.public_id FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1`, user).Scan(&quoteID, &publicID); err != nil {
+		t.Fatal(err)
 	}
-	confirm.Set("legal_version", policyVersion)
-	code, body, orderPath := call(quotePath+"/confirm", confirm)
-	if code != 303 || !strings.HasPrefix(orderPath, "/services/orders/") {
-		t.Fatal("confirm", code, body, orderPath)
+	stored, err := getters.ServiceCheckoutQuoteForPerson(app, user, quoteID)
+	if err != nil || stored.Quote.TotalCents != 4800 || stored.Quote.TaxCents != 200 || stored.Quote.Provider != "opennode" || stored.Quote.BillingMonths != 12 || stored.Quote.Quantity != 2 {
+		t.Fatal(stored, err)
 	}
+	quotePath := "/services/quotes/" + quoteID
+	orderPath := "/services/orders/" + publicID
+	confirm := url.Values{"csrf": {csrf[1]}, "accept_terms": {"yes"}, "legal_version": {policyVersion}}
 	closed, err := getters.AlertsStripeCheckoutForPerson(app, user, pendingCard.Intent.ID)
 	if err != nil || !closed.Closed {
 		t.Fatal("card checkout was not cancelled", closed, err)
 	}
-	// Re-entering checkout resumes the same order without recalculating tax,
-	// starting a charge, or accepting new browser-supplied purchase terms.
 	for _, retryForm := range []url.Values{nil, form} {
 		if code, _, resume := call(path, retryForm); code != 303 || resume != orderPath {
 			t.Fatal("prepay did not resume pending order", code, resume)
@@ -272,8 +266,18 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 		t.Fatal("pending order bypassed CSRF", code)
 	}
 	form.Set("csrf", csrf[1])
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_purchase_requests WHERE person_id=$1`, user).Scan(&orders); err != nil || orders != 1 || taxCalls != 1 || creates.Load() != 0 {
+	var orders int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_purchase_requests WHERE person_id=$1`, user).Scan(&orders); err != nil || orders != 1 || taxCalls != 1 || creates.Load() != 1 {
 		t.Fatal("resume created another purchase or provider request", orders, taxCalls, creates.Load(), err)
+	}
+	if failHandoff {
+		if code != 303 || location != orderPath {
+			t.Fatal("failed provider handoff lost order", code, location)
+		}
+		if code, body, _ := call(orderPath, nil); code != 200 || !strings.Contains(body, "Awaiting payment") {
+			t.Fatal("failed handoff recovery", code, body)
+		}
+		return
 	}
 	// Pending service orders must reach the verified service view, not a generic
 	// shop PDF that could imply payment was received.

@@ -83,6 +83,10 @@ func serviceOrderCanPay(order *getters.ServiceOrderView, app *config.AppContext,
 }
 
 func ServiceOrderPay(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
+	serviceOrderPay(w, r, app, false)
+}
+
+func serviceOrderPay(w http.ResponseWriter, r *http.Request, app *config.AppContext, recoverOnOrder bool) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	if r.Method != http.MethodPost {
@@ -121,6 +125,10 @@ func ServiceOrderPay(w http.ResponseWriter, r *http.Request, app *config.AppCont
 	}
 	if err != nil {
 		app.Err.Printf("service order payment handoff: %v", err)
+		if recoverOnOrder {
+			http.Redirect(w, r, "/services/orders/"+url.PathEscape(order.PublicID), http.StatusSeeOther)
+			return
+		}
 		http.Error(w, "We could not open checkout. Return to the order page to check payment status before trying again.", 503)
 		return
 	}

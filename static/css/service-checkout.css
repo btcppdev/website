@@ -33,8 +33,8 @@
 .service-checkout .service-note{font-size:14px;color:#555}
 .service-checkout .alerts-billing-address{grid-template-columns:1fr 1fr}
 .service-checkout .alerts-billing-address__wide{grid-column:1/-1}
-.service-checkout .alerts-billing-address label{display:grid;gap:8px;font-size:14px}
-.service-checkout .alerts-billing-address input{width:100%;padding:12px;border:1px solid #b7b0a6;background:#fff;font:inherit}
+.service-checkout .alerts-billing-address label:not(:has(input[type=checkbox])){display:grid;gap:8px;font-size:14px}
+.service-checkout .alerts-billing-address input:not([type=checkbox]){width:100%;padding:12px;border:1px solid #b7b0a6;background:#fff;font:inherit}
 @media(max-width:760px){.service-checkout{grid-template-columns:1fr;gap:32px;margin:32px auto 64px;padding:0 20px}.service-summary{grid-row:1}.service-summary img{max-height:170px;object-fit:cover}.service-summary__body{padding:20px}.service-checkout .alerts-billing-address{grid-template-columns:1fr}.service-checkout .alerts-billing-address__wide{grid-column:auto}}
 .service-checkout--status>section{min-width:0}
 .service-checkout .service-status-message{border-left:3px solid #e95742;padding:4px 0 4px 20px}

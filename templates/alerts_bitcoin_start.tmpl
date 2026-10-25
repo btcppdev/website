@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Prepay for Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4"></head>
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=5"></head>
 <body class="shop-page">{{ block "mainnav" . }}{{ end }}
 <main class="service-checkout service-checkout--account">
 <nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li><li><a href="/services/alerts/manage">Alerts billing</a></li><li><span aria-current="page">Bitcoin payment</span></li></ol></nav>
 <section>
-<header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span><h1>Pay with Bitcoin</h1><p>Your first three repositories are free. A new {{ .Months }}-month term for {{ .Slots }} additional repositories costs {{ .Total }}, including applicable tax.</p></header>
-{{if .RenewOrderID}}<p>This annual renewal covers {{.Starts}} through {{.Ends}}. No automatic renewal.</p>{{else if .SwitchID}}<p>Your card renewal is off. This Bitcoin payment covers {{.Starts}} through {{.Ends}}. It does not replace or shorten your already-paid card period.</p>{{else}}<p>No automatic renewal. If you already have a prepaid plan, the next page shows the prorated price for added repositories through your existing paid-through date.</p>{{end}}
+<header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span><h1>Pay with Bitcoin</h1><p>Your first three repositories are free. {{ if .Increase }}Add {{ .AddedSlots }} repositories to your prepaid plan for {{ .Total }}, including applicable tax.{{ else }}A {{ .Months }}-month term for {{ .Slots }} additional repositories costs {{ .Total }}, including applicable tax.{{ end }}</p></header>
+{{if .RenewOrderID}}<p>This annual renewal covers {{.Starts}} through {{.Ends}}. No automatic renewal.</p>{{else if .SwitchID}}<p>Your card renewal is off. This Bitcoin payment covers {{.Starts}} through {{.Ends}}. It does not replace or shorten your already-paid card period.</p>{{else}}<p>{{if .Increase}}Prorated access{{else}}Prepaid access{{end}} covers {{.Starts}} through {{.Ends}}. No automatic renewal.</p>{{end}}
 {{ if .Enabled }}<form method="post" action="/services/alerts/prepay" class="alerts-billing-address">
-{{if .RenewOrderID}}<input type="hidden" name="renew" value="{{.RenewOrderID}}">{{end}}{{if .SwitchID}}<input type="hidden" name="switch" value="{{.SwitchID}}">{{end}}<input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="months" value="{{ .Months }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
+{{if .RenewOrderID}}<input type="hidden" name="renew" value="{{.RenewOrderID}}">{{end}}{{if .SwitchID}}<input type="hidden" name="switch" value="{{.SwitchID}}">{{end}}<input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="months" value="{{ .Months }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
 <p class="alerts-billing-address__wide">Your billing address is sent to Stripe to calculate tax. Bitcoin++ does not save this address in its checkout or tax records. Stripe may retain it for tax processing.</p>
 <label class="alerts-billing-address__wide">Street address<input name="line1" autocomplete="address-line1" maxlength="200" required></label>
 <label class="alerts-billing-address__wide">Apartment or suite (optional)<input name="line2" autocomplete="address-line2" maxlength="200"></label>
@@ -17,7 +17,15 @@
 <label>State or region<input name="region" autocomplete="address-level1" maxlength="200"></label>
 <label>Postal code<input name="postal" autocomplete="postal-code" maxlength="200"></label>
 <label>Country code<input name="country" autocomplete="country" placeholder="US" pattern="[A-Za-z]{2}" minlength="2" maxlength="2" required></label>
-<button type="submit" class="service-primary alerts-billing-address__wide">Review your quote</button></form>
+{{ with .Policy }}
+<div class="alerts-billing-address__wide">
+<details><summary>Read the Terms of Service · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .TermsText }}</div></details>
+<details><summary>Read the Privacy Policy · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
+<input type="hidden" name="legal_version" value="{{ .Version }}">
+<label><input type="checkbox" name="accept_terms" value="yes" required> I agree to these Terms of Service and acknowledge the Privacy Policy.</label>
+</div>
+{{ end }}
+<button type="submit" class="service-primary alerts-billing-address__wide">Pay {{ .Total }} with Bitcoin →</button><p class="alerts-billing-address__wide">Continue to OpenNode to pay with Lightning or on-chain Bitcoin.</p></form>
 {{ else }}<p role="status">Bitcoin checkout is not configured here yet.</p>{{ end }}
 <p><a href="https://alerts.btcpp.dev/terms">Terms</a> · <a href="https://alerts.btcpp.dev/privacy">Privacy</a></p>
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
@@ -28,8 +36,8 @@
 <p class="service-note">Software release notifications, delivered by email and Telegram.</p>
 <dl>
 <div><dt>Free projects</dt><dd>3 included</dd></div>
-<div><dt>Additional projects</dt><dd>{{ .Slots }}</dd></div>
-<div><dt>Prepaid term</dt><dd>{{ .Months }} months</dd></div>
-<div class="service-total"><dt>New term total</dt><dd>{{ .Total }}</dd></div>
+<div><dt>Additional projects</dt><dd>{{ .AddedSlots }}</dd></div>
+<div><dt>Access through</dt><dd>{{ .Ends }}</dd></div>
+<div class="service-total"><dt>Total due today</dt><dd>{{ .Total }}</dd></div>
 </dl><p class="service-note">USD · applicable tax included.</p>
 </div></aside></main></body></html>
