@@ -235,9 +235,27 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 		t.Fatal("stale agreement created order", code)
 	}
 	confirm.Set("legal_version", policyVersion)
+	// Choosing Bitcoin automatically closes an unsubmitted card reservation.
+	pendingCard, err := getters.ReserveAlertsStripeCheckoutWithPolicy(app, user, "bitcoin-conflict-"+user, 2, "https://btcpp.dev", policyVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirm.Set("legal_version", "stale")
+	if code, _, _ := call(quotePath+"/confirm", confirm); code != 409 {
+		t.Fatal("stale policy switched payment methods", code)
+	}
+	pending, err := getters.AlertsStripeCheckoutForPerson(app, user, pendingCard.Intent.ID)
+	if err != nil || pending.Closed {
+		t.Fatal("invalid confirmation cancelled card checkout", pending, err)
+	}
+	confirm.Set("legal_version", policyVersion)
 	code, body, orderPath := call(quotePath+"/confirm", confirm)
 	if code != 303 || !strings.HasPrefix(orderPath, "/services/orders/") {
 		t.Fatal("confirm", code, body, orderPath)
+	}
+	closed, err := getters.AlertsStripeCheckoutForPerson(app, user, pendingCard.Intent.ID)
+	if err != nil || !closed.Closed {
+		t.Fatal("card checkout was not cancelled", closed, err)
 	}
 	// Pending service orders must reach the verified service view, not a generic
 	// shop PDF that could imply payment was received.

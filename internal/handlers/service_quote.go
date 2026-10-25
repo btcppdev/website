@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"github.com/gorilla/mux"
@@ -105,7 +107,29 @@ func ServiceQuoteConfirm(w http.ResponseWriter, r *http.Request, app *config.App
 	if r.PostForm.Get("accept_terms") == "yes" && len(r.PostForm["accept_terms"]) == 1 && len(r.PostForm["legal_version"]) == 1 {
 		acceptedVersion = r.PostForm.Get("legal_version")
 	}
-	purchase, err := getters.ConfirmServiceCheckoutQuoteWithPolicy(app, id.PersonID, mux.Vars(r)["quote"], acceptedVersion)
+	key := ""
+	if app.Env != nil {
+		key = app.Env.StripeKey
+	}
+	live := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
+	purchase, err := getters.ConfirmServiceCheckoutQuoteSwitchingToBitcoin(r.Context(), app, id.PersonID, mux.Vars(r)["quote"], acceptedVersion, alertsstripe.NewClient(live))
+	if errors.Is(err, getters.ErrAlertsStripeCheckoutConflict) {
+		// Cancellation was not confirmed, or checkout state changed. Keep the
+		// Bitcoin order blocked and recover only this account's card checkout.
+		var existing string
+		recoveryErr := app.DB.QueryRow(r.Context(), `SELECT id::text FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL ORDER BY created_at DESC LIMIT 1`, id.PersonID).Scan(&existing)
+		if recoveryErr == nil {
+			http.Redirect(w, r, "/services/alerts/checkout/"+url.PathEscape(existing), http.StatusSeeOther)
+			return
+		}
+		if !errors.Is(recoveryErr, pgx.ErrNoRows) {
+			app.Err.Printf("service quote checkout recovery: %v", recoveryErr)
+			http.Error(w, "Unable to load your existing checkout. Please try again shortly.", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, "Your Alerts checkout changed. Return to Alerts and request a new quote before continuing.", http.StatusConflict)
+		return
+	}
 	if errors.Is(err, getters.ErrServiceLegalReview) {
 		http.Error(w, "Review and accept the current Terms on the quote page before confirming.", 409)
 		return
