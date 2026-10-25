@@ -257,6 +257,24 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 	if err != nil || !closed.Closed {
 		t.Fatal("card checkout was not cancelled", closed, err)
 	}
+	// Re-entering checkout resumes the same order without recalculating tax,
+	// starting a charge, or accepting new browser-supplied purchase terms.
+	for _, retryForm := range []url.Values{nil, form} {
+		if code, _, resume := call(path, retryForm); code != 303 || resume != orderPath {
+			t.Fatal("prepay did not resume pending order", code, resume)
+		}
+	}
+	if code, _, _ := call(strings.Replace(path, user, other, 1), nil); code != 403 {
+		t.Fatal("pending order bypassed account check", code)
+	}
+	form.Set("csrf", "wrong")
+	if code, _, _ := call(path, form); code != 403 {
+		t.Fatal("pending order bypassed CSRF", code)
+	}
+	form.Set("csrf", csrf[1])
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_purchase_requests WHERE person_id=$1`, user).Scan(&orders); err != nil || orders != 1 || taxCalls != 1 || creates.Load() != 0 {
+		t.Fatal("resume created another purchase or provider request", orders, taxCalls, creates.Load(), err)
+	}
 	// Pending service orders must reach the verified service view, not a generic
 	// shop PDF that could imply payment was received.
 	for _, suffix := range []string{"", "/receipt"} {

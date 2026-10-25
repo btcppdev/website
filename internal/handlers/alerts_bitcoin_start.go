@@ -103,6 +103,16 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "Sign in with the same Bitcoin++ account you use for Alerts before checking out.", 403)
 		return
 	}
+	if r.Method == http.MethodPost && (len(values["csrf"]) != 1 || !secureTokenEqual(app.Session.GetString(r.Context(), authMethodsCSRFKey), values.Get("csrf"))) {
+		http.Error(w, "Reload checkout and try again", 403)
+		return
+	}
+	// Resume an owned purchase before asking for an address again. Viewing the
+	// order does not start payment or change its previously confirmed terms.
+	if resumeAlertsPendingPurchase(w, r, app, account) {
+		return
+	}
+
 	enabled := app.Env != nil && strings.TrimSpace(app.Env.OpenNode.Key) != "" && strings.TrimSpace(app.Env.StripeKey) != ""
 	switchID := values.Get("switch")
 	renewOrder := values.Get("renew")
@@ -148,10 +158,6 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 		}
 	}
 	if r.Method == http.MethodPost {
-		if len(values["csrf"]) != 1 || !secureTokenEqual(app.Session.GetString(r.Context(), authMethodsCSRFKey), values.Get("csrf")) {
-			http.Error(w, "Reload checkout and try again", 403)
-			return
-		}
 		if !enabled {
 			http.Error(w, "Bitcoin checkout is not configured here yet", 503)
 			return
@@ -175,6 +181,10 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 			quote, tax, err = PrepareAlertsCheckout(r.Context(), app, account, "opennode", slots, months, address)
 		}
 
+		// Another tab may have confirmed an order since the initial check.
+		if errors.Is(err, ErrAlertsPendingPurchase) && resumeAlertsPendingPurchase(w, r, app, account) {
+			return
+		}
 		if errors.Is(err, ErrAlertsPendingPurchase) || errors.Is(err, ErrAlertsPlanReview) || errors.Is(err, ErrAlertsRenewalChange) || errors.Is(err, ErrAlertsZeroCharge) {
 			http.Error(w, "Your existing Alerts plan needs review before this purchase. Return to My alerts to check your billing.", 409)
 			return
@@ -213,4 +223,27 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(html.Bytes())
+}
+
+// Return true when the response has been handled, including a failed lookup.
+func resumeAlertsPendingPurchase(w http.ResponseWriter, r *http.Request, app *config.AppContext, personID string) bool {
+	state, err := getters.LoadAlertsBillingState(app, personID)
+	if err != nil {
+		http.Error(w, "Unable to check your existing purchase. Please try again.", 503)
+		return true
+	}
+	if publicID := alertsPendingOrder(state, time.Now()); publicID != "" {
+		http.Redirect(w, r, "/services/orders/"+url.PathEscape(publicID), http.StatusSeeOther)
+		return true
+	}
+	return false
+}
+
+func alertsPendingOrder(state *getters.AlertsBillingState, now time.Time) string {
+	for _, order := range state.Orders {
+		if order.Status == "pending" && (order.Quote.ExpiresAt.After(now) || order.PaymentStarted) {
+			return order.PublicID
+		}
+	}
+	return ""
 }

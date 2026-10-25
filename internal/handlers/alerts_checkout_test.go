@@ -95,3 +95,26 @@ func TestPrepareAlertsCheckoutUnresolvedState(t *testing.T) {
 		})
 	}
 }
+
+func TestAlertsPendingOrder(t *testing.T) {
+	now := time.Now()
+	for _, tc := range []struct {
+		name, status  string
+		expires       time.Time
+		started, want bool
+	}{
+		{"unpaid", "pending", now.Add(time.Minute), false, true},
+		{"expired without payment", "pending", now.Add(-time.Minute), false, false},
+		{"expired with payment attempt", "pending", now.Add(-time.Minute), true, true},
+		{"paid", "paid", now.Add(time.Minute), true, false},
+		{"refunded", "refunded", now.Add(time.Minute), true, false},
+		{"cancelled", "cancelled", now.Add(time.Minute), true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := &getters.AlertsBillingState{Orders: []getters.AlertsBillingOrder{{PublicID: "owned-order", Status: tc.status, PaymentStarted: tc.started, Quote: getters.ServiceQuote{ExpiresAt: tc.expires}}}}
+			if got := alertsPendingOrder(state, now); (got == "owned-order") != tc.want {
+				t.Fatalf("unexpected pending order: %q", got)
+			}
+		})
+	}
+}

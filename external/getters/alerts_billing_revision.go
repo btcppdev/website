@@ -15,6 +15,7 @@ var ErrAlertsBillingChanged = errors.New("Alerts billing changed; request a new 
 
 type AlertsBillingOrder struct {
 	OrderID        string
+	PublicID       string
 	Status         string
 	Quote          ServiceQuote
 	Granted        bool
@@ -44,7 +45,7 @@ func LoadAlertsBillingState(app *config.AppContext, personID string) (*AlertsBil
 	if err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT o.id::text,o.status,r.quote_snapshot,e.id IS NOT NULL,e.revoked_at IS NOT NULL,
+	rows, err := tx.Query(ctx, `SELECT o.id::text,o.public_id,o.status,r.quote_snapshot,e.id IS NOT NULL,e.revoked_at IS NOT NULL,
  EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id),
  (o.status IN ('refunded','partially_refunded') AND `+servicePurchaseAccessSQL+`)
  FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
@@ -57,7 +58,7 @@ func LoadAlertsBillingState(app *config.AppContext, personID string) (*AlertsBil
 	for rows.Next() {
 		var order AlertsBillingOrder
 		var raw []byte
-		if err = rows.Scan(&order.OrderID, &order.Status, &raw, &order.Granted, &order.Revoked, &order.PaymentStarted, &order.RefundRetained); err != nil {
+		if err = rows.Scan(&order.OrderID, &order.PublicID, &order.Status, &raw, &order.Granted, &order.Revoked, &order.PaymentStarted, &order.RefundRetained); err != nil {
 			rows.Close()
 			return nil, err
 		}
