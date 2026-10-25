@@ -9,12 +9,19 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/config"
 	"github.com/jackc/pgx/v5"
+	"github.com/stripe/stripe-go/v86"
 )
 
 // ConfirmServiceCheckoutQuoteSwitchingToBitcoin resolves a pending Alerts card
 // checkout or retires a canceled, fully refunded subscription only after the
 // user confirms a valid Bitcoin quote. Provider and financial evidence is retained.
 func ConfirmServiceCheckoutQuoteSwitchingToBitcoin(ctx context.Context, app *config.AppContext, person, quoteID, version string, client alertsstripe.Client) (*ServicePurchase, error) {
+	return ConfirmServiceCheckoutQuoteWithCardEndConsent(ctx, app, person, quoteID, version, false, client)
+}
+
+var ErrRefundedCardEndConsent = errors.New("ending the refunded card subscription now requires consent")
+
+func ConfirmServiceCheckoutQuoteWithCardEndConsent(ctx context.Context, app *config.AppContext, person, quoteID, version string, endRefundedCard bool, client alertsstripe.Client) (*ServicePurchase, error) {
 	purchase, err := ConfirmServiceCheckoutQuoteWithPolicy(app, person, quoteID, version)
 	if !errors.Is(err, ErrAlertsStripeCheckoutConflict) {
 		return purchase, err
@@ -39,7 +46,20 @@ func ConfirmServiceCheckoutQuoteSwitchingToBitcoin(ctx context.Context, app *con
 		return nil, err
 	}
 	if err == nil {
-		closed, closeErr := closeRefundedAlertsSubscription(ctx, app, person, existing, client)
+		if endRefundedCard {
+			// Consent is durable before the provider call, including a lost response.
+			revision, revisionErr := AlertsBillingRevision(app, person)
+			if revisionErr != nil {
+				return nil, revisionErr
+			}
+			if revision != stored.Quote.AccountRevision {
+				return nil, ErrAlertsBillingChanged
+			}
+			if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_refunded_card_end_consents(checkout_id,quote_id,person_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, existing, stored.ID, person); err != nil {
+				return nil, err
+			}
+		}
+		closed, closeErr := closeRefundedAlertsSubscription(ctx, app, person, existing, endRefundedCard, client)
 		if closeErr != nil {
 			return nil, errors.Join(ErrAlertsStripeCheckoutConflict, closeErr)
 		}
@@ -55,9 +75,10 @@ func ConfirmServiceCheckoutQuoteSwitchingToBitcoin(ctx context.Context, app *con
 }
 
 // Retire only an already-canceled subscription whose recorded purchases are
-// fully refunded without retained access. Never cancel a subscription at Stripe.
+// fully refunded without retained access. Ending a scheduled cancellation early
+// requires explicit, durable consent from the Bitcoin quote confirmation.
 // Keep the account lock across provider verification and local retirement.
-func closeRefundedAlertsSubscription(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client) (bool, error) {
+func closeRefundedAlertsSubscription(ctx context.Context, app *config.AppContext, person, id string, endRefundedCard bool, client alertsstripe.Client) (bool, error) {
 	tx, err := app.DB.Begin(ctx)
 	if err != nil {
 		return false, err
@@ -85,7 +106,9 @@ func closeRefundedAlertsSubscription(ctx context.Context, app *config.AppContext
 	if err != nil {
 		return false, err
 	}
-	if state.ProviderStatus != "canceled" || state.State != "cancelled" || state.LatestInvoice == "" {
+	scheduled := state.State == "cancelling" && state.CancelAtPeriodEnd
+	ended := state.ProviderStatus == "canceled" && state.State == "cancelled"
+	if (!scheduled && !ended) || state.LatestInvoice == "" {
 		return false, ErrAlertsStripeCheckoutConflict
 	}
 	// Lock order evidence against concurrent settlement/refund changes.
@@ -104,6 +127,27 @@ func closeRefundedAlertsSubscription(ctx context.Context, app *config.AppContext
 	}
 	if !eligible {
 		return false, ErrAlertsStripeCheckoutConflict
+	}
+	if scheduled {
+		if !endRefundedCard {
+			return false, ErrRefundedCardEndConsent
+		}
+		if client.CancelSubscription == nil {
+			return false, ErrAlertsStripeCheckoutConflict
+		}
+		params := &stripe.SubscriptionCancelParams{InvoiceNow: stripe.Bool(false), Prorate: stripe.Bool(false)}
+		params.Context = ctx
+		params.SetIdempotencyKey("alerts-refunded-card-end:" + id)
+		if _, err = client.CancelSubscription(binding.SubscriptionID, params); err != nil {
+			return false, err
+		}
+		state, err = client.CurrentSubscription(ctx, binding)
+		if err != nil {
+			return false, err
+		}
+		if state.ProviderStatus != "canceled" || state.State != "cancelled" {
+			return false, ErrAlertsStripeCheckoutConflict
+		}
 	}
 	if err = saveAlertsStripeSubscriptionState(ctx, tx, binding, state, client, time.Now().UTC()); err != nil {
 		return false, err

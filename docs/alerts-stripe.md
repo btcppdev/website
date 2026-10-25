@@ -758,3 +758,27 @@ and an account-owned downloadable invoice. Check `service-receipts` and metrics
 for failures; acceptance by the mailer is not proof of inbox delivery.
 
 Production settings/webhook updates require explicit rollout authorization.
+
+### Alerts checkout address minimization
+
+The prepaid address form sends the address to Stripe Tax for calculation, but
+Bitcoin++ does not retain it in Alerts checkout quotes, tax quotes, or tax
+transactions. These records retain provider IDs, verified amounts, expiry, and
+payment evidence; full provider response bodies and destination fields are not
+stored. Migration 149 removes those fields from existing Alerts tax records and
+enforces minimization for writes during a rolling deployment. Other products and
+separately requested billing invoices are unchanged. This does not delete Stripe
+records or historical backups; do not describe it as deletion from every system.
+
+### Refunded card plan recovery
+
+A full refund does not imply Stripe has ended the subscription: cancellation may
+be scheduled for the end of the annual period. A blocked Bitcoin quote now explains
+that distinction. When all recorded purchases are fully refunded without retained
+access and Stripe confirms a scheduled cancellation, the user can explicitly agree
+to end the card plan immediately. Consent is recorded before the provider call;
+the cancellation disables invoicing and proration and is verified before opening
+a new Bitcoin order. Active plans without scheduled cancellation, partial refunds,
+retained access, unknown invoices and provider failures remain blocked. Fully
+refunded Alerts receipts link to a fresh Bitcoin quote rather than reusing the old
+card order. Other users' subscriptions are never changed in bulk.

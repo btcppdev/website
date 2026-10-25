@@ -11,7 +11,8 @@
 <header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span><h1>Review your plan</h1><p role="status">{{ .Message }}</p></header>
 
 {{ if eq .Stored.Quote.Provider "opennode" }}<p>Bitcoin payment via OpenNode. This is prepaid access with no automatic renewal.</p>{{ end }}
-{{ if not .Expired }}
+{{ if .Blocked }}<p><a class="service-primary" href="/services/alerts/manage">Review Alerts billing</a></p>{{ end }}
+{{ if and (not .Expired) (or (not .Blocked) .CanEndRefundedCard) }}
 <form method="post" action="/services/quotes/{{ .Stored.ID }}/confirm">
 <input type="hidden" name="csrf" value="{{ .CSRF }}">
 {{ with .Policy }}
@@ -20,7 +21,7 @@
 <input type="hidden" name="legal_version" value="{{ .Version }}">
 <label><input type="checkbox" name="accept_terms" value="yes" required> I agree to these Terms of Service and acknowledge the Privacy Policy.</label>
 {{ end }}
-<button type="submit" class="service-primary">Confirm {{ .Total }} order →</button>
+{{ if .CanEndRefundedCard }}<label><input type="checkbox" name="end_refunded_card" value="yes" required> End my fully refunded card subscription immediately.</label><button type="submit" class="service-primary">End refunded card plan and confirm {{ .Total }} Bitcoin order →</button>{{ else }}<button type="submit" class="service-primary">Confirm {{ .Total }} order →</button>{{ end }}
 </form>
 {{ end }}
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>

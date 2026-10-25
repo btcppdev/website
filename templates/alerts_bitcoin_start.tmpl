@@ -10,7 +10,7 @@
 {{if .RenewOrderID}}<p>This annual renewal covers {{.Starts}} through {{.Ends}}. No automatic renewal.</p>{{else if .SwitchID}}<p>Your card renewal is off. This Bitcoin payment covers {{.Starts}} through {{.Ends}}. It does not replace or shorten your already-paid card period.</p>{{else}}<p>No automatic renewal. If you already have a prepaid plan, the next page shows the prorated price for added repositories through your existing paid-through date.</p>{{end}}
 {{ if .Enabled }}<form method="post" action="/services/alerts/prepay" class="alerts-billing-address">
 {{if .RenewOrderID}}<input type="hidden" name="renew" value="{{.RenewOrderID}}">{{end}}{{if .SwitchID}}<input type="hidden" name="switch" value="{{.SwitchID}}">{{end}}<input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="months" value="{{ .Months }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
-<p class="alerts-billing-address__wide">Your billing address determines the tax included in the price.</p>
+<p class="alerts-billing-address__wide">Your billing address is sent to Stripe to calculate tax. Bitcoin++ does not save this address in its checkout or tax records. Stripe may retain it for tax processing.</p>
 <label class="alerts-billing-address__wide">Street address<input name="line1" autocomplete="address-line1" maxlength="200" required></label>
 <label class="alerts-billing-address__wide">Apartment or suite (optional)<input name="line2" autocomplete="address-line2" maxlength="200"></label>
 <label>City<input name="city" autocomplete="address-level2" maxlength="200" required></label>

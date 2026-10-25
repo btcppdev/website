@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -35,11 +36,49 @@ func TestStoredServiceCheckoutQuotePostgres(t *testing.T) {
 	end := start.AddDate(1, 0, 0)
 	expiry := start.Add(10 * time.Minute)
 	quote := ServiceQuote{AccountRevision: revision, BillingMonths: 12, ProductCode: "alerts.repository-slots", Name: "Alerts additional projects", Provider: "opennode", Quantity: 2, UnitCents: 1200, TotalCents: 2400, TaxCents: 200, PeriodStart: &start, PeriodEnd: &end, ExpiresAt: expiry}
-	tax := TaxQuoteInput{Provider: "stripe", ProviderQuoteID: "taxcalc_stored_" + person, SalesTaxAmountCents: 200, DestinationCountry: "US", RawResponse: `{"amount_total":2400}`, ExpiresAt: &expiry}
+	tax := TaxQuoteInput{Provider: "stripe", ProviderQuoteID: "taxcalc_stored_" + person, SalesTaxAmountCents: 200, DestinationCountry: "US", DestinationRegion: "PRIVATE REGION", DestinationPostalCode: "PRIVATE POSTAL", RawResponse: `{"customer_details":{"address":{"line1":"PRIVATE STREET"}}}`, ExpiresAt: &expiry}
 	stored, err := SaveAlertsCheckoutQuote(app, person, quote, tax)
 	if err != nil {
 		t.Fatal(err)
 	}
+	var privateFields bool
+	if err = app.DB.QueryRow(ctx, `SELECT tax_snapshot->>'DestinationCountry'='' AND tax_snapshot->>'DestinationRegion'='' AND tax_snapshot->>'DestinationPostalCode'='' AND tax_snapshot->>'RawResponse'='{}' FROM service_checkout_quotes WHERE id=$1`, stored.ID).Scan(&privateFields); err != nil || !privateFields {
+		t.Fatal("stored quote retained address", err)
+	}
+	func() {
+		tx, e := app.DB.Begin(ctx)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer tx.Rollback(ctx)
+		if _, e = tx.Exec(ctx, `ALTER TABLE service_checkout_quotes DISABLE TRIGGER service_checkout_quote_immutable`); e != nil {
+			t.Fatal(e)
+		}
+		if _, e = tx.Exec(ctx, `UPDATE service_checkout_quotes SET tax_snapshot=jsonb_set(tax_snapshot,'{DestinationPostalCode}','"PRIVATE POSTAL"') WHERE id=$1`, stored.ID); e != nil {
+			t.Fatal(e)
+		}
+		var otherQuote string
+		if e = tx.QueryRow(ctx, `INSERT INTO service_checkout_quotes(person_id,quote_snapshot,tax_snapshot,expires_at) VALUES($1,'{"product_code":"insider.membership"}','{"DestinationPostalCode":"OTHER POSTAL"}',now()) RETURNING id::text`, person).Scan(&otherQuote); e != nil {
+			t.Fatal(e)
+		}
+		migration, e := os.ReadFile("../../db/migrations/149_alerts_address_minimization.sql")
+		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = tx.Exec(ctx, string(migration)); e != nil {
+			t.Fatal(e)
+		}
+		var clean, untouched bool
+		if e = tx.QueryRow(ctx, `SELECT tax_snapshot->>'DestinationPostalCode'='' AND tax_snapshot->>'ProviderQuoteID'=$2 FROM service_checkout_quotes WHERE id=$1`, stored.ID, tax.ProviderQuoteID).Scan(&clean); e != nil || !clean {
+			t.Fatal("historical quote not minimized", e)
+		}
+		if e = tx.QueryRow(ctx, `SELECT tax_snapshot->>'DestinationPostalCode'='OTHER POSTAL' FROM service_checkout_quotes WHERE id=$1`, otherQuote).Scan(&untouched); e != nil || !untouched {
+			t.Fatal("unrelated quote altered", e)
+		}
+		if _, e = tx.Exec(ctx, `UPDATE service_checkout_quotes SET tax_snapshot='{}' WHERE id=$1`, stored.ID); e == nil {
+			t.Fatal("immutability not restored")
+		}
+	}()
 	stale, err := SaveAlertsCheckoutQuote(app, person, quote, tax)
 	if err != nil {
 		t.Fatal(err)

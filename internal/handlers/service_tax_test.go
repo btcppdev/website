@@ -29,7 +29,7 @@ func TestAlertsInclusiveTaxQuote(t *testing.T) {
 					tax = 0
 				}
 				line := &stripe.TaxCalculationLineItem{Amount: 4800, AmountTax: tax, Quantity: 2, Reference: "alerts.repository-slots", TaxBehavior: "inclusive", TaxCode: "txcd_10103000"}
-				c := &stripe.TaxCalculation{ID: "taxcalc_local", Currency: "usd", AmountTotal: 4800, TaxAmountInclusive: tax, ExpiresAt: start.Add(time.Hour).Unix(), LineItems: &stripe.TaxCalculationLineItemList{Data: []*stripe.TaxCalculationLineItem{line}}}
+				c := &stripe.TaxCalculation{CustomerDetails: &stripe.TaxCalculationCustomerDetails{Address: &stripe.Address{Line1: "PRIVATE STREET", City: "PRIVATE CITY", PostalCode: "PRIVATE POSTAL"}}, ID: "taxcalc_local", Currency: "usd", AmountTotal: 4800, TaxAmountInclusive: tax, ExpiresAt: start.Add(time.Hour).Unix(), LineItems: &stripe.TaxCalculationLineItemList{Data: []*stripe.TaxCalculationLineItem{line}}}
 				switch scenario {
 				case "exclusive":
 					c.TaxAmountExclusive = 200
@@ -52,6 +52,9 @@ func TestAlertsInclusiveTaxQuote(t *testing.T) {
 					t.Fatal("invalid response accepted")
 				}
 				return
+			}
+			if err == nil && (tax.DestinationCountry != "" || tax.DestinationRegion != "" || tax.DestinationPostalCode != "" || tax.RawResponse != "{}") {
+				t.Fatal("address leaked into quote", tax)
 			}
 			if err != nil || quote.TotalCents != 4800 || quote.UnitCents != 2400 || quote.TaxCents != int64(tax.SalesTaxAmountCents) || !quote.PeriodEnd.Equal(start.AddDate(1, 0, 0)) || quote.ExpiresAt.After(start.Add(11*time.Minute)) || tax.ProviderQuoteID != "taxcalc_local" {
 				t.Fatal("incorrect quote", quote, tax, err)

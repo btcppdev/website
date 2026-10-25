@@ -70,6 +70,9 @@ func CreateTaxedServicePurchaseWithPolicy(app *config.AppContext, personID, key 
 	if err := validateServiceTaxQuote(quote, tax); err != nil {
 		return nil, err
 	}
+	if quote.ProductCode == "alerts.repository-slots" {
+		tax = alertsTaxWithoutAddress(tax)
+	}
 	return createServicePurchase(app, personID, key, quote, &tax, acceptedVersion)
 }
 
@@ -81,7 +84,7 @@ func validateServiceTaxQuote(quote ServiceQuote, tax TaxQuoteInput) error {
 		}
 		return nil
 	}
-	if tax.Provider != "stripe" || !strings.HasPrefix(tax.ProviderQuoteID, "taxcalc_") || int64(tax.SalesTaxAmountCents) != quote.TaxCents || tax.ExpiresAt == nil || quote.ExpiresAt.After(*tax.ExpiresAt) || strings.TrimSpace(tax.DestinationCountry) == "" || !json.Valid([]byte(tax.RawResponse)) {
+	if tax.Provider != "stripe" || !strings.HasPrefix(tax.ProviderQuoteID, "taxcalc_") || int64(tax.SalesTaxAmountCents) != quote.TaxCents || tax.ExpiresAt == nil || quote.ExpiresAt.After(*tax.ExpiresAt) || (quote.ProductCode != "alerts.repository-slots" && strings.TrimSpace(tax.DestinationCountry) == "") || !json.Valid([]byte(tax.RawResponse)) {
 		return ErrServiceQuote
 	}
 	return nil

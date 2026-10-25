@@ -46,6 +46,23 @@ func TestServiceQuotePresentation(t *testing.T) {
 			t.Fatal("confirmation availability disagrees with expiry")
 		}
 	}
+	blocked := serviceQuotePresentation(quote, now)
+	blocked.Blocked = true
+	var blockedHTML bytes.Buffer
+	if err := tmpl.Execute(&blockedHTML, blocked); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(blockedHTML.String(), `action="/services/quotes/local-quote/confirm"`) || !strings.Contains(blockedHTML.String(), "Review Alerts billing") {
+		t.Fatal("blocked quote offers payment or no recovery path")
+	}
+	blocked.CanEndRefundedCard = true
+	blockedHTML.Reset()
+	if err := tmpl.Execute(&blockedHTML, blocked); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(blockedHTML.String(), `name="end_refunded_card" value="yes" required`) || !strings.Contains(blockedHTML.String(), "End refunded card plan") {
+		t.Fatal("missing explicit cancellation consent")
+	}
 	quote.Quote.BaseOrderID = "base"
 	page := serviceQuotePresentation(quote, now)
 	if !strings.Contains(page.Message, "prorated") || !strings.Contains(page.Message, "not charged again") {

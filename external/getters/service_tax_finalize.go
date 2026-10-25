@@ -82,7 +82,12 @@ func finalizeServiceTax(ctx context.Context, app *config.AppContext, orderID str
 	if line == nil || line.Amount != quote.TotalCents || line.AmountTax != quote.TaxCents || line.Quantity != quote.Quantity || line.Reference != quote.ProductCode || line.TaxBehavior != "inclusive" {
 		return fmt.Errorf("service tax transaction line mismatch")
 	}
-	encoded, err := json.Marshal(result)
+	// Alerts financial evidence is already stored in the typed columns.
+	var evidence any = result
+	if quote.ProductCode == "alerts.repository-slots" {
+		evidence = struct{}{}
+	}
+	encoded, err := json.Marshal(evidence)
 	if err != nil {
 		return err
 	}

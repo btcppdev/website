@@ -31,6 +31,7 @@ func SaveAlertsCheckoutQuote(app *config.AppContext, personID string, quote Serv
 	if err = validateServiceTaxQuote(quote, tax); err != nil {
 		return nil, err
 	}
+	tax = alertsTaxWithoutAddress(tax)
 	rawQuote, err := json.Marshal(quote)
 	if err != nil {
 		return nil, err
@@ -67,6 +68,7 @@ func ServiceCheckoutQuoteForPerson(app *config.AppContext, personID, id string) 
 	if err = json.Unmarshal(rawTax, &result.Tax); err != nil {
 		return nil, err
 	}
+	result.Tax = alertsTaxWithoutAddress(result.Tax)
 	return result, nil
 }
 
@@ -95,4 +97,10 @@ func ConfirmedServiceQuoteOrder(app *config.AppContext, personID, quoteID string
 	var publicID string
 	err := app.DB.QueryRow(app.DatabaseContext(), `SELECT o.public_id FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND r.request_key=$2`, personID, "checkout-quote:"+quoteID).Scan(&publicID)
 	return publicID, err
+}
+
+// Store only the provider reference, verified amount and expiry. Never persist
+// a provider's full tax response: it can echo the customer's billing address.
+func alertsTaxWithoutAddress(tax TaxQuoteInput) TaxQuoteInput {
+	return TaxQuoteInput{OrderID: tax.OrderID, Provider: tax.Provider, ProviderQuoteID: tax.ProviderQuoteID, SalesTaxAmountCents: tax.SalesTaxAmountCents, RawResponse: "{}", ExpiresAt: tax.ExpiresAt}
 }

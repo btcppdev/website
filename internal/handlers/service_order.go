@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 )
 
 type serviceOrderPage struct {
+	NewBitcoinURL                                              string
 	CanPay                                                     bool
 	CSRF                                                       string
 	Order                                                      *getters.ServiceOrderView
@@ -51,6 +53,9 @@ func ServiceOrder(w http.ResponseWriter, r *http.Request, app *config.AppContext
 		return
 	}
 	page := serviceOrderPresentation(order)
+	if order.Quote.ProductCode == "alerts.repository-slots" && order.Status == "refunded" && order.RefundedCents == order.TotalCents && order.TotalCents > 0 && order.Quote.Quantity > 0 {
+		page.NewBitcoinURL = "/services/alerts/prepay?" + url.Values{"account": {id.PersonID}, "slots": {strconv.FormatInt(order.Quote.Quantity, 10)}, "months": {"12"}}.Encode()
+	}
 	page.CanPay = serviceOrderCanPay(order, app, time.Now())
 	if page.CanPay {
 		page.CSRF, err = ensureAuthMethodsCSRF(app, r)

@@ -38,6 +38,7 @@
 <details><summary>Privacy Policy shown for this order</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
 {{ end }}
 <div class="receipt-actions">
+{{ if .NewBitcoinURL }}<p><a class="service-primary" href="{{ .NewBitcoinURL }}">Start a new Bitcoin checkout →</a></p><p>This refunded order stays closed. You’ll review a new quote before paying.</p>{{ end }}
 {{ if .Order.PaymentVerified }}<button type="button" class="service-primary" onclick="window.print()">Print or save receipt</button><a class="service-primary" href="/dashboard/orders/{{ .Order.PublicID }}/invoice">Add billing details / download invoice</a>{{ end }}
 {{ if .CanPay }}
 <form method="post" action="/services/orders/{{ .Order.PublicID }}/pay">

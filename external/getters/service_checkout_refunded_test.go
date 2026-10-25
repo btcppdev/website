@@ -12,7 +12,7 @@ import (
 func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 	app := databaseSmokeContext(t)
 	ctx := context.Background()
-	for _, scenario := range []string{"canceled_refunded", "active_refunded", "cancelling_refunded", "canceled_paid", "canceled_partial", "unknown_invoice", "provider_failure", "retained_access"} {
+	for _, scenario := range []string{"canceled_refunded", "active_refunded", "cancelling_refunded", "canceled_paid", "canceled_partial", "unknown_invoice", "provider_failure", "retained_access", "cancelling_refunded_consent", "active_refunded_consent", "partial_consent", "cancel_timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			var person string
 			if err := app.DB.QueryRow(ctx, `INSERT INTO people(name) VALUES('Refunded checkout fixture') RETURNING id::text`).Scan(&person); err != nil {
@@ -49,7 +49,7 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 			if scenario == "canceled_paid" {
 				status = "paid"
 			}
-			if scenario == "canceled_partial" {
+			if scenario == "canceled_partial" || scenario == "partial_consent" {
 				status = "partially_refunded"
 			}
 			if status != "paid" {
@@ -76,10 +76,10 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 			}
 
 			sub := &stripe.Subscription{ID: session.Subscription.ID, Customer: session.Customer, Metadata: session.Metadata, Status: "canceled", LatestInvoice: session.Invoice, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 1, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
-			if scenario == "active_refunded" || scenario == "cancelling_refunded" {
+			if scenario == "active_refunded" || scenario == "cancelling_refunded" || scenario == "cancelling_refunded_consent" || scenario == "active_refunded_consent" || scenario == "partial_consent" || scenario == "cancel_timeout" {
 				sub.Status = "active"
 			}
-			if scenario == "cancelling_refunded" {
+			if scenario == "cancelling_refunded" || scenario == "cancelling_refunded_consent" || scenario == "partial_consent" || scenario == "cancel_timeout" {
 				sub.CancelAtPeriodEnd = true
 			}
 			if scenario == "unknown_invoice" {
@@ -95,6 +95,23 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 				t.Fatal("attempted to expire a completed checkout")
 				return nil, nil
 			}
+			cancellations := 0
+			client.CancelSubscription = func(id string, p *stripe.SubscriptionCancelParams) (*stripe.Subscription, error) {
+				cancellations++
+				if id != sub.ID || p.InvoiceNow == nil || *p.InvoiceNow || p.Prorate == nil || *p.Prorate || p.IdempotencyKey == nil {
+					t.Fatal("unsafe cancellation request")
+				}
+				var consents int
+				if e := app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_refunded_card_end_consents WHERE checkout_id=$1 AND person_id=$2`, card.Intent.ID, person).Scan(&consents); e != nil || consents != 1 {
+					t.Fatal("consent not durable before provider call", consents, e)
+				}
+				if scenario == "cancel_timeout" {
+					return nil, errors.New("provider timeout")
+				}
+				sub.Status = "canceled"
+				sub.CancelAtPeriodEnd = false
+				return sub, nil
+			}
 			revision, err := AlertsBillingRevision(app, person)
 			if err != nil {
 				t.Fatal(err)
@@ -108,7 +125,8 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			purchase, err := ConfirmServiceCheckoutQuoteSwitchingToBitcoin(ctx, app, person, saved.ID, "", client)
+			consent := scenario == "cancelling_refunded_consent" || scenario == "active_refunded_consent" || scenario == "partial_consent" || scenario == "cancel_timeout"
+			purchase, err := ConfirmServiceCheckoutQuoteWithCardEndConsent(ctx, app, person, saved.ID, "", consent, client)
 			after, e := AlertsStripeCheckoutForPerson(app, person, card.Intent.ID)
 			if e != nil {
 				t.Fatal(e)
@@ -117,7 +135,7 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 			if e = app.DB.QueryRow(ctx, `SELECT count(*) FROM service_purchase_requests WHERE person_id=$1 AND quote_snapshot->>'provider'='opennode'`, person).Scan(&count); e != nil {
 				t.Fatal(e)
 			}
-			if scenario == "canceled_refunded" {
+			if scenario == "canceled_refunded" || scenario == "cancelling_refunded_consent" {
 				if err != nil || purchase == nil || purchase.OrderID == receipt.OrderID || !after.Closed || count != 1 {
 					t.Fatal(purchase, err, after.Closed, count)
 				}
@@ -132,6 +150,17 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 			} else if !errors.Is(err, ErrAlertsStripeCheckoutConflict) || purchase != nil || after.Closed || count != 0 {
 				t.Fatal("unsafe retirement", purchase, err, after.Closed, count)
 			}
+			wantCancels := 0
+			if scenario == "cancelling_refunded_consent" || scenario == "cancel_timeout" {
+				wantCancels = 1
+			}
+			if cancellations != wantCancels {
+				t.Fatal("unexpected cancellation", cancellations, wantCancels)
+			}
+			if scenario == "cancelling_refunded" && !errors.Is(err, ErrRefundedCardEndConsent) {
+				t.Fatal("missing explicit consent prompt", err)
+			}
+
 		})
 	}
 }

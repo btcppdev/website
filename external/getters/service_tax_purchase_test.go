@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/stripe/stripe-go/v86"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -41,10 +42,14 @@ func TestTaxedServicePurchasePostgres(t *testing.T) {
 	if err := app.DB.QueryRow(ctx, `SELECT o.total_cents,o.subtotal_cents,t.sales_tax_amount_cents FROM shop_orders o JOIN tax_quotes t ON t.order_id=o.id WHERE o.id=$1`, purchase.OrderID).Scan(&total, &subtotal, &amount); err != nil || total != 2400 || subtotal != 2200 || amount != 200 {
 		t.Fatal("inclusive totals", total, subtotal, amount, err)
 	}
-	// Valid JSON that PostgreSQL cannot represent forces failure at tax storage,
+	var minimized bool
+	if err = app.DB.QueryRow(ctx, `SELECT destination_country='' AND destination_region='' AND destination_postal_code='' AND raw_tax_response='{}'::jsonb FROM tax_quotes WHERE order_id=$1`, purchase.OrderID).Scan(&minimized); err != nil || !minimized {
+		t.Fatal("order tax retained address", err)
+	}
+	// A provider reference that PostgreSQL cannot represent forces failure at tax storage,
 	// after the order has been inserted inside the transaction.
 	broken := tax
-	broken.RawResponse = `{"bad":"\u0000"}`
+	broken.ProviderQuoteID = "taxcalc_bad\x00"
 	if _, err := CreateTaxedServicePurchase(app, person, "taxed-service-rollback", quote, broken); err == nil {
 		t.Fatal("expected tax storage failure")
 	}
@@ -58,7 +63,7 @@ func TestTaxedServicePurchasePostgres(t *testing.T) {
 		if *p.Calculation != tax.ProviderQuoteID || *p.IdempotencyKey != "service-tax-transaction:"+purchase.OrderID || *p.PostedAt != start.Unix() {
 			t.Error("incorrect tax transaction request")
 		}
-		return &stripe.TaxTransaction{ID: "tax_local_" + person, Reference: "service-order-" + purchase.OrderID, Currency: "usd", Type: "transaction", LineItems: &stripe.TaxTransactionLineItemList{Data: []*stripe.TaxTransactionLineItem{{Amount: 2400, AmountTax: 200, Quantity: 2, Reference: "alerts.repository-slots", TaxBehavior: "inclusive"}}}}, nil
+		return &stripe.TaxTransaction{CustomerDetails: &stripe.TaxTransactionCustomerDetails{Address: &stripe.Address{Line1: "PRIVATE STREET"}}, ID: "tax_local_" + person, Reference: "service-order-" + purchase.OrderID, Currency: "usd", Type: "transaction", LineItems: &stripe.TaxTransactionLineItemList{Data: []*stripe.TaxTransactionLineItem{{Amount: 2400, AmountTax: 200, Quantity: 2, Reference: "alerts.repository-slots", TaxBehavior: "inclusive"}}}}, nil
 	}
 	if err := finalizeServiceTax(ctx, app, purchase.OrderID, create); err == nil || called != 0 {
 		t.Fatal("unpaid tax transaction recorded")
@@ -111,4 +116,35 @@ func TestTaxedServicePurchasePostgres(t *testing.T) {
 	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM tax_transactions WHERE order_id=$1`, purchase.OrderID).Scan(&records); err != nil || records != 1 {
 		t.Fatal("tax transaction missing or duplicated", records, err)
 	}
+	if err = app.DB.QueryRow(ctx, `SELECT raw_response='{}'::jsonb FROM tax_transactions WHERE order_id=$1`, purchase.OrderID).Scan(&minimized); err != nil || !minimized {
+		t.Fatal("transaction retained address", err)
+	}
+	// Simulate historical data, apply the cleanup and check both minimization
+	// and preservation of the financial identifiers. Roll back the fixture.
+	tx, err := app.DB.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	for _, sql := range []string{
+		`ALTER TABLE tax_quotes DISABLE TRIGGER alerts_tax_address_minimization`,
+		`ALTER TABLE tax_transactions DISABLE TRIGGER alerts_tax_address_minimization`,
+		`UPDATE tax_quotes SET destination_country='US',destination_region='PRIVATE REGION',destination_postal_code='PRIVATE POSTAL',raw_tax_response='{"address":"PRIVATE STREET"}' WHERE order_id='` + purchase.OrderID + `'`,
+		`UPDATE tax_transactions SET raw_response='{"address":"PRIVATE STREET"}' WHERE order_id='` + purchase.OrderID + `'`,
+	} {
+		if _, err = tx.Exec(ctx, sql); err != nil {
+			t.Fatal(err)
+		}
+	}
+	migration, err := os.ReadFile("../../db/migrations/149_alerts_address_minimization.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.QueryRow(ctx, `SELECT q.destination_country='' AND q.destination_region='' AND q.destination_postal_code='' AND q.raw_tax_response='{}'::jsonb AND t.raw_response='{}'::jsonb AND q.provider_quote_id=$2 AND q.sales_tax_amount_cents=200 AND t.sales_tax_amount_cents=200 FROM tax_quotes q JOIN tax_transactions t USING(order_id) WHERE q.order_id=$1`, purchase.OrderID, tax.ProviderQuoteID).Scan(&minimized); err != nil || !minimized {
+		t.Fatal("historical cleanup changed financial evidence or retained address", err)
+	}
+
 }

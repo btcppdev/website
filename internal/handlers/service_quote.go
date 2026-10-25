@@ -22,6 +22,8 @@ type serviceQuotePage struct {
 	Stored                    *getters.ServiceCheckoutQuote
 	CSRF, Total, Tax, Message string
 	Expired                   bool
+	Blocked                   bool
+	CanEndRefundedCard        bool
 }
 
 func ServiceQuoteReview(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -112,13 +114,47 @@ func ServiceQuoteConfirm(w http.ResponseWriter, r *http.Request, app *config.App
 		key = app.Env.StripeKey
 	}
 	live := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
-	purchase, err := getters.ConfirmServiceCheckoutQuoteSwitchingToBitcoin(r.Context(), app, id.PersonID, mux.Vars(r)["quote"], acceptedVersion, alertsstripe.NewClient(live))
+	purchase, err := getters.ConfirmServiceCheckoutQuoteWithCardEndConsent(r.Context(), app, id.PersonID, mux.Vars(r)["quote"], acceptedVersion, len(r.PostForm["end_refunded_card"]) == 1 && r.PostForm.Get("end_refunded_card") == "yes", alertsstripe.NewClient(live))
 	if errors.Is(err, getters.ErrAlertsStripeCheckoutConflict) {
 		// Cancellation was not confirmed, or checkout state changed. Keep the
 		// Bitcoin order blocked and recover only this account's card checkout.
 		var existing string
-		recoveryErr := app.DB.QueryRow(r.Context(), `SELECT id::text FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL ORDER BY created_at DESC LIMIT 1`, id.PersonID).Scan(&existing)
+		var bound bool
+		recoveryErr := app.DB.QueryRow(r.Context(), `SELECT c.id::text,EXISTS(SELECT 1 FROM alerts_stripe_subscriptions s WHERE s.checkout_id=c.id) FROM alerts_stripe_checkouts c WHERE c.person_id=$1 AND c.closed_at IS NULL ORDER BY c.created_at DESC LIMIT 1`, id.PersonID).Scan(&existing, &bound)
 		if recoveryErr == nil {
+			if bound {
+				stored, loadErr := getters.ServiceCheckoutQuoteForPerson(app, id.PersonID, mux.Vars(r)["quote"])
+				if loadErr != nil {
+					http.Error(w, "Unable to load your quote", 503)
+					return
+				}
+				page := serviceQuotePresentation(stored, time.Now())
+				page.Blocked = true
+				page.Message = "Your card subscription still blocks this Bitcoin purchase. A refund does not end a subscription, and cancellation may be scheduled for the end of its billing period. Review Alerts billing or contact support to resolve it. No new order or payment was created."
+				if errors.Is(err, getters.ErrRefundedCardEndConsent) {
+					page.CanEndRefundedCard = true
+					page.Message = "Your card purchases were fully refunded, but the subscription is scheduled to end later. You can end that refunded card plan now and continue with a new Bitcoin order. No additional card payment or refund will be created."
+					page.Policy, loadErr = getters.CurrentServiceLegalPolicy(app, stored.Quote.ProductCode)
+					if loadErr != nil {
+						http.Error(w, "Unable to load checkout policy", 503)
+						return
+					}
+					page.CSRF, loadErr = ensureAuthMethodsCSRF(app, r)
+					if loadErr != nil {
+						http.Error(w, "Unable to prepare confirmation", 500)
+						return
+					}
+				}
+				var html bytes.Buffer
+				if renderErr := app.TemplateCache.ExecuteTemplate(&html, "service_quote.tmpl", page); renderErr != nil {
+					http.Error(w, "Unable to show checkout status", 503)
+					return
+				}
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusConflict)
+				_, _ = w.Write(html.Bytes())
+				return
+			}
 			http.Redirect(w, r, "/services/alerts/checkout/"+url.PathEscape(existing), http.StatusSeeOther)
 			return
 		}

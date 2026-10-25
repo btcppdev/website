@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -96,11 +95,7 @@ func alertsPriceTaxQuote(ctx context.Context, provider string, price servicebill
 	if !expiry.After(now) {
 		return nil, nil, servicebilling.ErrAlertsPrice
 	}
-	raw, err := json.Marshal(calculation)
-	if err != nil {
-		return nil, nil, err
-	}
 	quote := &getters.ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional projects", Provider: provider, Quantity: price.Slots, UnitCents: price.UnitCents, TotalCents: price.TotalCents, TaxCents: calculation.TaxAmountInclusive, PeriodStart: &price.Start, PeriodEnd: &price.End, ExpiresAt: expiry}
-	tax := &getters.TaxQuoteInput{Provider: types.TaxProviderStripe, ProviderQuoteID: calculation.ID, SalesTaxAmountCents: uint(calculation.TaxAmountInclusive), DestinationCountry: *params.CustomerDetails.Address.Country, DestinationRegion: strings.TrimSpace(address.Region), DestinationPostalCode: strings.TrimSpace(address.PostalCode), RawResponse: string(raw), ExpiresAt: &expiry}
+	tax := &getters.TaxQuoteInput{Provider: types.TaxProviderStripe, ProviderQuoteID: calculation.ID, SalesTaxAmountCents: uint(calculation.TaxAmountInclusive), RawResponse: "{}", ExpiresAt: &expiry}
 	return quote, tax, nil
 }
