@@ -16,6 +16,47 @@
   const sidebar = document.getElementById("schedule-sidebar");
   const sidebarList = sidebar ? sidebar.querySelector(".space-y-2") : null;
 
+  // Each card opens an editor tied to that talk, with its title visible.
+  const timeDialog = document.getElementById("schedule-time-dialog");
+  const timeForm = document.getElementById("schedule-time-form");
+  const timeTalk = document.getElementById("schedule-time-talk");
+  const timeStart = document.getElementById("schedule-time-start");
+  const timeDuration = document.getElementById("schedule-time-duration");
+  const timeError = document.getElementById("schedule-time-error");
+  let timeCard = null;
+  function openTimeEditor(card) {
+    const venue = card.closest(".schedule-venue");
+    if (!venue || !card.dataset.conftalkId) return;
+    timeCard = card;
+    timeTalk.textContent = `Day ${venue.dataset.day} · ${venue.dataset.venue} · ${card.querySelector("p").textContent.trim()}`;
+    const minutes = Number(venue.dataset.opensMin) + Math.round(parseFloat(card.style.top) / pxPerMin);
+    timeStart.value = String(Math.floor(minutes / 60)).padStart(2, "0") + ":" + String(minutes % 60).padStart(2, "0");
+    timeDuration.value = card.dataset.actualMin;
+    timeError.textContent = "";
+    timeDialog.showModal();
+  }
+  document.getElementById("schedule-time-cancel").addEventListener("click", () => timeDialog.close());
+  timeForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!timeForm.reportValidity()) return;
+    const card = timeCard;
+    const [hour, minute] = timeStart.value.split(":").map(Number);
+    const button = timeForm.querySelector('[type="submit"]');
+    button.disabled = true;
+    timeError.textContent = "";
+    try {
+      const response = await fetch(`/${confTag}/admin/schedule/resize`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposalID: card.dataset.proposalId, startMin: hour * 60 + minute, durationMin: Number(timeDuration.value) }),
+      });
+      if (!response.ok) throw new Error(await response.text() || "Could not save time.");
+      window.location.reload();
+    } catch (error) {
+      timeError.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+
   // CSS classes that differ between a sidebar card and a placed card.
   // We swap the differing ones during morphs and leave shared ones
   // (.schedule-talk, .cursor-grab, padding, etc.) untouched. Color
@@ -35,6 +76,12 @@
   let dragging = null;
 
   function attachDragHandlers(card) {
+    const editTime = document.createElement("button");
+    editTime.type = "button";
+    editTime.className = "schedule-time-button";
+    editTime.textContent = "Edit time";
+    editTime.addEventListener("click", (event) => { event.stopPropagation(); openTimeEditor(card); });
+    card.querySelector(".schedule-talk-meta").appendChild(editTime);
     card.addEventListener("dragstart", (ev) => {
       if (card.dataset.resizing === "1") {
         ev.preventDefault();

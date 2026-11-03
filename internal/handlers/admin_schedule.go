@@ -292,7 +292,8 @@ func SchedulePlace(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 }
 
 // ScheduleResize updates a placed talk's actual duration. Body:
-// {proposalID, durationMin}. Keeps Start + Venue intact and just
+// {proposalID, durationMin, startMin?}. Optional startMin edits the local
+// start time on the existing day. Otherwise keeps Start + Venue intact and just
 // shifts the End time. Refuses on talks that aren't currently placed
 // — there's no Sched to extend.
 //
@@ -312,12 +313,13 @@ func ScheduleResize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	var req struct {
 		ProposalID  string `json:"proposalID"`
 		DurationMin int    `json:"durationMin"`
+		StartMin    *int   `json:"startMin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
-	if req.ProposalID == "" || req.DurationMin <= 0 {
+	if req.ProposalID == "" || req.DurationMin <= 0 || req.DurationMin > 1440 || (req.StartMin != nil && (*req.StartMin < 0 || *req.StartMin >= 1440)) {
 		http.Error(w, "missing proposalID / durationMin", http.StatusBadRequest)
 		return
 	}
@@ -333,8 +335,16 @@ func ScheduleResize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	newEnd := ct.Sched.Start.Add(time.Duration(req.DurationMin) * time.Minute)
-	if err := getters.UpdateConfTalkSchedule(ctx, ct.ID, ct.Venue, ct.Sched.Start, newEnd); err != nil {
+	if ct.Conf == nil || ct.Conf.Tag != conf.Tag {
+		http.Error(w, "talk does not belong to this event", http.StatusNotFound)
+		return
+	}
+	start, newEnd, err := exactScheduleTimes(ct.Sched.Start, conf.Loc(), req.StartMin, req.DurationMin)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := getters.UpdateConfTalkSchedule(ctx, ct.ID, ct.Venue, start, newEnd); err != nil {
 		ctx.Err.Printf("/%s/admin/schedule resize: %s", conf.Tag, err)
 		http.Error(w, "update failed", http.StatusInternalServerError)
 		return
@@ -1079,4 +1089,24 @@ func VenueChipClasses(name string) string {
 		sum = (sum*31 + int(r)) & 0x7fffffff
 	}
 	return palette[sum%len(palette)]
+}
+
+// exactScheduleTimes interprets manual input in the event timezone, not the
+// browser/server timezone. A nil start preserves the drag-resize behavior.
+func exactScheduleTimes(current time.Time, loc *time.Location, startMin *int, duration int) (time.Time, time.Time, error) {
+	if duration < 1 || duration > 1440 {
+		return time.Time{}, time.Time{}, fmt.Errorf("duration must be between 1 and 1440 minutes")
+	}
+	start := current
+	if startMin != nil {
+		if *startMin < 0 || *startMin >= 1440 || *startMin+duration > 1440 {
+			return time.Time{}, time.Time{}, fmt.Errorf("time and duration must fit within the scheduled day")
+		}
+		local := current.In(loc)
+		start = time.Date(local.Year(), local.Month(), local.Day(), *startMin/60, *startMin%60, 0, 0, loc)
+		if start.Hour()*60+start.Minute() != *startMin {
+			return time.Time{}, time.Time{}, fmt.Errorf("this local time does not exist on the scheduled day")
+		}
+	}
+	return start, start.Add(time.Duration(duration) * time.Minute), nil
 }
