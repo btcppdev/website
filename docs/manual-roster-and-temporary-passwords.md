@@ -32,4 +32,4 @@ Reissuing or resetting the password invalidates earlier replacement proofs.
 Other independent sign-in methods, such as a verified email link or passkey,
 remain available. Normal password recovery clears the temporary restriction.
 
-Deploy database migration `133_temporary_passwords.sql` before the new code.
+Deploy database migration `151_temporary_passwords.sql` before the new code.
