@@ -63,7 +63,7 @@ func verifyReviewedIncreaseInvoice(in *stripe.Invoice, price *stripe.Price, b Bi
 	if _, err := uuid.Parse(intent.ID); err != nil {
 		return ErrInvoice
 	}
-	if b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(q.SubscriptionItemID, "si_") || b.PaidSlots < 1 || q.PreviousSlots != b.PaidSlots || q.PaidSlots <= q.PreviousSlots || q.PeriodStart <= 0 || q.ProrationDate < q.PeriodStart || q.ProrationDate >= q.PeriodEnd || !validAnnualPrice(price, b) {
+	if b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(q.SubscriptionItemID, "si_") || b.PaidSlots < 1 || q.PreviousSlots != b.PaidSlots || q.PaidSlots <= q.PreviousSlots || q.PeriodStart <= 0 || q.ProrationDate < q.PeriodStart || q.ProrationDate >= q.PeriodEnd || !validAnnualPrice(price, b) || price.UnitAmount != q.AnnualSlotCents() {
 		return ErrInvoice
 	}
 	if _, err := servicebilling.AlertsTerm("stripe", q.PaidSlots, 12, time.Unix(q.ProrationDate, 0)); err != nil {

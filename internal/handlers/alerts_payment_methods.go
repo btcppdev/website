@@ -14,6 +14,7 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"github.com/google/uuid"
 )
 
@@ -152,7 +153,7 @@ func AlertsPaymentMethod(w http.ResponseWriter, r *http.Request, app *config.App
 			page.CanWithdraw = true
 		} else if sw.CancellationState == "confirmed" {
 			end := time.Unix(sw.PeriodEnd, 0).UTC()
-			page.Message = fmt.Sprintf("Your card will not renew. Your current paid access ends on %s. A 12-month Bitcoin prepayment for %d paid projects costs $%d.00, including applicable tax. If unpaid when access ends, your three earliest-followed projects remain active; no failed-renewal grace period applies.", end.Format("January 2, 2006"), sw.Quantity, sw.Quantity*24)
+			page.Message = fmt.Sprintf("Your card will not renew. Your current paid access ends on %s. A 12-month Bitcoin prepayment for %d paid projects costs $%d.00, including applicable tax. If unpaid when access ends, your three earliest-followed projects remain active; no failed-renewal grace period applies.", end.Format("January 2, 2006"), sw.Quantity, sw.Quantity*servicebilling.AlertsAnnualSlotCents/100)
 			page.CanWithdraw = sw.PurchaseID == "" && end.After(time.Now())
 			page.PayURL = "/services/alerts/prepay?" + url.Values{"account": {identity.PersonID}, "slots": {strconv.FormatInt(sw.Quantity, 10)}, "months": {"12"}, "switch": {id}}.Encode()
 			if sw.PurchaseID != "" {

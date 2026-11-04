@@ -158,7 +158,11 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 	if overlaps {
 		return nil, alertsstripe.ErrInvoice
 	}
-	quote := ServiceQuote{LegalAcceptance: intent.LegalAcceptance, ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional repositories", Provider: "stripe", Quantity: paid.Quantity, UnitCents: servicebilling.AlertsAnnualSlotCents, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 12}
+	plan, planErr := servicebilling.LookupProductPlan(b.Product())
+	if planErr != nil || !servicebilling.IsAlertsProduct(b.Product()) {
+		return nil, alertsstripe.ErrInvoice
+	}
+	quote := ServiceQuote{LegalAcceptance: intent.LegalAcceptance, ProductCode: b.Product(), Name: plan.Name, Provider: "stripe", Quantity: paid.Quantity, UnitCents: paid.TotalCents / paid.Quantity, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: plan.Months}
 	if err = recordStripeServicePayment(ctx, tx, b.PersonID, email, paid, quote, out); err != nil {
 		return nil, err
 	}
@@ -177,7 +181,7 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 // serialization, invoice deduplication and the transaction commit.
 func recordStripeServicePayment(ctx context.Context, tx pgx.Tx, person, email string, paid alertsstripe.PaidPeriod, quote ServiceQuote, out *ServicePurchase) error {
 	external := quote.ProductCode == servicebilling.InsiderMonthlyProduct || quote.ProductCode == servicebilling.InsiderAnnualProduct
-	if quote.ProductCode != servicebilling.AlertsProduct && !external {
+	if !servicebilling.IsAlertsProduct(quote.ProductCode) && !external {
 		return ErrServiceQuote
 	}
 	snapshot, err := json.Marshal(quote)
@@ -236,7 +240,7 @@ func recordStripeServicePayment(ctx context.Context, tx pgx.Tx, person, email st
 		_, err = tx.Exec(ctx, `INSERT INTO service_fulfillment_jobs(attempt_id,payment) VALUES($1,$2)`, attemptID, evidence)
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_entitlements(purchase_id,person_id,product_code,quantity,starts_at,ends_at) VALUES($1,$2,'alerts.repository-slots',$3,$4,$5)`, purchaseID, person, paid.Quantity, paid.Start, paid.End)
+	_, err = tx.Exec(ctx, `INSERT INTO service_entitlements(purchase_id,person_id,product_code,quantity,starts_at,ends_at) VALUES($1,$2,$6,$3,$4,$5)`, purchaseID, person, paid.Quantity, paid.Start, paid.End, quote.ProductCode)
 	if err != nil {
 		return err
 	}

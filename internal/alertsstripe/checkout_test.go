@@ -66,3 +66,28 @@ func TestCheckoutLookupAndResponseValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckoutFrozenCurrentAndLegacyPrices(t *testing.T) {
+	for _, unit := range []int64{0, 1200, 2400, 1300} {
+		in := testIntent()
+		in.UnitCents = unit
+		first, err := checkoutParams(context.Background(), in, in.CreatedAt)
+		if unit == 1300 {
+			if err == nil {
+				t.Fatal("accepted unsupported price")
+			}
+			continue
+		}
+		want := unit
+		if want == 0 {
+			want = 2400
+		}
+		if err != nil || *first.LineItems[0].PriceData.UnitAmount != want {
+			t.Fatalf("unit=%d err=%v", unit, err)
+		}
+		retry, err := checkoutParams(context.Background(), in, in.CreatedAt.Add(time.Hour))
+		if err != nil || !reflect.DeepEqual(first, retry) {
+			t.Fatal("price changed on retry", err)
+		}
+	}
+}

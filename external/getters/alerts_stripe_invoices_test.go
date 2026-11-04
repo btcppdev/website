@@ -52,13 +52,13 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	if err := ActivateServiceLegalPolicy(app, next.ProductCode, next.Version); err != nil {
 		t.Fatal(err)
 	}
-	price := &stripe.Price{ID: "price_" + reserved.Intent.ID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + reserved.Intent.ID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	price := &stripe.Price{ID: "price_" + reserved.Intent.ID, Currency: "usd", UnitAmount: 1200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + reserved.Intent.ID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	session := &stripe.CheckoutSession{ID: "cs_test_" + reserved.Intent.ID, Status: "open", Mode: "subscription", ExpiresAt: time.Now().Add(time.Hour).Unix(), ClientReferenceID: reserved.Intent.ID, Metadata: map[string]string{"product": "alerts.repository-slots", "account_id": person, "checkout_intent": reserved.Intent.ID}, Customer: &stripe.Customer{ID: "cus_" + person}, Subscription: &stripe.Subscription{ID: "sub_" + reserved.Intent.ID}, LineItems: &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: 2, Price: price}}}}
 	session.URL = "https://checkout.stripe.com/c/pay/" + session.ID
 	now := time.Now().UTC().Truncate(time.Second)
 	start := now.Add(-time.Hour)
 	end := start.AddDate(1, 0, 0)
-	inv := &stripe.Invoice{ID: "in_" + reserved.Intent.ID, Status: "paid", Currency: "usd", Customer: session.Customer, BillingReason: "subscription_create", Total: 4800, AmountPaid: 4800, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: session.Subscription, Metadata: session.Metadata}}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 36, TaxBehavior: "inclusive"}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Amount: 4800, Quantity: 2, Period: &stripe.Period{Start: start.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: session.Subscription.ID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: price.Product.ID}}}}}}
+	inv := &stripe.Invoice{ID: "in_" + reserved.Intent.ID, Status: "paid", Currency: "usd", Customer: session.Customer, BillingReason: "subscription_create", Total: 2400, AmountPaid: 2400, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: session.Subscription, Metadata: session.Metadata}}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 36, TaxBehavior: "inclusive"}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Amount: 2400, Quantity: 2, Period: &stripe.Period{Start: start.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: session.Subscription.ID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: price.Product.ID}}}}}}
 	client := alertsstripe.Client{Create: func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }, Retrieve: func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }, Invoice: func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { return inv, nil }, Price: func(string, *stripe.PriceParams) (*stripe.Price, error) { return price, nil }}
 	// Simulate a lost creation response: the session exists at Stripe but its
 	// reference was never saved locally. A verified completion can recover it.
@@ -111,7 +111,7 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	}
 	// Receipt and formal invoice must use the provider's recorded inclusive tax.
 	view, err := ServiceOrderForPerson(ctx, app, person, first.PublicID)
-	if err != nil || !view.PaymentVerified || view.TotalCents != 4800 || view.TaxCents != 36 {
+	if err != nil || !view.PaymentVerified || view.TotalCents != 2400 || view.TaxCents != 36 {
 		t.Fatalf("verified receipt amounts: %+v, %v", view, err)
 	}
 	var queued int
@@ -125,7 +125,7 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = app.DB.Exec(context.Background(), "DELETE FROM purchase_invoices WHERE order_id=$1", first.OrderID)
 	})
-	if invoice.Snapshot.Total != 4800 || invoice.Snapshot.Tax != 36 || invoice.Snapshot.Subtotal != 4764 {
+	if invoice.Snapshot.Total != 2400 || invoice.Snapshot.Tax != 36 || invoice.Snapshot.Subtotal != 2364 {
 		t.Fatalf("formal invoice lost provider tax: %+v", invoice.Snapshot)
 	}
 	grants, err = ActiveServiceEntitlements(app, person, now)
@@ -220,7 +220,7 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	inv.AttemptCount = 1
 	inv.CollectionMethod = "charge_automatically"
 	inv.AmountPaid = 0
-	inv.AmountRemaining = 4800
+	inv.AmountRemaining = 2400
 	inv.StatusTransitions.PaidAt = 0
 	for i := 0; i < 2; i++ {
 		if err = refreshAlertsStripeSubscriptionAt(ctx, app, person, reserved.Intent.ID, client, end.Add(time.Hour)); err != nil {
@@ -258,7 +258,7 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	}
 	sub.Status = "active"
 	inv.Status = "paid"
-	inv.AmountPaid = 4800
+	inv.AmountPaid = 2400
 	inv.AmountRemaining = 0
 	inv.StatusTransitions.PaidAt = now.Unix()
 	invoiceReads := 0
@@ -338,7 +338,7 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	var quote ServiceQuote
-	if err := json.Unmarshal(snapshot, &quote); err != nil || quote.TaxCents != 36 || quote.TotalCents != 4800 {
+	if err := json.Unmarshal(snapshot, &quote); err != nil || quote.TaxCents != 36 || quote.TotalCents != 2400 {
 		t.Fatal("lost tax snapshot", quote, err)
 	}
 	if quote.LegalAcceptance == nil || *quote.LegalAcceptance != *reserved.Intent.LegalAcceptance {

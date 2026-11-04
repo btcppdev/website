@@ -16,7 +16,7 @@ func bitcoinRefundFixture(t *testing.T, evidence *OpenNodeBitcoinEvidence) (*con
 }
 
 func TestSubCentBitcoinRefundPostgres(t *testing.T) {
-	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+	for _, product := range []string{"alerts.repository-slots", "alerts.projects-50.annual", "insider.membership.annual"} {
 		t.Run(product, func(t *testing.T) {
 			ctx := context.Background()
 			zero := int64(0)
@@ -169,7 +169,7 @@ func TestBitcoinRefundLedgerPostgres(t *testing.T) {
 }
 
 func TestBitcoinClosurePlanPostgres(t *testing.T) {
-	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+	for _, product := range []string{"alerts.repository-slots", "alerts.projects-50.annual", "insider.membership.annual"} {
 		t.Run(product, func(t *testing.T) {
 			zero := int64(0)
 			app, refund, closure := bitcoinRefundProductFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 1001, OverpaidSatoshis: &zero}, product)
@@ -215,7 +215,7 @@ func TestBitcoinClosurePlanPostgres(t *testing.T) {
 }
 
 func TestBitcoinClosureAccountingRequiresReviewPostgres(t *testing.T) {
-	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+	for _, product := range []string{"alerts.repository-slots", "alerts.projects-50.annual", "insider.membership.annual"} {
 		for _, mode := range []string{"prior underallocation", "prior overallocation", "changed order amount"} {
 			t.Run(product+"/"+mode, func(t *testing.T) {
 				ctx := context.Background()

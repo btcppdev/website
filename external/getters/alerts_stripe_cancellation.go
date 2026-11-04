@@ -11,7 +11,11 @@ import (
 type AlertsStripeCancellation = ServiceStripeCancellation
 
 func ReserveAlertsStripeCancellation(ctx context.Context, app *config.AppContext, person, checkout, id string, revision, periodEnd int64) (*AlertsStripeCancellation, error) {
-	return ReserveServiceStripeCancellation(ctx, app, person, checkout, "alerts.repository-slots", id, revision, periodEnd)
+	stored, err := AlertsStripeCheckoutForPerson(app, person, checkout)
+	if err != nil {
+		return nil, err
+	}
+	return ReserveServiceStripeCancellation(ctx, app, person, checkout, stored.Intent.Product(), id, revision, periodEnd)
 }
 
 // ProcessAlertsStripeCancellation may be retried after a crash. A committed

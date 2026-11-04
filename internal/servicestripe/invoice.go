@@ -47,7 +47,10 @@ func VerifyInvoiceTerms(in *stripe.Invoice, price *stripe.Price, b Binding) (*Pa
 	if in == nil || price == nil || b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(b.PriceID, "price_") || !strings.HasPrefix(b.ProductID, "prod_") || b.Quantity < 1 || b.Quantity > plan.MaxQuantity {
 		return nil, ErrInvoice
 	}
-	total := b.Quantity * plan.UnitCents
+	if !ValidPrice(price, b) || b.Quantity > 2147483647/price.UnitAmount {
+		return nil, ErrInvoice
+	}
+	total := b.Quantity * price.UnitAmount
 	if !strings.HasPrefix(in.ID, "in_") || in.Livemode != b.Live || in.Currency != "usd" || in.Customer == nil || in.Customer.ID != b.CustomerID || in.Parent == nil || in.Parent.Type != "subscription_details" || in.Parent.SubscriptionDetails == nil || in.Parent.SubscriptionDetails.Subscription == nil || in.Parent.SubscriptionDetails.Subscription.ID != b.SubscriptionID {
 		return nil, ErrInvoice
 	}
@@ -111,7 +114,7 @@ func ValidPrice(price *stripe.Price, b Binding) bool {
 	if plan.Months == 12 {
 		interval = "year"
 	}
-	return price != nil && price.ID == b.PriceID && price.Livemode == b.Live && string(price.Currency) == plan.Currency && price.UnitAmount == plan.UnitCents && string(price.TaxBehavior) == plan.TaxBehavior && price.Type == "recurring" && price.Recurring != nil && string(price.Recurring.Interval) == interval && price.Recurring.IntervalCount == 1 && price.Product != nil && price.Product.ID == b.ProductID && productTaxCodeMatches(price.Product, b.TaxCode)
+	return price != nil && price.ID == b.PriceID && price.Livemode == b.Live && string(price.Currency) == plan.Currency && (price.UnitAmount == plan.UnitCents || (plan.Code == servicebilling.AlertsProduct && price.UnitAmount == servicebilling.LegacyAlertsAnnualSlotCents)) && string(price.TaxBehavior) == plan.TaxBehavior && price.Type == "recurring" && price.Recurring != nil && string(price.Recurring.Interval) == interval && price.Recurring.IntervalCount == 1 && price.Product != nil && price.Product.ID == b.ProductID && productTaxCodeMatches(price.Product, b.TaxCode)
 }
 
 // Stripe's newer API returns tax_details.tax_code rather than tax_code.

@@ -21,6 +21,8 @@ import (
 )
 
 type alertsStripeStartPage struct {
+	Fifty                     bool
+	Plan                      string
 	Policy                    *getters.ServiceLegalPolicy
 	Account, CSRF, Key, Total string
 	Slots                     int64
@@ -62,6 +64,14 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		values = r.PostForm
 	}
 	account, slots, err := alertsStripeSelection(values)
+	fifty := values.Get("plan") == "fifty"
+	if len(values["plan"]) > 1 || (values.Get("plan") != "" && !fifty) || (fifty && slots != 1) {
+		err = errors.New("invalid plan")
+	}
+	product := servicebilling.AlertsProduct
+	if fifty {
+		product = servicebilling.AlertsFiftyProduct
+	}
 	if err != nil {
 		http.Error(w, "Return to Alerts to select your repositories", 400)
 		return
@@ -77,6 +87,9 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 			return
 		}
 		next := "/services/alerts/subscribe?" + url.Values{"account": {account}, "slots": {strconv.FormatInt(slots, 10)}}.Encode()
+		if fifty {
+			next += "&plan=fifty"
+		}
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(next), 303)
 		return
 	}
@@ -94,11 +107,15 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		return
 	}
 	if enabled {
-		var checkout string
+		var checkout, currentProduct string
 		var currentSlots int64
-		err = app.DB.QueryRow(r.Context(), `SELECT c.id::text,(s.binding->>'PaidSlots')::bigint FROM alerts_stripe_checkouts c JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id WHERE c.person_id=$1 AND c.closed_at IS NULL ORDER BY c.created_at DESC LIMIT 1`, account).Scan(&checkout, &currentSlots)
+		err = app.DB.QueryRow(r.Context(), `SELECT c.id::text,c.product_code,(s.binding->>'PaidSlots')::bigint FROM alerts_stripe_checkouts c JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id WHERE c.person_id=$1 AND c.closed_at IS NULL ORDER BY c.created_at DESC LIMIT 1`, account).Scan(&checkout, &currentProduct, &currentSlots)
 		if err == nil {
-			if slots <= currentSlots {
+			if product != currentProduct {
+				http.Error(w, "You already have an Alerts plan. Plan changes are not automatic; manage your existing billing or contact support to switch.", 409)
+				return
+			}
+			if fifty || slots <= currentSlots {
 				http.Redirect(w, r, "/services/alerts/manage", 303)
 				return
 			}
@@ -150,7 +167,7 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 			}
 			acceptedVersion = policy.Version
 		}
-		stored, err := getters.ReserveAlertsStripeCheckoutWithPolicy(app, account, values.Get("key"), slots, app.Env.GetURI(), acceptedVersion)
+		stored, err := getters.ReserveAlertsStripePlan(app, account, values.Get("key"), slots, app.Env.GetURI(), acceptedVersion, product)
 		if errors.Is(err, getters.ErrServiceLegalReview) {
 			http.Error(w, "Checkout terms have changed. Reload and review before paying.", 409)
 			return
@@ -200,7 +217,10 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		return
 	}
 	total := slots * servicebilling.AlertsAnnualSlotCents
-	page := alertsStripeStartPage{Policy: policy, Account: account, Slots: slots, CSRF: csrf, Key: uuid.NewString(), Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
+	if fifty {
+		total = servicebilling.AlertsFiftyAnnualCents
+	}
+	page := alertsStripeStartPage{Fifty: fifty, Plan: values.Get("plan"), Policy: policy, Account: account, Slots: slots, CSRF: csrf, Key: uuid.NewString(), Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
 	var html bytes.Buffer
 	if err = app.TemplateCache.ExecuteTemplate(&html, "alerts_stripe_start.tmpl", page); err != nil {
 		http.Error(w, "Unable to show checkout", 500)

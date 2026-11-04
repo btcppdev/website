@@ -31,11 +31,21 @@ import (
 )
 
 func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
-	t.Run("direct payment", func(t *testing.T) { testAlertsBitcoinHTTP(t, false) })
-	t.Run("provider failure", func(t *testing.T) { testAlertsBitcoinHTTP(t, true) })
+	t.Run("direct payment", func(t *testing.T) { testAlertsBitcoinHTTP(t, false, false) })
+	t.Run("provider failure", func(t *testing.T) { testAlertsBitcoinHTTP(t, true, false) })
 }
 
-func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
+func TestAlertsFiftyBitcoinHTTPPostgres(t *testing.T) {
+	t.Run("direct payment", func(t *testing.T) { testAlertsBitcoinHTTP(t, false, true) })
+	t.Run("provider failure", func(t *testing.T) { testAlertsBitcoinHTTP(t, true, true) })
+}
+func testAlertsBitcoinHTTP(t *testing.T, failHandoff, fifty bool) {
+	product, plan, quantity, total := servicebilling.AlertsProduct, "", int64(2), int64(2400)
+	if fifty {
+		product, plan, quantity, total = servicebilling.AlertsFiftyProduct, "fifty", 1, 18000
+	}
+	amount := fmt.Sprintf("%d.%02d", total/100, total%100)
+	quantityText := fmt.Sprint(quantity)
 	if os.Getenv("BTCPP_POSTGRES_SMOKE") != "1" {
 		t.Skip("requires isolated migrated database")
 	}
@@ -80,7 +90,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 			if r.Form.Get("calculation") != calculationID || !strings.HasPrefix(r.Form.Get("reference"), "service-order-") || r.Header.Get("Idempotency-Key") == "" {
 				t.Error("incorrect tax finalization", r.Form)
 			}
-			json.NewEncoder(w).Encode(map[string]any{"id": "tax_" + strings.ReplaceAll(user, "-", ""), "type": "transaction", "currency": "usd", "reference": r.Form.Get("reference"), "line_items": map[string]any{"data": []any{map[string]any{"amount": 4800, "amount_tax": 200, "quantity": 2, "reference": "alerts.repository-slots", "tax_behavior": "inclusive"}}}})
+			json.NewEncoder(w).Encode(map[string]any{"id": "tax_" + strings.ReplaceAll(user, "-", ""), "type": "transaction", "currency": "usd", "reference": r.Form.Get("reference"), "line_items": map[string]any{"data": []any{map[string]any{"amount": total, "amount_tax": 200, "quantity": quantity, "reference": product, "tax_behavior": "inclusive"}}}})
 			return
 		}
 		if r.URL.Path == "/v1/charges" && r.Method == "POST" {
@@ -96,7 +106,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				t.Error(err)
 			}
-			if payload["amount"] != "48.00" || payload["currency"] != "USD" || payload["customer_email"] != user+"@example.test" {
+			if payload["amount"] != amount || payload["currency"] != "USD" || payload["customer_email"] != user+"@example.test" {
 				t.Error("untrusted charge terms", payload)
 			}
 			chargeDescription.Store(payload["description"].(string))
@@ -112,7 +122,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 			if paid.Load() {
 				status = "paid"
 			}
-			json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": chargeID, "order_id": attemptID.Load(), "status": status, "currency": "USD", "source_fiat_value": 48, "price": 48000, "fee": 480, "missing_amt": 0, "hosted_checkout_url": "https://checkout.opennode.com/" + chargeID}})
+			json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": chargeID, "order_id": attemptID.Load(), "status": status, "currency": "USD", "source_fiat_value": float64(total) / 100, "price": 48000, "fee": 480, "missing_amt": 0, "hosted_checkout_url": "https://checkout.opennode.com/" + chargeID}})
 			return
 		}
 		if r.Method != "POST" || r.URL.Path != "/v1/tax/calculations" {
@@ -124,11 +134,11 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		if err := r.ParseForm(); err != nil {
 			t.Error(err)
 		}
-		if r.Form.Get("line_items[0][amount]") != "4800" || r.Form.Get("line_items[0][quantity]") != "2" || r.Form.Get("line_items[0][tax_behavior]") != "inclusive" || r.Form.Get("line_items[0][tax_code]") != "txcd_10103000" {
+		if r.Form.Get("line_items[0][amount]") != fmt.Sprint(total) || r.Form.Get("line_items[0][quantity]") != quantityText || r.Form.Get("line_items[0][tax_behavior]") != "inclusive" || r.Form.Get("line_items[0][tax_code]") != "txcd_10103000" {
 			t.Error("incorrect tax request", r.Form)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"id": calculationID, "currency": "usd", "amount_total": 4800, "tax_amount_inclusive": 200, "tax_amount_exclusive": 0, "expires_at": time.Now().Add(time.Hour).Unix(), "line_items": map[string]any{"data": []any{map[string]any{"amount": 4800, "amount_tax": 200, "quantity": 2, "reference": "alerts.repository-slots", "tax_behavior": "inclusive", "tax_code": "txcd_10103000"}}}})
+		json.NewEncoder(w).Encode(map[string]any{"customer_details": map[string]any{"address": map[string]any{"line1": "PRIVATE STREET", "postal_code": "PRIVATE POSTAL"}}, "id": calculationID, "currency": "usd", "amount_total": total, "tax_amount_inclusive": 200, "tax_amount_exclusive": 0, "expires_at": time.Now().Add(time.Hour).Unix(), "line_items": map[string]any{"data": []any{map[string]any{"amount": total, "amount_tax": 200, "quantity": quantity, "reference": product, "tax_behavior": "inclusive", "tax_code": "txcd_10103000"}}}})
 	}))
 	defer provider.Close()
 	app.Env.OpenNode.Endpoint = provider.URL + "/v1"
@@ -183,7 +193,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		t.Fatal(err)
 	}
 	defer pool.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
-	path := "/services/alerts/prepay?account=" + user + "&slots=2&months=12"
+	path := "/services/alerts/prepay?account=" + user + "&slots=" + quantityText + "&months=12&plan=" + plan
 	if code, _, location := call(path, nil); code != 303 || !strings.Contains(location, "months%3D12") {
 		t.Fatal(code, location)
 	}
@@ -192,20 +202,20 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		t.Fatal("foreign account", code)
 	}
 	code, body, _ := call(path, nil)
-	if code != 200 || !strings.Contains(body, "$48.00") {
+	if code != 200 || !strings.Contains(body, "$"+amount) {
 		t.Fatal(code, body)
 	}
 	csrf := regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)
 	if len(csrf) != 2 {
 		t.Fatal(body)
 	}
-	form := url.Values{"account": {user}, "slots": {"2"}, "months": {"12"}, "csrf": {"wrong"}, "line1": {"1 Main St"}, "line2": {""}, "city": {"Austin"}, "region": {"TX"}, "postal": {"78701"}, "country": {"US"}, "total": {"1"}, "tax": {"0"}}
+	form := url.Values{"account": {user}, "slots": {quantityText}, "plan": {plan}, "months": {"12"}, "csrf": {"wrong"}, "line1": {"1 Main St"}, "line2": {""}, "city": {"Austin"}, "region": {"TX"}, "postal": {"78701"}, "country": {"US"}, "total": {"1"}, "tax": {"0"}}
 	if code, _, _ := call(path, form); code != 403 {
 		t.Fatal(code)
 	}
 	form.Set("csrf", csrf[1])
 	previewKey := regexp.MustCompile(`name="key" value="([^"]+)"`).FindStringSubmatch(body)
-	if len(previewKey) != 2 || !strings.Contains(body, "Pay $48.00 with Bitcoin") || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
+	if len(previewKey) != 2 || !strings.Contains(body, "Pay $"+amount+" with Bitcoin") || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
 		t.Fatal("missing price or policy on address page", body)
 	}
 	form.Set("key", previewKey[1])
@@ -228,10 +238,10 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 	form.Set("legal_version", policyVersion)
 	// A browser cannot change a reviewed selection or price.
 	form.Set("slots", "3")
-	if code, _, _ := call(path, form); code != 409 || taxCalls != 0 {
+	if code, _, _ := call(path, form); (code != 409 && code != 400) || taxCalls != 0 {
 		t.Fatal("changed selection started checkout", code, taxCalls)
 	}
-	form.Set("slots", "2")
+	form.Set("slots", quantityText)
 	pendingCard, err := getters.ReserveAlertsStripeCheckoutWithPolicy(app, user, "bitcoin-conflict-"+user, 2, "https://btcpp.dev", policyVersion)
 	if err != nil {
 		t.Fatal(err)
@@ -245,8 +255,11 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		t.Fatal(err)
 	}
 	stored, err := getters.ServiceCheckoutQuoteForPerson(app, user, quoteID)
-	if err != nil || stored.Quote.TotalCents != 4800 || stored.Quote.TaxCents != 200 || stored.Quote.Provider != "opennode" || stored.Quote.BillingMonths != 12 || stored.Quote.Quantity != 2 {
+	if err != nil || stored.Quote.TotalCents != total || stored.Quote.TaxCents != 200 || stored.Quote.Provider != "opennode" || stored.Quote.BillingMonths != 12 || stored.Quote.Quantity != quantity {
 		t.Fatal(stored, err)
+	}
+	if stored.Tax.DestinationCountry != "" || stored.Tax.DestinationRegion != "" || stored.Tax.DestinationPostalCode != "" || stored.Tax.RawResponse != "{}" {
+		t.Fatal("checkout retained billing address", stored.Tax)
 	}
 	if !failHandoff && chargeDescription.Load() != "bitcoin++ alerts subscription - order "+publicID {
 		t.Fatal("incorrect OpenNode receipt description", chargeDescription.Load())
@@ -299,7 +312,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		t.Fatal("confirmed quote did not resume original order", code, resume)
 	}
 	code, body, _ = call(orderPath, nil)
-	if code != 200 || !strings.Contains(body, "Complete your payment") || !strings.Contains(body, "Continue to OpenNode") || !strings.Contains(body, "Pay $48.00 with Bitcoin") || !strings.Contains(body, "Accepted policy version") || !strings.Contains(body, policyVersion) || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
+	if code != 200 || !strings.Contains(body, "Complete your payment") || !strings.Contains(body, "Continue to OpenNode") || !strings.Contains(body, "Pay $"+amount+" with Bitcoin") || !strings.Contains(body, "Accepted policy version") || !strings.Contains(body, policyVersion) || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
 		t.Fatal("order", code, body)
 	}
 	csrf = regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)
@@ -334,11 +347,11 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		t.Fatal("missing or duplicated grant", access, err)
 	}
 	grant := access.Entitlements[0]
-	if grant.ProductCode != "alerts.repository-slots" || grant.Quantity != 2 || grant.StartsAt == nil || grant.EndsAt == nil || !grant.StartsAt.Equal(*stored.Quote.PeriodStart) || !grant.EndsAt.Equal(*stored.Quote.PeriodEnd) {
+	if grant.ProductCode != product || grant.Quantity != quantity || grant.StartsAt == nil || grant.EndsAt == nil || !grant.StartsAt.Equal(*stored.Quote.PeriodStart) || !grant.EndsAt.Equal(*stored.Quote.PeriodEnd) {
 		t.Fatal("access differs from paid quote", grant)
 	}
 	code, body, _ = call(orderPath, nil)
-	if code != 200 || !strings.Contains(body, "Your purchased access is active") || strings.Contains(body, "Pay $48.00 with Bitcoin") {
+	if code != 200 || !strings.Contains(body, "Your purchased access is active") || strings.Contains(body, "Pay $"+amount+" with Bitcoin") {
 		t.Fatal("paid receipt", code, body)
 	}
 	var grants, events int
@@ -359,7 +372,7 @@ func testAlertsBitcoinHTTP(t *testing.T, failHandoff bool) {
 		}
 		// The mailer API uses its shared request serialization and stable job key.
 		raw, _ := json.Marshal(payload)
-		if r.Method != "PUT" || r.URL.Path != "/job" || !strings.Contains(string(raw), "service-receipt:") || !strings.Contains(string(raw), "$48.00") || !strings.Contains(string(raw), user+"@example.test") {
+		if r.Method != "PUT" || r.URL.Path != "/job" || !strings.Contains(string(raw), "service-receipt:") || !strings.Contains(string(raw), "$"+amount) || !strings.Contains(string(raw), user+"@example.test") {
 			t.Error("invalid receipt request", r.Method, r.URL.Path, string(raw))
 		}
 		key := ""

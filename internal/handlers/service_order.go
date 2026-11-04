@@ -14,6 +14,7 @@ import (
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/expedition"
+	"btcpp-web/internal/servicebilling"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
 )
@@ -53,8 +54,11 @@ func ServiceOrder(w http.ResponseWriter, r *http.Request, app *config.AppContext
 		return
 	}
 	page := serviceOrderPresentation(order)
-	if order.Quote.ProductCode == "alerts.repository-slots" && order.Status == "refunded" && order.RefundedCents == order.TotalCents && order.TotalCents > 0 && order.Quote.Quantity > 0 {
+	if servicebilling.IsAlertsProduct(order.Quote.ProductCode) && order.Status == "refunded" && order.RefundedCents == order.TotalCents && order.TotalCents > 0 && order.Quote.Quantity > 0 {
 		page.NewBitcoinURL = "/services/alerts/prepay?" + url.Values{"account": {id.PersonID}, "slots": {strconv.FormatInt(order.Quote.Quantity, 10)}, "months": {"12"}}.Encode()
+		if order.Quote.ProductCode == servicebilling.AlertsFiftyProduct {
+			page.NewBitcoinURL += "&plan=fifty"
+		}
 	}
 	page.CanPay = serviceOrderCanPay(order, app, time.Now())
 	if page.CanPay {
@@ -146,7 +150,7 @@ func serviceOrderPresentation(order *getters.ServiceOrderView) serviceOrderPage 
 	page.Refunded = fmt.Sprintf("$%d.%02d", order.RefundedCents/100, order.RefundedCents%100)
 	net := order.TotalCents - order.RefundedCents
 	page.NetPaid = fmt.Sprintf("$%d.%02d", net/100, net%100)
-	if order.Quote.ProductCode == "alerts.repository-slots" {
+	if order.Quote.ProductCode == "alerts.repository-slots" || order.Quote.ProductCode == "alerts.projects-50.annual" {
 		page.ReturnURL = "https://alerts.btcpp.dev/alerts"
 	}
 	switch {

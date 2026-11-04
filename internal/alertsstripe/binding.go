@@ -12,5 +12,5 @@ func (c Client) CompletedBinding(ctx context.Context, in Intent, reference strin
 	if err != nil {
 		return nil, err
 	}
-	return &Binding{IntentID: b.IntentID, PersonID: b.PersonID, SubscriptionID: b.SubscriptionID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, PaidSlots: b.Quantity, Live: b.Live}, nil
+	return &Binding{IntentID: b.IntentID, PersonID: b.PersonID, SubscriptionID: b.SubscriptionID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, PaidSlots: b.Quantity, ProductCode: in.ProductCode, Live: b.Live}, nil
 }

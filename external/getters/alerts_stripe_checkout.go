@@ -16,7 +16,7 @@ import (
 var ErrAlertsStripeCheckoutConflict = errors.New("an Alerts checkout or subscription already needs attention")
 
 // Shared by initial reservation and saved checkout handoff.
-const alertsStripePurchaseConflictSQL = `SELECT EXISTS(SELECT 1 FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' AND ((o.status='pending' AND (o.checkout_expires_at>now() OR EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id))) OR ((o.status='paid' OR (` + servicePurchaseAccessSQL + ` AND EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id AND e.revoked_at IS NULL))) AND (r.quote_snapshot->>'period_end')::timestamptz>now())))`
+const alertsStripePurchaseConflictSQL = `SELECT EXISTS(SELECT 1 FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code' IN ('alerts.repository-slots','alerts.projects-50.annual') AND ((o.status='pending' AND (o.checkout_expires_at>now() OR EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id))) OR ((o.status='paid' OR (` + servicePurchaseAccessSQL + ` AND EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id AND e.revoked_at IS NULL))) AND (r.quote_snapshot->>'period_end')::timestamptz>now())))`
 
 type AlertsStripeCheckout struct {
 	Intent    alertsstripe.Intent
@@ -33,6 +33,14 @@ func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slo
 
 // acceptedVersion is supplied only after authenticated, CSRF-checked confirmation.
 func ReserveAlertsStripeCheckoutWithPolicy(app *config.AppContext, person, key string, slots int64, returnBase, acceptedVersion string) (*AlertsStripeCheckout, error) {
+	return ReserveAlertsStripePlan(app, person, key, slots, returnBase, acceptedVersion, servicebilling.AlertsProduct)
+}
+
+func ReserveAlertsStripePlan(app *config.AppContext, person, key string, slots int64, returnBase, acceptedVersion, product string) (*AlertsStripeCheckout, error) {
+	if !servicebilling.IsAlertsProduct(product) || (product == servicebilling.AlertsFiftyProduct && slots != 1) {
+		return nil, ErrServiceQuote
+	}
+	plan, _ := servicebilling.LookupProductPlan(product)
 	if _, err := uuid.Parse(person); err != nil || len(key) < 16 || len(key) > 128 || slots < 1 || slots > 2147483647/servicebilling.AlertsAnnualSlotCents {
 		return nil, ErrServiceQuote
 	}
@@ -63,7 +71,7 @@ func ReserveAlertsStripeCheckoutWithPolicy(app *config.AppContext, person, key s
 		if err = json.Unmarshal(raw, &out.Intent); err != nil {
 			return nil, err
 		}
-		if out.Intent.PaidSlots != slots || out.Intent.ReturnBaseURL != returnBase || out.Closed {
+		if out.Intent.Product() != product || out.Intent.PaidSlots != slots || out.Intent.ReturnBaseURL != returnBase || out.Closed {
 			return nil, ErrAlertsStripeCheckoutConflict
 		}
 		if out.Intent.LegalAcceptance != nil {
@@ -96,15 +104,18 @@ func ReserveAlertsStripeCheckoutWithPolicy(app *config.AppContext, person, key s
 	if err != nil {
 		return nil, err
 	}
-	out.Intent = alertsstripe.Intent{LegalAcceptance: acceptance, ID: uuid.NewString(), PersonID: person, Email: email, PaidSlots: slots, ReturnBaseURL: returnBase, CreatedAt: time.Now().UTC().Truncate(time.Second)}
+	out.Intent = alertsstripe.Intent{ProductCode: product, LegalAcceptance: acceptance, ID: uuid.NewString(), PersonID: person, Email: email, PaidSlots: slots, UnitCents: plan.UnitCents, ReturnBaseURL: returnBase, CreatedAt: time.Now().UTC().Truncate(time.Second)}
 	if err = alertsstripe.ValidateIntent(out.Intent, time.Now().UTC()); err != nil {
 		return nil, err
+	}
+	if product == servicebilling.AlertsProduct {
+		out.Intent.ProductCode = ""
 	}
 	raw, err = json.Marshal(out.Intent)
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_checkouts(id,person_id,request_key,intent,provider_started_at) VALUES($1,$2,$3,$4,NULL)`, out.Intent.ID, person, key, raw)
+	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_checkouts(id,person_id,request_key,intent,product_code,provider_started_at) VALUES($1,$2,$3,$4,$5,NULL)`, out.Intent.ID, person, key, raw, product)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +156,7 @@ func OpenAlertsStripeCheckout(ctx context.Context, app *config.AppContext, perso
 	if occupied {
 		return "", ErrAlertsStripeCheckoutConflict
 	}
-	if err := markServiceStripeCheckoutStarted(ctx, app, person, id, "alerts.repository-slots"); err != nil {
+	if err := markServiceStripeCheckoutStarted(ctx, app, person, id, stored.Intent.Product()); err != nil {
 		return "", err
 	}
 	reference, destination, providerErr := client.Open(ctx, stored.Intent, stored.Reference, time.Now().UTC())

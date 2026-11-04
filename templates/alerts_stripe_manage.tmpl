@@ -9,7 +9,7 @@
 <p role="status">{{ .Message }}</p>
 {{ if .Period }}<p>Current billing period ends {{ .Period }}.</p>{{ end }}
 <p>After paid access ends, your three free projects remain active. Your other subscriptions and notification settings stay saved.</p>
-{{ if .PaidSlots }}<p>Current paid project allowance: <strong>{{ .PaidSlots }}</strong>, plus three free projects.</p>{{ end }}
+{{ if .Fifty }}<p>Up to <strong>50 total projects</strong>, including public self-hosted GitLab.</p>{{ else if .PaidSlots }}<p>Current paid project allowance: <strong>{{ .PaidSlots }}</strong>, plus three free projects.</p>{{ end }}
 {{ if .CanUpdateCard }}<section class="alerts-upgrade-action"><h2>Payment method</h2><form method="post" action="/services/alerts/payment-method"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="checkout" value="{{.Checkout}}"><input type="hidden" name="change" value="{{.Key}}"><input type="hidden" name="action" value="card"><p>Update the saved card used for Alerts renewals and upgrades securely through Stripe.</p><button class="service-primary">Update saved card</button></form></section>{{end}}
 {{if .BitcoinSwitchPath}}<p><a href="{{.BitcoinSwitchPath}}">Manage your switch to Bitcoin</a></p>{{end}}
 {{if .CanSwitchBitcoin}}<details class="alerts-upgrade-action"><summary>Switch to annual Bitcoin payments</summary><p>Stop card renewal at the end of your current period, then prepay for 12 months with Bitcoin. Your current access stays available. No automatic Bitcoin renewal or failed-renewal grace period applies.</p><form method="post" action="/services/alerts/payment-method"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="checkout" value="{{.Checkout}}"><input type="hidden" name="change" value="{{.Key}}"><input type="hidden" name="revision" value="{{.Revision}}"><input type="hidden" name="periodEnd" value="{{.PeriodEnd}}"><input type="hidden" name="action" value="bitcoin"><button class="service-primary">Stop card renewal and switch to Bitcoin</button></form></details>{{end}}
@@ -17,16 +17,16 @@
 {{ if .CanIncrease }}<form method="get" action="/services/alerts/subscribe" class="alerts-upgrade-action alerts-quantity-form">
 <input type="hidden" name="account" value="{{ .Account }}">
 <label for="increased-paid-projects">New total paid projects</label><input id="increased-paid-projects" name="slots" type="number" min="{{ .MinIncrease }}" max="{{ .MaxIncrease }}" value="{{ .MinIncrease }}" required>
-<p>Your three free projects are separate. Additional paid projects cost $24/year each, including applicable tax. Review the prorated charge for the rest of your current billing period before confirming.</p>
+<p>Your three free projects are separate. Additional projects use your current plan’s annual rate, including applicable tax. Review the prorated charge for the rest of your current billing period before confirming.</p>
 <button type="submit" class="service-primary">Review increase</button></form>{{ end }}
 {{ if .CanDecrease }}<form method="post" action="/services/alerts/manage" class="alerts-upgrade-action alerts-quantity-form">
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="decrease">
 <label for="paid-projects">Paid projects after renewal</label><input id="paid-projects" name="slots" type="number" min="1" max="{{ .MaxDecrease }}" value="{{ .MaxDecrease }}" required>
-<p>Each paid project costs $24/year including applicable tax. Your current allowance stays available until renewal.</p>
+<p>Your current allowance stays available until renewal.</p>
 <button type="submit" class="service-primary">Review lower annual total</button></form>{{ end }}
 {{ if .CanCancel }}<form method="post" action="/services/alerts/manage" class="alerts-cancel-form">
 <p>Cancellation stops future renewals. Your paid allowance continues through the current period, with no refund for that period.</p>
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="revision" value="{{ .Revision }}"><input type="hidden" name="periodEnd" value="{{ .PeriodEnd }}">
 <button type="submit" class="service-primary">Cancel future renewals</button></form>{{ end }}
 <p><a href="/dashboard/subscriptions">Back to subscriptions</a> · <a href="https://alerts.btcpp.dev/alerts">My alerts</a></p>
-</section><aside class="service-summary" aria-label="Order summary"><img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360"><div class="service-summary__body"><h2><span class="service-wordmark">bitcoin++</span> Alerts</h2><dl><div><dt>Paid project allowance</dt><dd>{{ .PaidSlots }}</dd></div><div><dt>Free projects</dt><dd>3 included</dd></div>{{ if .Period }}<div><dt>Current period ends</dt><dd>{{ .Period }}</dd></div>{{ end }}</dl></div></aside></main></body></html>
+</section><aside class="service-summary" aria-label="Order summary"><img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360"><div class="service-summary__body"><h2><span class="service-wordmark">bitcoin++</span> Alerts</h2><dl>{{ if .Fifty }}<div><dt>Total project limit</dt><dd>50</dd></div><div><dt>Annual payment</dt><dd>$180.00 ($15/mo)</dd></div>{{ else }}<div><dt>Paid project allowance</dt><dd>{{ .PaidSlots }}</dd></div><div><dt>Free projects</dt><dd>3 included</dd></div>{{ end }}{{ if .Period }}<div><dt>Current period ends</dt><dd>{{ .Period }}</dd></div>{{ end }}</dl></div></aside></main></body></html>

@@ -34,7 +34,7 @@ func (c CheckoutClient) CompletedBinding(ctx context.Context, in CheckoutIntent,
 	}
 	price := line.Price
 	b := &Binding{IntentID: in.ID, PersonID: in.PersonID, SubscriptionID: s.Subscription.ID, CustomerID: s.Customer.ID, PriceID: price.ID, ProductID: price.Product.ID, Quantity: in.Quantity, ProductCode: in.ProductCode, TaxCode: in.TaxCode, Live: c.Live}
-	if !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(b.PriceID, "price_") || !strings.HasPrefix(b.ProductID, "prod_") || !ValidPrice(price, *b) {
+	if (in.UnitCents != 0 && price.UnitAmount != in.UnitCents) || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(b.PriceID, "price_") || !strings.HasPrefix(b.ProductID, "prod_") || !ValidPrice(price, *b) {
 		return nil, ErrCheckout
 	}
 	return b, nil

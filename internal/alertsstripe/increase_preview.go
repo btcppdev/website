@@ -17,6 +17,7 @@ type IncreasePreview struct {
 	PreviousSlots, PaidSlots              int64
 	PeriodStart, PeriodEnd, ProrationDate int64
 	TotalCents, TaxCents                  int64
+	UnitCents                             int64
 	ExpiresAt                             time.Time
 	Funding                               *IncreaseFunding `json:",omitempty"`
 }
@@ -39,7 +40,7 @@ func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now
 	if len(funding) == 1 {
 		proof = funding[0]
 	}
-	if c.PreviewInvoice == nil || c.Subscription == nil || c.Live != b.Live || slots <= b.PaidSlots {
+	if b.Product() != servicebilling.AlertsProduct || c.PreviewInvoice == nil || c.Subscription == nil || c.Live != b.Live || slots <= b.PaidSlots {
 		return nil, ErrSubscription
 	}
 	if _, err := servicebilling.AlertsTerm("stripe", slots, 12, now); err != nil {
@@ -71,7 +72,7 @@ func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now
 	if err != nil {
 		return nil, err
 	}
-	out := &IncreasePreview{SubscriptionItemID: item.ID, PreviousSlots: b.PaidSlots, PaidSlots: slots, PeriodStart: state.PeriodStart, PeriodEnd: state.PeriodEnd, ProrationDate: now.Unix(), ExpiresAt: now.Add(10 * time.Minute)}
+	out := &IncreasePreview{SubscriptionItemID: item.ID, UnitCents: item.Price.UnitAmount, PreviousSlots: b.PaidSlots, PaidSlots: slots, PeriodStart: state.PeriodStart, PeriodEnd: state.PeriodEnd, ProrationDate: now.Unix(), ExpiresAt: now.Add(10 * time.Minute)}
 	out.Funding = proof
 	if end := time.Unix(state.PeriodEnd, 0); out.ExpiresAt.After(end) {
 		out.ExpiresAt = end
@@ -124,7 +125,7 @@ func verifyIncreaseTerms(in *stripe.Invoice, b Binding, out *IncreasePreview) er
 	if in == nil || in.Livemode != b.Live || in.Currency != "usd" || in.Customer == nil || in.Customer.ID != b.CustomerID || in.Parent == nil || in.Parent.Type != "subscription_details" || in.Parent.SubscriptionDetails == nil || in.Parent.SubscriptionDetails.Subscription == nil || in.Parent.SubscriptionDetails.Subscription.ID != b.SubscriptionID || in.BillingReason != "subscription_update" {
 		return ErrInvoice
 	}
-	if in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || len(in.Discounts) != 0 || in.StartingBalance != 0 || in.EndingBalance != 0 || in.AmountPaidOffStripe != 0 || in.PrePaymentCreditNotesAmount != 0 || in.PostPaymentCreditNotesAmount != 0 || in.AmountDue != in.Total || in.Total < 0 || in.Total > (out.PaidSlots-out.PreviousSlots)*servicebilling.AlertsAnnualSlotCents {
+	if in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || len(in.Discounts) != 0 || in.StartingBalance != 0 || in.EndingBalance != 0 || in.AmountPaidOffStripe != 0 || in.PrePaymentCreditNotesAmount != 0 || in.PostPaymentCreditNotesAmount != 0 || in.AmountDue != in.Total || in.Total < 0 || in.Total > (out.PaidSlots-out.PreviousSlots)*out.AnnualSlotCents() {
 		return ErrInvoice
 	}
 	// This entry point accepts a single licensed annual item with a credit for
@@ -140,9 +141,9 @@ func verifyIncreaseTerms(in *stripe.Invoice, b Binding, out *IncreasePreview) er
 			return ErrInvoice
 		}
 		switch {
-		case line.Quantity == out.PreviousSlots && line.Amount <= 0 && !credit && line.Amount >= -out.PreviousSlots*servicebilling.AlertsAnnualSlotCents:
+		case line.Quantity == out.PreviousSlots && line.Amount <= 0 && !credit && line.Amount >= -out.PreviousSlots*out.AnnualSlotCents():
 			credit = true
-		case line.Quantity == out.PaidSlots && line.Amount >= 0 && !debit && line.Amount <= out.PaidSlots*servicebilling.AlertsAnnualSlotCents:
+		case line.Quantity == out.PaidSlots && line.Amount >= 0 && !debit && line.Amount <= out.PaidSlots*out.AnnualSlotCents():
 			debit = true
 		default:
 			return ErrInvoice
@@ -161,4 +162,11 @@ func verifyIncreaseTerms(in *stripe.Invoice, b Binding, out *IncreasePreview) er
 	}
 	out.TotalCents, out.TaxCents = in.Total, tax
 	return nil
+}
+
+func (p IncreasePreview) AnnualSlotCents() int64 {
+	if p.UnitCents == 0 {
+		return servicebilling.LegacyAlertsAnnualSlotCents
+	}
+	return p.UnitCents
 }

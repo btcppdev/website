@@ -23,6 +23,7 @@ import (
 )
 
 type alertsBitcoinStartPage struct {
+	Fifty                                bool
 	Policy                               *getters.ServiceLegalPolicy
 	Key                                  string
 	AddedSlots                           int64
@@ -45,6 +46,9 @@ func alertsBitcoinSelection(values url.Values) (string, int64, int, error) {
 	}
 	if _, err = servicebilling.AlertsTerm("opennode", slots, months, time.Now()); err != nil {
 		return "", 0, 0, err
+	}
+	if len(values["plan"]) > 1 || (values.Get("plan") != "" && values.Get("plan") != "fifty") || (values.Get("plan") == "fifty" && slots != 1) {
+		return "", 0, 0, servicebilling.ErrAlertsPrice
 	}
 	return account, slots, months, nil
 }
@@ -97,7 +101,7 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 			return
 		}
 		nextValues := url.Values{"account": {account}, "slots": {strconv.FormatInt(slots, 10)}, "months": {strconv.Itoa(months)}}
-		for _, name := range []string{"switch", "renew"} {
+		for _, name := range []string{"switch", "renew", "plan"} {
 			if len(values[name]) == 1 {
 				nextValues.Set(name, values.Get(name))
 			}
@@ -124,6 +128,10 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 	enabled := app.Env != nil && strings.TrimSpace(app.Env.OpenNode.Key) != "" && strings.TrimSpace(app.Env.StripeKey) != ""
 	switchID := values.Get("switch")
 	renewOrder := values.Get("renew")
+	if values.Get("plan") == "fifty" && (switchID != "" || renewOrder != "") {
+		http.Error(w, "Return to Alerts to select your plan", 400)
+		return
+	}
 	var switchStart time.Time
 	if switchID != "" {
 		if len(values["switch"]) != 1 || months != 12 {
@@ -183,7 +191,7 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 		}
 		var preview alertsBitcoinPreview
 		if len(values["key"]) != 1 || json.Unmarshal([]byte(app.Session.GetString(r.Context(), "alerts-bitcoin:"+values.Get("key"))), &preview) != nil ||
-			preview.Account != account || preview.Slots != slots || preview.Months != months || preview.SwitchID != switchID || preview.RenewOrderID != renewOrder || !preview.Expires.After(time.Now()) {
+			preview.Plan != values.Get("plan") || preview.Account != account || preview.Slots != slots || preview.Months != months || preview.SwitchID != switchID || preview.RenewOrderID != renewOrder || !preview.Expires.After(time.Now()) {
 			http.Error(w, "Your checkout changed or expired. Reload checkout to review the current price.", 409)
 			return
 		}
@@ -200,7 +208,11 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 			http.Error(w, "Your billing changed. Reload checkout to review your plan before paying.", 409)
 			return
 		}
-		quote, tax, err := alertsPriceTaxQuote(r.Context(), "opennode", preview.Price, address, stripeTaxCalculation.New)
+		product := servicebilling.AlertsProduct
+		if preview.Plan == "fifty" {
+			product = servicebilling.AlertsFiftyProduct
+		}
+		quote, tax, err := alertsProductPriceTaxQuote(r.Context(), "opennode", product, preview.Price, address, stripeTaxCalculation.New)
 		if err != nil {
 			http.Error(w, "Unable to calculate included tax. Check your billing address and try again. No payment has been started.", 503)
 			return
@@ -232,11 +244,11 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "Unable to load billing", 503)
 		return
 	}
-	preview := alertsBitcoinPreview{Account: account, Slots: slots, Months: months, SwitchID: switchID, RenewOrderID: renewOrder, Revision: state.Revision, Expires: time.Now().Add(10 * time.Minute)}
+	preview := alertsBitcoinPreview{Plan: values.Get("plan"), Account: account, Slots: slots, Months: months, SwitchID: switchID, RenewOrderID: renewOrder, Revision: state.Revision, Expires: time.Now().Add(10 * time.Minute)}
 	if switchID != "" || renewOrder != "" {
 		preview.Price, err = servicebilling.AlertsTerm("opennode", slots, months, switchStart)
 	} else {
-		preview.Price, preview.BaseID, err = prepareAlertsPrice(state, "opennode", slots, months, time.Now().UTC().Truncate(time.Second))
+		preview.Price, preview.BaseID, err = prepareAlertsPrice(state, "opennode", slots, months, time.Now().UTC().Truncate(time.Second), values.Get("plan"))
 	}
 	if err != nil || preview.Price.TotalCents <= 0 {
 		http.Error(w, "Your existing Alerts plan needs review before this purchase. Return to Alerts billing to check your plan.", 409)
@@ -245,7 +257,7 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 	key := uuid.NewString()
 	raw, _ := json.Marshal(preview)
 	app.Session.Put(r.Context(), "alerts-bitcoin:"+key, string(raw))
-	page := alertsBitcoinStartPage{Policy: policy, Key: key, Account: account, CSRF: csrf, Slots: slots, AddedSlots: preview.Price.Slots, Increase: preview.BaseID != "", Months: months, Total: fmt.Sprintf("$%d.%02d", preview.Price.TotalCents/100, preview.Price.TotalCents%100), Enabled: enabled,
+	page := alertsBitcoinStartPage{Fifty: values.Get("plan") == "fifty", Policy: policy, Key: key, Account: account, CSRF: csrf, Slots: slots, AddedSlots: preview.Price.Slots, Increase: preview.BaseID != "", Months: months, Total: fmt.Sprintf("$%d.%02d", preview.Price.TotalCents/100, preview.Price.TotalCents%100), Enabled: enabled,
 		SwitchID: switchID, RenewOrderID: renewOrder, Starts: preview.Price.Start.Format("January 2, 2006"), Ends: preview.Price.End.Format("January 2, 2006")}
 
 	var html bytes.Buffer
@@ -283,6 +295,7 @@ func alertsPendingOrder(state *getters.AlertsBillingState, now time.Time) string
 
 // Stored in the server-side session; no address or browser-supplied price is kept.
 type alertsBitcoinPreview struct {
+	Plan                                                       string
 	Account, SwitchID, RenewOrderID, Revision, BaseID, QuoteID string
 	Slots                                                      int64
 	Months                                                     int

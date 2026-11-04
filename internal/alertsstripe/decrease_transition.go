@@ -24,7 +24,7 @@ func (c Client) ObserveDecreaseTransition(ctx context.Context, b Binding, id, sc
 	if _, err := uuid.Parse(id); err != nil {
 		return nil, ErrSubscription
 	}
-	if c.Schedule == nil || c.Subscription == nil || c.Live != b.Live || !strings.HasPrefix(scheduleID, "sub_sched_") || q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= q.PreviousSlots || q.AnnualCents != q.PaidSlots*servicebilling.AlertsAnnualSlotCents || q.PeriodStart <= 0 || q.EffectiveAt <= q.PeriodStart || now.Unix() < q.EffectiveAt {
+	if c.Schedule == nil || c.Subscription == nil || c.Live != b.Live || !strings.HasPrefix(scheduleID, "sub_sched_") || q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= q.PreviousSlots || !servicebilling.ValidAlertsAnnualTotal(q.PaidSlots, q.AnnualCents) || q.PeriodStart <= 0 || q.EffectiveAt <= q.PeriodStart || now.Unix() < q.EffectiveAt {
 		return nil, ErrSubscription
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -64,7 +64,7 @@ func (c Client) ObserveDecreaseTransition(ctx context.Context, b Binding, id, sc
 		return nil, err
 	}
 	state, err := verifySubscription(sub, next)
-	if err != nil || state.PeriodStart < q.EffectiveAt || state.PeriodStart > now.Unix() || sub.PendingUpdate != nil || len(sub.Discounts) != 0 || len(sub.Items.Data[0].Discounts) != 0 || sub.CollectionMethod != "charge_automatically" {
+	if err != nil || q.AnnualCents != q.PaidSlots*sub.Items.Data[0].Price.UnitAmount || state.PeriodStart < q.EffectiveAt || state.PeriodStart > now.Unix() || sub.PendingUpdate != nil || len(sub.Discounts) != 0 || len(sub.Items.Data[0].Discounts) != 0 || sub.CollectionMethod != "charge_automatically" {
 		return nil, ErrSubscription
 	}
 	if s.Status == "active" && (sub.Schedule == nil || sub.Schedule.ID != scheduleID || state.PeriodStart != q.EffectiveAt) {

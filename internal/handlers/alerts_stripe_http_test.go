@@ -94,7 +94,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 			if err := r.ParseForm(); err != nil {
 				t.Error(err)
 			}
-			if r.Form.Get("line_items[0][quantity]") != "2" || r.Form.Get("line_items[0][price_data][unit_amount]") != "2400" || r.Form.Get("line_items[0][price_data][tax_behavior]") != "inclusive" || r.Header.Get("Idempotency-Key") == "" {
+			if r.Form.Get("line_items[0][quantity]") != "2" || r.Form.Get("line_items[0][price_data][unit_amount]") != "1200" || r.Form.Get("line_items[0][price_data][tax_behavior]") != "inclusive" || r.Header.Get("Idempotency-Key") == "" {
 				t.Error("incorrect Stripe request", r.Form)
 			}
 			intent := r.Form.Get("client_reference_id")

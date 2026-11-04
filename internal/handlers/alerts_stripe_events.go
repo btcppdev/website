@@ -9,6 +9,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
@@ -89,7 +90,7 @@ func alertsStripeEventReferences(event stripe.Event) (intent, sessionID, invoice
 		if err = json.Unmarshal(event.Data.Raw, &subscription); err != nil {
 			return "", "", "", true, err
 		}
-		if subscription.Metadata["product"] != "alerts.repository-slots" {
+		if !servicebilling.IsAlertsProduct(subscription.Metadata["product"]) {
 			return "", "", "", false, nil
 		}
 		return subscription.Metadata["checkout_intent"], "", "", true, nil
@@ -98,7 +99,7 @@ func alertsStripeEventReferences(event stripe.Event) (intent, sessionID, invoice
 		if err = json.Unmarshal(event.Data.Raw, &s); err != nil {
 			return "", "", "", true, err
 		}
-		if s.Metadata["product"] != "alerts.repository-slots" {
+		if !servicebilling.IsAlertsProduct(s.Metadata["product"]) {
 			return "", "", "", false, nil
 		}
 		// Payment activation happens on invoice.paid. Completion may still require
@@ -109,7 +110,7 @@ func alertsStripeEventReferences(event stripe.Event) (intent, sessionID, invoice
 		if err = json.Unmarshal(event.Data.Raw, &i); err != nil {
 			return "", "", "", true, err
 		}
-		if i.Parent == nil || i.Parent.SubscriptionDetails == nil || i.Parent.SubscriptionDetails.Metadata["product"] != "alerts.repository-slots" {
+		if i.Parent == nil || i.Parent.SubscriptionDetails == nil || !servicebilling.IsAlertsProduct(i.Parent.SubscriptionDetails.Metadata["product"]) {
 			return "", "", "", false, nil
 		}
 		return i.Parent.SubscriptionDetails.Metadata["checkout_intent"], "", i.ID, true, nil

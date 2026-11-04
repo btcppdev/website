@@ -53,7 +53,7 @@ func TestAlertsBitcoinSwitchPurchasePostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	future := end.AddDate(1, 0, 0)
-	quote := ServiceQuote{ProductCode: servicebilling.AlertsProduct, Name: "Alerts annual Bitcoin", Provider: "opennode", Quantity: 2, UnitCents: 2400, TotalCents: 4800, PeriodStart: &end, PeriodEnd: &future, ExpiresAt: time.Now().Add(10 * time.Minute), BillingMonths: 12, AccountRevision: revision, AlertsSwitchID: change}
+	quote := ServiceQuote{ProductCode: servicebilling.AlertsProduct, Name: "Alerts annual Bitcoin", Provider: "opennode", Quantity: 2, UnitCents: 1200, TotalCents: 2400, PeriodStart: &end, PeriodEnd: &future, ExpiresAt: time.Now().Add(10 * time.Minute), BillingMonths: 12, AccountRevision: revision, AlertsSwitchID: change}
 	for _, kind := range []string{"overlap", "wrong quantity", "unconfirmed", "resuming"} {
 		q := quote
 		switch kind {

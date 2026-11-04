@@ -198,6 +198,9 @@ func serviceQuotePresentation(stored *getters.ServiceCheckoutQuote, now time.Tim
 	q := stored.Quote
 	page := serviceQuotePage{Stored: stored, Total: fmt.Sprintf("$%d.%02d", q.TotalCents/100, q.TotalCents%100), Tax: fmt.Sprintf("$%d.%02d", q.TaxCents/100, q.TaxCents%100), Expired: !q.ExpiresAt.After(now)}
 	page.Message = "Review your additional projects and access period. Confirming creates an order; payment is a separate step."
+	if q.ProductCode == "alerts.projects-50.annual" {
+		page.Message = "Prepaid access for up to 50 projects, including public self-hosted GitLab."
+	}
 	if q.BaseOrderID != "" {
 		page.Message = "This prorated increase adds projects through your existing paid-through date. Your current projects are not charged again."
 	}

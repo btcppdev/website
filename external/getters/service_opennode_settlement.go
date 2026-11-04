@@ -57,7 +57,7 @@ func finishVerifiedServiceSettlement(ctx context.Context, app *config.AppContext
 		return false, ErrServiceFulfillment
 	}
 	switch product {
-	case "alerts.repository-slots":
+	case "alerts.repository-slots", "alerts.projects-50.annual":
 		if status == "paid" {
 			if _, err := FulfillServicePurchase(app, orderID); err != nil {
 				if !errors.Is(err, ErrServiceFulfillment) {

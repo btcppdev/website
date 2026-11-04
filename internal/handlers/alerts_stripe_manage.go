@@ -21,6 +21,7 @@ import (
 )
 
 type alertsStripeManagePage struct {
+	Fifty                                         bool
 	Checkout, CSRF, Key, Heading, Message, Period string
 	Revision, PeriodEnd                           int64
 	CanCancel                                     bool
@@ -207,9 +208,13 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 			http.Error(w, "Unable to read subscription quantity", 503)
 			return
 		}
+		page.Fifty = binding.ProductCode == "alerts.projects-50.annual"
+		if page.Fifty && state.State == "active" && outcome == "" {
+			page.Message = "Your 50-project plan costs $15/mo, billed yearly at $180 including tax. Canceling stops future renewals; paid access continues until the current period ends."
+		}
 		page.PaidSlots = binding.PaidSlots
 		page.CanUpdateCard = state.ProviderStatus != "canceled" && state.ProviderStatus != "incomplete_expired"
-		page.CanSwitchBitcoin = page.CanCancel && state.State == "active" && app.Env.OpenNode.Key != ""
+		page.CanSwitchBitcoin = !page.Fifty && page.CanCancel && state.State == "active" && app.Env.OpenNode.Key != ""
 		var switchID string
 		err = app.DB.QueryRow(r.Context(), `SELECT id::text FROM alerts_bitcoin_switches WHERE checkout_id=$1 AND state<>'withdrawn'`, page.Checkout).Scan(&switchID)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -223,9 +228,9 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 		page.Account = identity.PersonID
 		page.MinIncrease = binding.PaidSlots + 1
 		page.MaxIncrease = 2147483647 / servicebilling.AlertsAnnualSlotCents
-		page.CanIncrease = page.CanCancel && state.State == "active" && page.MinIncrease <= page.MaxIncrease && outcome != "pending" && outcome != "review"
+		page.CanIncrease = !page.Fifty && page.CanCancel && state.State == "active" && page.MinIncrease <= page.MaxIncrease && outcome != "pending" && outcome != "review"
 		page.MaxDecrease = binding.PaidSlots - 1
-		page.CanDecrease = page.CanCancel && state.State == "active" && binding.PaidSlots > 1 && outcome != "pending" && outcome != "review"
+		page.CanDecrease = !page.Fifty && page.CanCancel && state.State == "active" && binding.PaidSlots > 1 && outcome != "pending" && outcome != "review"
 		if switchID != "" {
 			page.CanIncrease = false
 			page.CanDecrease = false

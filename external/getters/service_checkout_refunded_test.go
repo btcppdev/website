@@ -26,13 +26,13 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			price := &stripe.Price{ID: "price_" + card.Intent.ID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + card.Intent.ID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+			price := &stripe.Price{ID: "price_" + card.Intent.ID, Currency: "usd", UnitAmount: 1200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + card.Intent.ID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 			session := &stripe.CheckoutSession{ID: "cs_test_" + card.Intent.ID, Status: "open", Mode: "subscription", ExpiresAt: time.Now().Add(time.Hour).Unix(), ClientReferenceID: card.Intent.ID, Metadata: map[string]string{"product": "alerts.repository-slots", "account_id": person, "checkout_intent": card.Intent.ID}, Customer: &stripe.Customer{ID: "cus_" + person}, Subscription: &stripe.Subscription{ID: "sub_" + card.Intent.ID}, LineItems: &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: 1, Price: price}}}}
 			session.URL = "https://checkout.stripe.com/c/pay/" + session.ID
 			now := time.Now().UTC().Truncate(time.Second)
 			start := now.Add(-time.Hour)
 			end := start.AddDate(1, 0, 0)
-			inv := &stripe.Invoice{ID: "in_" + card.Intent.ID, Status: "paid", Currency: "usd", Customer: session.Customer, BillingReason: "subscription_create", Total: 2400, AmountPaid: 2400, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: session.Subscription, Metadata: session.Metadata}}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 36, TaxBehavior: "inclusive"}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Amount: 2400, Quantity: 1, Period: &stripe.Period{Start: start.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: session.Subscription.ID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: price.Product.ID}}}}}}
+			inv := &stripe.Invoice{ID: "in_" + card.Intent.ID, Status: "paid", Currency: "usd", Customer: session.Customer, BillingReason: "subscription_create", Total: 1200, AmountPaid: 1200, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: session.Subscription, Metadata: session.Metadata}}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 36, TaxBehavior: "inclusive"}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Amount: 1200, Quantity: 1, Period: &stripe.Period{Start: start.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: session.Subscription.ID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: price.Product.ID}}}}}}
 			client := alertsstripe.Client{Create: func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }, Retrieve: func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }, Invoice: func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { return inv, nil }, Price: func(string, *stripe.PriceParams) (*stripe.Price, error) { return price, nil }}
 
 			session.Status = "complete"
@@ -57,9 +57,9 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 				if err = app.DB.QueryRow(ctx, `SELECT a.id::text FROM service_payment_attempts a JOIN service_purchase_requests r ON r.id=a.purchase_id WHERE r.order_id=$1`, receipt.OrderID).Scan(&attempt); err != nil {
 					t.Fatal(err)
 				}
-				amount := int64(2400)
+				amount := int64(1200)
 				if status == "partially_refunded" {
-					amount = 1200
+					amount = 600
 				}
 				refund := VerifiedServiceRefund{AttemptID: attempt, Provider: "stripe", PaymentReference: inv.ID, RefundReference: "re_" + card.Intent.ID, AmountCents: amount, Currency: "USD", RefundedAt: now}
 				if err = RecordServiceRefund(ctx, app, refund); err != nil {
@@ -119,8 +119,8 @@ func TestBitcoinSwitchRefundedSubscriptionPostgres(t *testing.T) {
 			from := time.Now().UTC()
 			to := from.AddDate(1, 0, 0)
 			expiry := from.Add(10 * time.Minute)
-			quote := ServiceQuote{AccountRevision: revision, BillingMonths: 12, ProductCode: "alerts.repository-slots", Name: "Alerts", Provider: "opennode", Quantity: 1, UnitCents: 2400, TotalCents: 2400, TaxCents: 200, PeriodStart: &from, PeriodEnd: &to, ExpiresAt: expiry}
-			tax := TaxQuoteInput{Provider: "stripe", ProviderQuoteID: "taxcalc_switch_" + person, SalesTaxAmountCents: 200, DestinationCountry: "US", RawResponse: `{"amount_total":2400}`, ExpiresAt: &expiry}
+			quote := ServiceQuote{AccountRevision: revision, BillingMonths: 12, ProductCode: "alerts.repository-slots", Name: "Alerts", Provider: "opennode", Quantity: 1, UnitCents: 1200, TotalCents: 1200, TaxCents: 200, PeriodStart: &from, PeriodEnd: &to, ExpiresAt: expiry}
+			tax := TaxQuoteInput{Provider: "stripe", ProviderQuoteID: "taxcalc_switch_" + person, SalesTaxAmountCents: 200, DestinationCountry: "US", RawResponse: `{"amount_total":1200}`, ExpiresAt: &expiry}
 			saved, err := SaveAlertsCheckoutQuote(app, person, quote, tax)
 			if err != nil {
 				t.Fatal(err)

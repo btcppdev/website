@@ -28,6 +28,8 @@ type Intent struct {
 	PersonID        string
 	Email           string
 	PaidSlots       int64
+	ProductCode     string `json:",omitempty"`
+	UnitCents       int64
 	CreatedAt       time.Time
 	ReturnBaseURL   string
 }
@@ -66,7 +68,7 @@ func NewClient(live bool) Client {
 }
 
 func serviceCheckoutIntent(in Intent) servicestripe.CheckoutIntent {
-	return servicestripe.CheckoutIntent{ID: in.ID, PersonID: in.PersonID, Email: in.Email, ProductCode: servicebilling.AlertsProduct, TaxCode: servicebilling.AlertsStripeTaxCode, Quantity: in.PaidSlots, CreatedAt: in.CreatedAt, ReturnOrigin: in.ReturnBaseURL, SuccessURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=returned", CancelURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=cancelled"}
+	return servicestripe.CheckoutIntent{ID: in.ID, PersonID: in.PersonID, Email: in.Email, ProductCode: in.Product(), TaxCode: servicebilling.AlertsStripeTaxCode, Quantity: in.PaidSlots, UnitCents: in.AnnualSlotCents(), CreatedAt: in.CreatedAt, ReturnOrigin: in.ReturnBaseURL, SuccessURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=returned", CancelURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=cancelled"}
 }
 
 func (c Client) ResolveDeletedCheckout(ctx context.Context, in Intent, reference string) (*Binding, error) {
@@ -74,16 +76,22 @@ func (c Client) ResolveDeletedCheckout(ctx context.Context, in Intent, reference
 	if err != nil || b == nil {
 		return nil, err
 	}
-	return &Binding{IntentID: b.IntentID, PersonID: b.PersonID, SubscriptionID: b.SubscriptionID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, PaidSlots: b.Quantity, Live: b.Live}, nil
+	return &Binding{IntentID: b.IntentID, PersonID: b.PersonID, SubscriptionID: b.SubscriptionID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, PaidSlots: b.Quantity, ProductCode: in.ProductCode, Live: b.Live}, nil
 }
 func (c Client) ExpireConflictingCheckout(ctx context.Context, in Intent, reference string) error {
 	return (servicestripe.CheckoutClient{Retrieve: c.Retrieve, Expire: c.Expire, Live: c.Live}).ExpireConflictingCheckout(ctx, serviceCheckoutIntent(in), reference)
 }
 
 func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.CheckoutSessionParams, error) {
+	if !servicebilling.IsAlertsProduct(in.Product()) {
+		return nil, ErrCheckout
+	}
 	return servicestripe.CheckoutParams(ctx, serviceCheckoutIntent(in), now)
 }
 func (c Client) Open(ctx context.Context, in Intent, reference string, now time.Time) (string, string, error) {
+	if _, err := checkoutParams(ctx, in, now); err != nil {
+		return "", "", err
+	}
 	shared := servicestripe.CheckoutClient{Create: c.Create, Retrieve: c.Retrieve, Live: c.Live}
 	return shared.Open(ctx, serviceCheckoutIntent(in), reference, now)
 }
@@ -106,4 +114,19 @@ func listCheckoutPage(p *stripe.CheckoutSessionListParams) (*stripe.CheckoutSess
 }
 func (c Client) FindExistingCheckout(ctx context.Context, in Intent) (string, error) {
 	return (servicestripe.CheckoutClient{List: c.ListCheckouts, Live: c.Live}).FindExistingCheckout(ctx, serviceCheckoutIntent(in))
+}
+
+// Intents saved before the price change have no explicit unit amount.
+func (in Intent) AnnualSlotCents() int64 {
+	if in.UnitCents == 0 {
+		return servicebilling.LegacyAlertsAnnualSlotCents
+	}
+	return in.UnitCents
+}
+
+func (in Intent) Product() string {
+	if in.ProductCode == "" {
+		return servicebilling.AlertsProduct
+	}
+	return in.ProductCode
 }

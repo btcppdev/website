@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"btcpp-web/internal/servicebilling"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -73,12 +74,17 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 	alerts := accountSubscription{Name: "Alerts", Description: "Software release notifications by email and Telegram.", Status: "3 free projects", URL: "https://alerts.btcpp.dev/alerts"}
 	alerts.BillingURL = "/services/alerts/manage?" + url.Values{"account": {identity.PersonID}}.Encode()
 	var quantity int64
+	fifty := false
 	for _, grant := range grants {
-		if grant.ProductCode != "alerts.repository-slots" {
+		if !servicebilling.IsAlertsProduct(grant.ProductCode) {
 			continue
 		}
 		quantity += grant.Quantity
 		period := fmt.Sprintf("%d additional paid projects", grant.Quantity)
+		if grant.ProductCode == servicebilling.AlertsFiftyProduct {
+			fifty = true
+			period = "Up to 50 total projects"
+		}
 		if grant.EndsAt != nil {
 			period += " through " + grant.EndsAt.UTC().Format("2 Jan 2006, 15:04 UTC")
 		}
@@ -86,6 +92,9 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 	}
 	if quantity > 0 {
 		alerts.Status = fmt.Sprintf("3 free + %d paid projects", quantity)
+	}
+	if fifty {
+		alerts.Status = "Up to 50 total projects"
 	}
 	insider := accountSubscription{Name: "Insider Edition", Description: "Bitcoin news, deep dives, interviews, and editorials.", Status: "No membership reported", URL: insiderAccountURL}
 	if projection != nil {

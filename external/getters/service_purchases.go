@@ -70,7 +70,7 @@ func CreateTaxedServicePurchaseWithPolicy(app *config.AppContext, personID, key 
 	if err := validateServiceTaxQuote(quote, tax); err != nil {
 		return nil, err
 	}
-	if quote.ProductCode == "alerts.repository-slots" {
+	if servicebilling.IsAlertsProduct(quote.ProductCode) {
 		tax = alertsTaxWithoutAddress(tax)
 	}
 	return createServicePurchase(app, personID, key, quote, &tax, acceptedVersion)
@@ -84,7 +84,7 @@ func validateServiceTaxQuote(quote ServiceQuote, tax TaxQuoteInput) error {
 		}
 		return nil
 	}
-	if tax.Provider != "stripe" || !strings.HasPrefix(tax.ProviderQuoteID, "taxcalc_") || int64(tax.SalesTaxAmountCents) != quote.TaxCents || tax.ExpiresAt == nil || quote.ExpiresAt.After(*tax.ExpiresAt) || (quote.ProductCode != "alerts.repository-slots" && strings.TrimSpace(tax.DestinationCountry) == "") || !json.Valid([]byte(tax.RawResponse)) {
+	if tax.Provider != "stripe" || !strings.HasPrefix(tax.ProviderQuoteID, "taxcalc_") || int64(tax.SalesTaxAmountCents) != quote.TaxCents || tax.ExpiresAt == nil || quote.ExpiresAt.After(*tax.ExpiresAt) || (!servicebilling.IsAlertsProduct(quote.ProductCode) && strings.TrimSpace(tax.DestinationCountry) == "") || !json.Valid([]byte(tax.RawResponse)) {
 		return ErrServiceQuote
 	}
 	return nil
@@ -147,7 +147,7 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 		return nil, err
 	}
 	if quote.AccountRevision != "" {
-		if quote.ProductCode != "alerts.repository-slots" {
+		if !servicebilling.IsAlertsProduct(quote.ProductCode) {
 			return nil, ErrServiceQuote
 		}
 		revision, err := alertsBillingRevision(ctx, tx, personID)
@@ -158,7 +158,7 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 			return nil, ErrAlertsBillingChanged
 		}
 	}
-	if quote.ProductCode == "alerts.repository-slots" {
+	if servicebilling.IsAlertsProduct(quote.ProductCode) {
 		var stripePending bool
 		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL)`, personID).Scan(&stripePending); err != nil {
 			return nil, err
@@ -190,7 +190,7 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 		if err = validateExpeditionQuoteTx(ctx, tx, app, personID, key, quote); err != nil {
 			return nil, err
 		}
-	case "alerts.repository-slots", "insider.membership", "insider.membership.annual", "insider.membership.monthly":
+	case "alerts.projects-50.annual", "alerts.repository-slots", "insider.membership", "insider.membership.annual", "insider.membership.monthly":
 		if quote.PeriodStart == nil || quote.PeriodEnd == nil || !quote.PeriodEnd.After(*quote.PeriodStart) {
 			return nil, ErrServiceQuote
 		}

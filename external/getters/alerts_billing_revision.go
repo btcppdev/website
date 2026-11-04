@@ -50,7 +50,7 @@ func LoadAlertsBillingState(app *config.AppContext, personID string) (*AlertsBil
  (o.status IN ('refunded','partially_refunded') AND `+servicePurchaseAccessSQL+`)
  FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
  LEFT JOIN service_entitlements e ON e.purchase_id=r.id AND e.person_id=r.person_id
- WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' ORDER BY r.created_at,r.id`, personID)
+ WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code' IN ('alerts.repository-slots','alerts.projects-50.annual') ORDER BY r.created_at,r.id`, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +101,10 @@ func AlertsBillingRevision(app *config.AppContext, personID string) (string, err
 // Order locks serialize fulfillment/refunds; entitlement locks serialize direct
 // revocation. Lock before reading the snapshot so a committed change is visible.
 func alertsBillingRevision(ctx context.Context, tx pgx.Tx, personID string) (string, error) {
-	if _, err := tx.Exec(ctx, `SELECT o.id FROM shop_orders o JOIN service_purchase_requests r ON r.order_id=o.id WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' ORDER BY o.id FOR SHARE OF o`, personID); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT o.id FROM shop_orders o JOIN service_purchase_requests r ON r.order_id=o.id WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code' IN ('alerts.repository-slots','alerts.projects-50.annual') ORDER BY o.id FOR SHARE OF o`, personID); err != nil {
 		return "", err
 	}
-	if _, err := tx.Exec(ctx, `SELECT e.id FROM service_entitlements e WHERE e.person_id=$1 AND e.product_code='alerts.repository-slots' ORDER BY e.id FOR SHARE`, personID); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT e.id FROM service_entitlements e WHERE e.person_id=$1 AND e.product_code IN ('alerts.repository-slots','alerts.projects-50.annual') ORDER BY e.id FOR SHARE`, personID); err != nil {
 		return "", err
 	}
 	var snapshot string
@@ -118,7 +118,7 @@ func alertsBillingRevision(ctx context.Context, tx pgx.Tx, personID string) (str
  ) ORDER BY r.id),'[]'::jsonb)::text
  FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
  LEFT JOIN service_entitlements e ON e.purchase_id=r.id AND e.person_id=r.person_id
- WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots'`, personID).Scan(&snapshot)
+ WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code' IN ('alerts.repository-slots','alerts.projects-50.annual')`, personID).Scan(&snapshot)
 	if err != nil {
 		return "", err
 	}

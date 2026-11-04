@@ -9,12 +9,13 @@ import (
 )
 
 type AlertsRenewalAccess struct {
-	RenewalID  string    `json:"renewalId"`
-	State      string    `json:"state"`
-	Revision   int64     `json:"revision"`
-	DueAt      time.Time `json:"dueAt"`
-	PaidSlots  int64     `json:"paidSlots"`
-	RenewalURL string    `json:"renewalUrl"`
+	ProductCode string    `json:"productCode,omitempty"`
+	RenewalID   string    `json:"renewalId"`
+	State       string    `json:"state"`
+	Revision    int64     `json:"revision"`
+	DueAt       time.Time `json:"dueAt"`
+	PaidSlots   int64     `json:"paidSlots"`
+	RenewalURL  string    `json:"renewalUrl"`
 }
 type AccountAccessSnapshot struct {
 	AccountID             string                `json:"accountId"`
@@ -41,15 +42,18 @@ func AccountAccess(ctx context.Context, app *config.AppContext, person string, a
 	if err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT r.invoice_id,r.state,r.revision,r.due_at,r.paid_slots FROM alerts_stripe_renewals r JOIN alerts_stripe_checkouts c ON c.id=r.checkout_id WHERE c.person_id=$1 ORDER BY r.due_at,r.invoice_id`, person)
+	rows, err := tx.Query(ctx, `SELECT r.invoice_id,r.state,r.revision,r.due_at,r.paid_slots,c.product_code FROM alerts_stripe_renewals r JOIN alerts_stripe_checkouts c ON c.id=r.checkout_id WHERE c.person_id=$1 ORDER BY r.due_at,r.invoice_id`, person)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var r AlertsRenewalAccess
-		if err = rows.Scan(&r.RenewalID, &r.State, &r.Revision, &r.DueAt, &r.PaidSlots); err != nil {
+		if err = rows.Scan(&r.RenewalID, &r.State, &r.Revision, &r.DueAt, &r.PaidSlots, &r.ProductCode); err != nil {
 			rows.Close()
 			return nil, err
+		}
+		if r.ProductCode == "alerts.repository-slots" {
+			r.ProductCode = ""
 		}
 		r.RenewalURL = "https://btcpp.dev/services/alerts/renew/" + url.PathEscape(r.RenewalID)
 		out.Renewals = append(out.Renewals, r)

@@ -131,7 +131,7 @@ func AlertsStripeUpgrade(w http.ResponseWriter, r *http.Request, app *config.App
 	}
 	q := quote.Preview
 	money := func(cents int64) string { return fmt.Sprintf("$%d.%02d", cents/100, cents%100) }
-	page := alertsStripeUpgradePage{ID: id, Previous: q.PreviousSlots, Desired: q.PaidSlots, Charge: money(q.TotalCents), Tax: money(q.TaxCents), Annual: money(q.PaidSlots * servicebilling.AlertsAnnualSlotCents), Period: time.Unix(q.PeriodEnd, 0).UTC().Format("January 2, 2006"), Message: "Review the prorated charge before confirming your upgrade."}
+	page := alertsStripeUpgradePage{ID: id, Previous: q.PreviousSlots, Desired: q.PaidSlots, Charge: money(q.TotalCents), Tax: money(q.TaxCents), Annual: money(q.PaidSlots * q.AnnualSlotCents()), Period: time.Unix(q.PeriodEnd, 0).UTC().Format("January 2, 2006"), Message: "Review the prorated charge before confirming your upgrade."}
 	switch state {
 	case "":
 		page.CanConfirm = time.Now().Before(q.ExpiresAt)

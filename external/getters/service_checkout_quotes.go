@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"btcpp-web/internal/servicebilling"
 	"encoding/hex"
 	"encoding/json"
 	"strings"
@@ -22,7 +23,7 @@ type ServiceCheckoutQuote struct {
 // change entitlements. Account state is checked again on confirmation.
 func SaveAlertsCheckoutQuote(app *config.AppContext, personID string, quote ServiceQuote, tax TaxQuoteInput) (*ServiceCheckoutQuote, error) {
 	revision, err := hex.DecodeString(quote.AccountRevision)
-	if quote.LegalAcceptance != nil || err != nil || len(revision) != 32 || quote.ProductCode != "alerts.repository-slots" || strings.TrimSpace(personID) == "" ||
+	if quote.LegalAcceptance != nil || err != nil || len(revision) != 32 || !servicebilling.IsAlertsProduct(quote.ProductCode) || strings.TrimSpace(personID) == "" ||
 		quote.PeriodStart == nil || quote.PeriodEnd == nil || !quote.PeriodEnd.After(*quote.PeriodStart) || quote.ExpiresAt.After(*quote.PeriodEnd) ||
 		!quote.ExpiresAt.After(time.Now()) || quote.Quantity < 1 || quote.Quantity > 2147483647 || quote.UnitCents < 1 || quote.UnitCents > 2147483647 ||
 		quote.TotalCents < 1 || quote.TotalCents > 2147483647 || quote.Quantity*quote.UnitCents != quote.TotalCents || quote.TaxCents < 0 || quote.TaxCents > quote.TotalCents {

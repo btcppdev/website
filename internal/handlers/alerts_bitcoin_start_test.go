@@ -13,7 +13,7 @@ func TestAlertsBitcoinSelectionAndAddress(t *testing.T) {
 			t.Fatal(a, n, err)
 		}
 	}
-	for _, query := range []string{"months=1&slots=2", "months=0&slots=2", "months=120&slots=100000", "months=12&slots=0", "months=12&months=24&slots=2", "months=12&slots=2&slots=3"} {
+	for _, query := range []string{"months=1&slots=2", "months=0&slots=2", "months=120&slots=200000", "months=12&slots=0", "months=12&months=24&slots=2", "months=12&slots=2&slots=3"} {
 		v, _ := url.ParseQuery(query)
 		v.Set("account", account)
 		if _, _, _, err := alertsBitcoinSelection(v); err == nil {

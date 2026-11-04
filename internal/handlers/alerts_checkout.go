@@ -22,20 +22,24 @@ var ErrAlertsRenewalChange = errors.New("equal or lower allowances must be handl
 // existing quantities, and upgrade periods are never supplied by the browser.
 // Confirmation must persist this exact quote with CreateTaxedServicePurchase;
 // AccountRevision prevents a second confirmation from silently changing it.
-func PrepareAlertsCheckout(ctx context.Context, app *config.AppContext, personID, provider string, paidSlots int64, months int, address *types.ShopAddress) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
+func PrepareAlertsCheckout(ctx context.Context, app *config.AppContext, personID, provider string, paidSlots int64, months int, address *types.ShopAddress, plans ...string) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
 	state, err := getters.LoadAlertsBillingState(app, personID)
 	if err != nil {
 		return nil, nil, err
 	}
-	return prepareAlertsCheckout(ctx, state, provider, paidSlots, months, time.Now().UTC().Truncate(time.Second), address, stripeTaxCalculation.New)
+	return prepareAlertsCheckout(ctx, state, provider, paidSlots, months, time.Now().UTC().Truncate(time.Second), address, stripeTaxCalculation.New, plans...)
 }
 
-func prepareAlertsCheckout(ctx context.Context, state *getters.AlertsBillingState, provider string, paidSlots int64, months int, at time.Time, address *types.ShopAddress, calculate func(*stripe.TaxCalculationParams) (*stripe.TaxCalculation, error)) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
-	price, baseID, err := prepareAlertsPrice(state, provider, paidSlots, months, at)
+func prepareAlertsCheckout(ctx context.Context, state *getters.AlertsBillingState, provider string, paidSlots int64, months int, at time.Time, address *types.ShopAddress, calculate func(*stripe.TaxCalculationParams) (*stripe.TaxCalculation, error), plans ...string) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
+	price, baseID, err := prepareAlertsPrice(state, provider, paidSlots, months, at, plans...)
 	if err != nil {
 		return nil, nil, err
 	}
-	quote, tax, err := alertsPriceTaxQuote(ctx, provider, price, address, calculate)
+	product := servicebilling.AlertsProduct
+	if len(plans) == 1 && plans[0] == "fifty" {
+		product = servicebilling.AlertsFiftyProduct
+	}
+	quote, tax, err := alertsProductPriceTaxQuote(ctx, provider, product, price, address, calculate)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,13 +50,17 @@ func prepareAlertsCheckout(ctx context.Context, state *getters.AlertsBillingStat
 }
 
 // Pricing is independent of the address: tax is allocated within this total.
-func prepareAlertsPrice(state *getters.AlertsBillingState, provider string, paidSlots int64, months int, at time.Time) (servicebilling.AlertsPrice, string, error) {
+func prepareAlertsPrice(state *getters.AlertsBillingState, provider string, paidSlots int64, months int, at time.Time, plans ...string) (servicebilling.AlertsPrice, string, error) {
 	if state == nil || state.Revision == "" {
 		return servicebilling.AlertsPrice{}, "", getters.ErrAlertsBillingChanged
 	}
 	// Validate requested terms even if the account already has a different plan.
 	if _, err := servicebilling.AlertsTerm(provider, paidSlots, months, at); err != nil {
 		return servicebilling.AlertsPrice{}, "", err
+	}
+	fifty := len(plans) == 1 && plans[0] == "fifty"
+	if len(plans) > 1 || (len(plans) == 1 && plans[0] != "" && !fifty) || (fifty && (provider != "opennode" || paidSlots != 1)) {
+		return servicebilling.AlertsPrice{}, "", servicebilling.ErrAlertsPrice
 	}
 	var active []getters.AlertsBillingOrder
 	for _, order := range state.Orders {
@@ -80,13 +88,20 @@ func prepareAlertsPrice(state *getters.AlertsBillingState, provider string, paid
 		if q.PeriodStart.After(at) {
 			return servicebilling.AlertsPrice{}, "", ErrAlertsPlanReview
 		}
+		if fifty || q.ProductCode == servicebilling.AlertsFiftyProduct {
+			return servicebilling.AlertsPrice{}, "", ErrAlertsPlanReview
+		}
 		active = append(active, order)
 	}
 	var price servicebilling.AlertsPrice
 	var err error
 	var base *getters.AlertsBillingOrder
 	if len(active) == 0 {
-		price, err = servicebilling.AlertsTerm(provider, paidSlots, months, at)
+		if fifty {
+			price, err = servicebilling.AlertsFiftyPrepaidTerm(months, at)
+		} else {
+			price, err = servicebilling.AlertsTerm(provider, paidSlots, months, at)
+		}
 	} else {
 		var current int64
 		for i := range active {
@@ -106,14 +121,23 @@ func prepareAlertsPrice(state *getters.AlertsBillingState, provider string, paid
 			return servicebilling.AlertsPrice{}, "", ErrAlertsPlanReview
 		}
 		q := base.Quote
-		// Older full-term quotes lack BillingMonths. Infer only an exact supported
-		// full-price term, then verify its calendar boundary using central pricing.
 		baseMonths := q.BillingMonths
-		if baseMonths == 0 && q.UnitCents%servicebilling.AlertsMonthlySlotCents == 0 {
-			baseMonths = int(q.UnitCents / servicebilling.AlertsMonthlySlotCents)
+		matched := false
+		for _, candidate := range []int{12, 24, 120} {
+			if baseMonths != 0 && baseMonths != candidate {
+				continue
+			}
+			full, e := servicebilling.AlertsTerm(q.Provider, q.Quantity, candidate, *q.PeriodStart)
+			if e != nil || !full.End.Equal(*q.PeriodEnd) {
+				continue
+			}
+			legacyUnit := int64(candidate) * (servicebilling.LegacyAlertsAnnualSlotCents / 12)
+			if (q.UnitCents == full.UnitCents || q.UnitCents == legacyUnit) && q.TotalCents == q.Quantity*q.UnitCents {
+				baseMonths, matched = candidate, true
+				break
+			}
 		}
-		full, e := servicebilling.AlertsTerm(q.Provider, q.Quantity, baseMonths, *q.PeriodStart)
-		if e != nil || full.TotalCents != q.TotalCents || full.UnitCents != q.UnitCents || !full.End.Equal(*q.PeriodEnd) || provider != q.Provider || months != baseMonths {
+		if !matched || provider != q.Provider || months != baseMonths {
 			return servicebilling.AlertsPrice{}, "", ErrAlertsPlanReview
 		}
 		for _, order := range active {

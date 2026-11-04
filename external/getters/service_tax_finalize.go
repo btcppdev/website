@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"btcpp-web/internal/servicebilling"
 	"context"
 	"encoding/json"
 	"errors"
@@ -84,7 +85,7 @@ func finalizeServiceTax(ctx context.Context, app *config.AppContext, orderID str
 	}
 	// Alerts financial evidence is already stored in the typed columns.
 	var evidence any = result
-	if quote.ProductCode == "alerts.repository-slots" {
+	if servicebilling.IsAlertsProduct(quote.ProductCode) {
 		evidence = struct{}{}
 	}
 	encoded, err := json.Marshal(evidence)

@@ -15,7 +15,11 @@ import (
 // one-minute attempt deadline shorter than the minimum two-minute lease.
 func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppContext, client alertsstripe.Client) (int, error) {
 	return reconcileDueAlertsStripeCheckouts(ctx, app, func(ctx context.Context, person, id string) error {
-		if closed, err := closeUnsubmittedStoppedServiceCheckout(ctx, app, person, id, "alerts.repository-slots"); err != nil || closed {
+		stored, err := AlertsStripeCheckoutForPerson(app, person, id)
+		if err != nil {
+			return err
+		}
+		if closed, err := closeUnsubmittedStoppedServiceCheckout(ctx, app, person, id, stored.Intent.Product()); err != nil || closed {
 			return err
 		}
 		if _, err := recoverAlertsStripeCheckoutReference(ctx, app, person, id, client); err != nil {
@@ -26,7 +30,7 @@ func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppConte
 			return err
 		}
 		recoverErr := RecoverAlertsStripePayments(ctx, app, person, id, client)
-		cancelErr := cancelStoppedServiceRenewal(ctx, app, person, id, "alerts.repository-slots",
+		cancelErr := cancelStoppedServiceRenewal(ctx, app, person, id, stored.Intent.Product(),
 			func() error { return RefreshAlertsStripeSubscription(ctx, app, person, id, client) },
 			func(request string) (string, error) {
 				return ProcessAlertsStripeCancellation(ctx, app, person, request, client)

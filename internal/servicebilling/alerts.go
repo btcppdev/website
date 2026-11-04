@@ -9,7 +9,7 @@ import (
 )
 
 const AlertsFreeRepositories int64 = 3
-const AlertsMonthlySlotCents int64 = 200
+const AlertsMonthlySlotCents int64 = 100
 const AlertsAnnualSlotCents int64 = 12 * AlertsMonthlySlotCents
 
 // Hosted SaaS for personal use; confirmed product classification for Alerts.
@@ -79,4 +79,23 @@ func monthBoundary(anchor time.Time, months int) time.Time {
 		day = last
 	}
 	return time.Date(first.Year(), first.Month(), day, anchor.Hour(), anchor.Minute(), anchor.Second(), anchor.Nanosecond(), time.UTC)
+}
+
+// LegacyAlertsAnnualSlotCents remains valid for existing subscriptions and
+// in-flight checkouts. New purchases always use AlertsAnnualSlotCents.
+const LegacyAlertsAnnualSlotCents int64 = 2400
+
+func ValidAlertsAnnualTotal(slots, total int64) bool {
+	return slots > 0 && slots <= maxOrderCents/AlertsAnnualSlotCents && total <= maxOrderCents &&
+		(total == slots*AlertsAnnualSlotCents || total == slots*LegacyAlertsAnnualSlotCents)
+}
+
+// AlertsFiftyPrepaidTerm sells one fixed-capacity plan for a prepaid calendar term.
+func AlertsFiftyPrepaidTerm(months int, start time.Time) (AlertsPrice, error) {
+	if !validTerm("opennode", months) || start.IsZero() || start.Year() < 1 || start.Year() > 9800 {
+		return AlertsPrice{}, ErrAlertsPrice
+	}
+	start = start.UTC()
+	total := AlertsFiftyMonthlyCents * int64(months)
+	return AlertsPrice{Slots: 1, UnitCents: total, TotalCents: total, Start: start, End: monthBoundary(start, months)}, nil
 }

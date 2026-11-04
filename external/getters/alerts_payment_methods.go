@@ -88,6 +88,14 @@ func AlertsBitcoinSwitchForPerson(ctx context.Context, app *config.AppContext, p
 	return out, err
 }
 func StartAlertsBitcoinSwitch(ctx context.Context, app *config.AppContext, person, checkout, id string, revision, end int64, client alertsstripe.Client) (string, error) {
+	// The scheduled switch stores a per-project allowance; do not reinterpret a bundle as one project.
+	var product string
+	if err := app.DB.QueryRow(ctx, `SELECT product_code FROM alerts_stripe_checkouts WHERE id=$1 AND person_id=$2`, checkout, person).Scan(&product); err != nil {
+		return "", err
+	}
+	if product != "alerts.repository-slots" {
+		return "", alertsstripe.ErrSubscription
+	}
 	var current string
 	err := app.DB.QueryRow(ctx, `SELECT b.id::text FROM alerts_bitcoin_switches b JOIN alerts_stripe_checkouts c ON c.id=b.checkout_id WHERE c.id=$1 AND c.person_id=$2 AND b.state<>'withdrawn'`, checkout, person).Scan(&current)
 	if err == nil {

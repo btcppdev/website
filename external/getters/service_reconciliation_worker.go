@@ -21,7 +21,7 @@ func reconcileDueOpenNodeServices(ctx context.Context, app *config.AppContext, r
 		JOIN service_purchase_requests r ON r.id=a.purchase_id
 		JOIN shop_orders o ON o.id=r.order_id
 		WHERE a.provider='opennode' AND a.provider_reference IS NOT NULL AND a.next_reconcile_at<=now()
-		AND (a.settled_at IS NULL OR (o.status='paid' AND r.quote_snapshot->>'product_code'='alerts.repository-slots' AND NOT EXISTS (
+		AND (a.settled_at IS NULL OR (o.status='paid' AND r.quote_snapshot->>'product_code' IN ('alerts.repository-slots','alerts.projects-50.annual') AND NOT EXISTS (
 			SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id))
 			OR (o.status IN ('paid','partially_refunded','refunded') AND EXISTS(SELECT 1 FROM tax_quotes t WHERE t.order_id=o.id AND t.sales_tax_provider='stripe')
 			AND NOT EXISTS(SELECT 1 FROM tax_transactions t WHERE t.order_id=o.id AND t.provider='stripe' AND t.status='recorded')))

@@ -49,6 +49,10 @@ func alertsIncreaseTaxQuote(ctx context.Context, provider string, slots int64, m
 }
 
 func alertsPriceTaxQuote(ctx context.Context, provider string, price servicebilling.AlertsPrice, address *types.ShopAddress, calculate func(*stripe.TaxCalculationParams) (*stripe.TaxCalculation, error)) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
+	return alertsProductPriceTaxQuote(ctx, provider, servicebilling.AlertsProduct, price, address, calculate)
+}
+
+func alertsProductPriceTaxQuote(ctx context.Context, provider, product string, price servicebilling.AlertsPrice, address *types.ShopAddress, calculate func(*stripe.TaxCalculationParams) (*stripe.TaxCalculation, error)) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
 	if !price.End.After(time.Now()) {
 		return nil, nil, servicebilling.ErrAlertsPrice
 	}
@@ -64,7 +68,7 @@ func alertsPriceTaxQuote(ctx context.Context, provider string, price servicebill
 		CustomerDetails: &stripe.TaxCalculationCustomerDetailsParams{AddressSource: stripe.String("billing"), Address: &stripe.AddressParams{
 			Line1: stripe.String(strings.TrimSpace(address.Line1)), Line2: stripe.String(strings.TrimSpace(address.Line2)), City: stripe.String(strings.TrimSpace(address.City)), State: stripe.String(strings.TrimSpace(address.Region)), Country: stripe.String(strings.ToUpper(strings.TrimSpace(address.Country))),
 		}},
-		LineItems: []*stripe.TaxCalculationLineItemParams{{Amount: stripe.Int64(price.TotalCents), Quantity: stripe.Int64(price.Slots), Reference: stripe.String("alerts.repository-slots"), TaxBehavior: stripe.String("inclusive"), TaxCode: stripe.String(taxCode)}},
+		LineItems: []*stripe.TaxCalculationLineItemParams{{Amount: stripe.Int64(price.TotalCents), Quantity: stripe.Int64(price.Slots), Reference: stripe.String(product), TaxBehavior: stripe.String("inclusive"), TaxCode: stripe.String(taxCode)}},
 	}
 	if postal := strings.TrimSpace(address.PostalCode); postal != "" {
 		params.CustomerDetails.Address.PostalCode = stripe.String(postal)
@@ -82,7 +86,7 @@ func alertsPriceTaxQuote(ctx context.Context, provider string, price servicebill
 		return nil, nil, fmt.Errorf("tax calculation does not match the inclusive Alerts price")
 	}
 	line := calculation.LineItems.Data[0]
-	if line == nil || line.Amount != price.TotalCents || line.AmountTax != calculation.TaxAmountInclusive || line.Quantity != price.Slots || line.Reference != "alerts.repository-slots" || line.TaxBehavior != "inclusive" || line.TaxCode != taxCode {
+	if line == nil || line.Amount != price.TotalCents || line.AmountTax != calculation.TaxAmountInclusive || line.Quantity != price.Slots || line.Reference != product || line.TaxBehavior != "inclusive" || line.TaxCode != taxCode {
 		return nil, nil, fmt.Errorf("tax line does not match the Alerts purchase")
 	}
 	expiry := time.Unix(calculation.ExpiresAt, 0).UTC()
@@ -95,7 +99,10 @@ func alertsPriceTaxQuote(ctx context.Context, provider string, price servicebill
 	if !expiry.After(now) {
 		return nil, nil, servicebilling.ErrAlertsPrice
 	}
-	quote := &getters.ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional projects", Provider: provider, Quantity: price.Slots, UnitCents: price.UnitCents, TotalCents: price.TotalCents, TaxCents: calculation.TaxAmountInclusive, PeriodStart: &price.Start, PeriodEnd: &price.End, ExpiresAt: expiry}
+	quote := &getters.ServiceQuote{ProductCode: product, Name: "Bitcoin++ Alerts additional projects", Provider: provider, Quantity: price.Slots, UnitCents: price.UnitCents, TotalCents: price.TotalCents, TaxCents: calculation.TaxAmountInclusive, PeriodStart: &price.Start, PeriodEnd: &price.End, ExpiresAt: expiry}
+	if product == servicebilling.AlertsFiftyProduct {
+		quote.Name = "Bitcoin++ Alerts — up to 50 projects"
+	}
 	tax := &getters.TaxQuoteInput{Provider: types.TaxProviderStripe, ProviderQuoteID: calculation.ID, SalesTaxAmountCents: uint(calculation.TaxAmountInclusive), RawResponse: "{}", ExpiresAt: &expiry}
 	return quote, tax, nil
 }

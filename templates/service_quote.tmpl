@@ -26,7 +26,7 @@
 {{ end }}
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
 </section><aside class="service-summary" aria-label="Order summary"><img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360"><div class="service-summary__body"><h2><span class="service-wordmark">bitcoin++</span> Alerts</h2><dl>
-<div><dt>Projects added beyond your free three</dt><dd>{{ .Stored.Quote.Quantity }}</dd></div>
+{{ if eq .Stored.Quote.ProductCode "alerts.projects-50.annual" }}<div><dt>Total projects</dt><dd>Up to 50</dd></div>{{ else }}<div><dt>Projects added beyond your free three</dt><dd>{{ .Stored.Quote.Quantity }}</dd></div>{{ end }}
 <div><dt>{{ if .Stored.Quote.BaseOrderID }}Prorated total{{ else }}Term total{{ end }} (USD, including tax)</dt><dd>{{ .Total }}</dd></div>
 <div><dt>Included tax</dt><dd>{{ .Tax }}</dd></div>
 {{ with .Stored.Quote.PeriodStart }}<div><dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd></div>{{ end }}

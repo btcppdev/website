@@ -90,6 +90,9 @@ func activateServiceLegalPolicyTx(ctx context.Context, tx pgx.Tx, product, versi
 }
 
 func CurrentServiceLegalPolicy(app *config.AppContext, product string) (*ServiceLegalPolicy, error) {
+	if product == servicebilling.AlertsFiftyProduct {
+		product = servicebilling.AlertsProduct
+	}
 	p := &ServiceLegalPolicy{ProductCode: product}
 	err := app.DB.QueryRow(app.DatabaseContext(), `SELECT r.version,r.terms_text,r.privacy_text,r.content_sha256,r.effective_at FROM service_legal_current c JOIN service_legal_revisions r USING(product_code,version) WHERE c.product_code=$1`, product).Scan(&p.Version, &p.TermsText, &p.PrivacyText, &p.ContentSHA256, &p.EffectiveAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -99,6 +102,9 @@ func CurrentServiceLegalPolicy(app *config.AppContext, product string) (*Service
 }
 
 func serviceLegalAcceptanceTx(ctx context.Context, tx pgx.Tx, product, version string) (*servicebilling.LegalAcceptance, error) {
+	if product == servicebilling.AlertsFiftyProduct {
+		product = servicebilling.AlertsProduct
+	}
 	// Share the activation lock, including when no policy has yet been activated.
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-policy:"+product); err != nil {
 		return nil, err

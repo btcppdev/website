@@ -58,8 +58,8 @@
       <h2><span class="service-wordmark">bitcoin++</span> Alerts</h2>
       <p class="service-note">Software release notifications, delivered by email and Telegram.</p>
       <dl>
-        <div><dt>Free projects</dt><dd>3 included</dd></div>
-        <div><dt>Additional projects</dt><dd>{{ .Slots }}</dd></div>
+        {{ if .Fifty }}<div><dt>Projects included</dt><dd>Up to 50 total</dd></div>{{ else }}<div><dt>Free projects</dt><dd>3 included</dd></div>
+        <div><dt>Additional projects</dt><dd>{{ .Slots }}</dd></div>{{ end }}
         <div><dt>Billing period</dt><dd>Yearly</dd></div>
         <div class="service-total"><dt>Annual total</dt><dd>{{ .Total }}</dd></div>
       </dl>

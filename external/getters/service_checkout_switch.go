@@ -8,6 +8,7 @@ import (
 
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
 )
@@ -30,7 +31,7 @@ func ConfirmServiceCheckoutQuoteWithCardEndConsent(ctx context.Context, app *con
 	if err != nil {
 		return nil, err
 	}
-	if stored.Quote.ProductCode != "alerts.repository-slots" || stored.Quote.Provider != "opennode" || !stored.Quote.ExpiresAt.After(time.Now()) {
+	if !servicebilling.IsAlertsProduct(stored.Quote.ProductCode) || stored.Quote.Provider != "opennode" || !stored.Quote.ExpiresAt.After(time.Now()) {
 		return nil, ErrServiceQuote
 	}
 	policy, err := CurrentServiceLegalPolicy(app, stored.Quote.ProductCode)

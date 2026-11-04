@@ -15,7 +15,7 @@ func CancelAlertsStripeCheckout(ctx context.Context, app *config.AppContext, per
 		return err
 	}
 	result, err := app.DB.Exec(ctx, `UPDATE service_stripe_checkouts c SET closed_at=now()
- WHERE c.id=$1 AND c.person_id=$2 AND c.product_code='alerts.repository-slots' AND c.closed_at IS NULL
+ WHERE c.id=$1 AND c.person_id=$2 AND c.product_family='alerts' AND c.closed_at IS NULL
  AND c.provider_started_at IS NULL AND c.stripe_session_id IS NULL
  AND NOT EXISTS(SELECT 1 FROM service_stripe_subscriptions s WHERE s.checkout_id=c.id)`, id, person)
 	if err != nil || result.RowsAffected() == 1 {

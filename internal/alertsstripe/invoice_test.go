@@ -90,3 +90,34 @@ func TestPaidInvoiceUsesAuthenticatedLookups(t *testing.T) {
 		t.Fatal("wrong tax classification accepted")
 	}
 }
+
+// Old payments remain valid after the price cut; amounts must still match the
+// authenticated, bound Stripe price exactly at either supported rate.
+func TestAnnualInvoiceCurrentAndLegacyRates(t *testing.T) {
+	for _, unit := range []int64{1200, 2400} {
+		inv, price, b := invoiceFixture(t)
+		price.UnitAmount = unit
+		inv.Total = unit * b.PaidSlots
+		inv.AmountPaid = inv.Total
+		inv.Lines.Data[0].Amount = inv.Total
+		paid, err := VerifyAnnualInvoice(inv, price, b)
+		if err != nil || paid.TotalCents != inv.Total {
+			t.Fatalf("unit=%d paid=%+v err=%v", unit, paid, err)
+		}
+		price.UnitAmount = 3600 - unit
+		if _, err := VerifyAnnualInvoice(inv, price, b); err == nil {
+			t.Fatal("accepted amount from a different rate")
+		}
+	}
+}
+
+func TestDecreaseUsesBoundSubscriptionRate(t *testing.T) {
+	for _, unit := range []int64{1200, 2400} {
+		c, b, sub, _, _, now, _ := increaseFixture(t)
+		sub.Items.Data[0].Price.UnitAmount = unit
+		q, err := c.PreviewDecrease(context.Background(), b, 1, now)
+		if err != nil || q.AnnualCents != unit {
+			t.Fatalf("unit=%d quote=%+v err=%v", unit, q, err)
+		}
+	}
+}

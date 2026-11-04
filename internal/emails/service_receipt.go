@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/servicebilling"
 )
 
 //go:embed service_receipt.html
@@ -46,7 +47,7 @@ func ServiceReceiptMail(order *getters.ServiceOrderView, recipient, baseURI stri
 		ID, Name, Total, Tax, Start, End, ReceiptURL, LogoURL string
 		Quantity                                              int64
 		Alerts                                                bool
-	}{order.PublicID, order.Quote.Name, money(order.TotalCents), money(order.TaxCents), format(order.Quote.PeriodStart), format(order.Quote.PeriodEnd), receiptURL, strings.TrimRight(base.String(), "/") + "/static/img/receipt-wordmark.png", order.Quote.Quantity, order.Quote.ProductCode == "alerts.repository-slots"}
+	}{order.PublicID, order.Quote.Name, money(order.TotalCents), money(order.TaxCents), format(order.Quote.PeriodStart), format(order.Quote.PeriodEnd), receiptURL, strings.TrimRight(base.String(), "/") + "/static/img/receipt-wordmark.png", order.Quote.Quantity, servicebilling.IsAlertsProduct(order.Quote.ProductCode)}
 	var html bytes.Buffer
 	if err = serviceReceiptTemplate.Execute(&html, data); err != nil {
 		return nil, err

@@ -20,6 +20,7 @@ var ErrReconcile = errors.New("existing Stripe checkout must be reconciled")
 type CheckoutIntent struct {
 	ID, PersonID, Email, ProductCode, TaxCode string
 	Quantity                                  int64
+	UnitCents                                 int64
 	CreatedAt                                 time.Time
 	ReturnOrigin, SuccessURL, CancelURL       string
 }
@@ -45,6 +46,15 @@ func CheckoutParams(ctx context.Context, in CheckoutIntent, now time.Time) (*str
 	plan, _, err := servicebilling.ProductTerm(in.ProductCode, "stripe", in.Quantity, in.CreatedAt)
 	if err != nil {
 		return nil, ErrCheckout
+	}
+	if in.UnitCents != 0 {
+		if in.UnitCents != plan.UnitCents && !(plan.Code == servicebilling.AlertsProduct && in.UnitCents == servicebilling.LegacyAlertsAnnualSlotCents) {
+			return nil, ErrCheckout
+		}
+		plan.UnitCents = in.UnitCents
+		if in.Quantity > 2147483647/plan.UnitCents {
+			return nil, ErrCheckout
+		}
 	}
 	// Stripe permits sessions lasting 30 minutes to 24 hours. A fixed two-hour
 	// expiry permits retry for 90 minutes without changing idempotent parameters.

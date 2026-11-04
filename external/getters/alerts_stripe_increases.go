@@ -31,7 +31,7 @@ func SaveAlertsStripeIncreaseQuote(ctx context.Context, app *config.AppContext, 
 	if _, err := servicebilling.AlertsTerm("stripe", preview.PaidSlots, 12, now); err != nil {
 		return nil, err
 	}
-	if preview.TotalCents > (preview.PaidSlots-preview.PreviousSlots)*servicebilling.AlertsAnnualSlotCents {
+	if preview.TotalCents > (preview.PaidSlots-preview.PreviousSlots)*preview.AnnualSlotCents() {
 		return nil, alertsstripe.ErrSubscription
 	}
 	tx, err := app.DB.Begin(ctx)

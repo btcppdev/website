@@ -3,6 +3,7 @@ package getters
 import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"btcpp-web/internal/servicestripe"
 	"context"
 	"encoding/json"
@@ -65,7 +66,7 @@ func ReconcileDeletedAccountCancellation(ctx context.Context, app *config.AppCon
 			reference = found
 			return nil
 		}
-		if product == "alerts.repository-slots" {
+		if servicebilling.IsAlertsProduct(product) {
 			var in alertsstripe.Intent
 			if json.Unmarshal(intent, &in) != nil || in.ID != id || in.PersonID != person {
 				return finish("review", servicestripe.ErrCheckout)
@@ -135,7 +136,7 @@ func ReconcileDeletedAccountCancellation(ctx context.Context, app *config.AppCon
 		}
 	}
 	var state servicestripe.SubscriptionState
-	if product == "alerts.repository-slots" {
+	if servicebilling.IsAlertsProduct(product) {
 		var binding alertsstripe.Binding
 		if json.Unmarshal(raw, &binding) != nil || binding.PersonID != person || binding.IntentID != id || binding.SubscriptionID != subscription {
 			return finish("review", servicestripe.ErrSubscription)

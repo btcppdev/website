@@ -6,11 +6,15 @@ import (
 )
 
 const (
-	AlertsProduct               = "alerts.repository-slots"
-	InsiderMonthlyProduct       = "insider.membership.monthly"
-	InsiderAnnualProduct        = "insider.membership.annual"
-	InsiderMonthlyCents   int64 = 2100
-	InsiderAnnualCents    int64 = 21000
+	AlertsProduct                 = "alerts.repository-slots"
+	AlertsFiftyProduct            = "alerts.projects-50.annual"
+	AlertsFiftyMonthlyCents int64 = 1500
+	AlertsFiftyAnnualCents  int64 = 12 * AlertsFiftyMonthlyCents
+	AlertsFiftyProjectLimit int64 = 50
+	InsiderMonthlyProduct         = "insider.membership.monthly"
+	InsiderAnnualProduct          = "insider.membership.annual"
+	InsiderMonthlyCents     int64 = 2100
+	InsiderAnnualCents      int64 = 21000
 )
 
 var ErrProductPlan = errors.New("unsupported service product or plan")
@@ -29,6 +33,8 @@ func LookupProductPlan(code string) (ProductPlan, error) {
 	switch code {
 	case AlertsProduct:
 		return ProductPlan{Code: code, Family: "alerts", Name: "Bitcoin++ Alerts additional repositories", Currency: "usd", TaxBehavior: "inclusive", Months: 12, UnitCents: AlertsAnnualSlotCents, MaxQuantity: maxOrderCents / AlertsAnnualSlotCents, StripeTaxCode: AlertsStripeTaxCode}, nil
+	case AlertsFiftyProduct:
+		return ProductPlan{Code: code, Family: "alerts", Name: "Bitcoin++ Alerts — up to 50 projects", Currency: "usd", TaxBehavior: "inclusive", Months: 12, UnitCents: AlertsFiftyAnnualCents, MaxQuantity: 1, StripeTaxCode: AlertsStripeTaxCode}, nil
 	case InsiderMonthlyProduct:
 		return ProductPlan{Code: code, Family: "insider", Name: "Bitcoin++ Insider one-month membership", Currency: "usd", TaxBehavior: "exclusive", Months: 1, UnitCents: InsiderMonthlyCents, MaxQuantity: 1}, nil
 	case InsiderAnnualProduct:
@@ -51,3 +57,5 @@ func ProductTerm(code, provider string, quantity int64, start time.Time) (Produc
 	}
 	return plan, monthBoundary(start.UTC(), plan.Months), nil
 }
+
+func IsAlertsProduct(code string) bool { return code == AlertsProduct || code == AlertsFiftyProduct }

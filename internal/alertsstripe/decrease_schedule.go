@@ -46,7 +46,7 @@ func (c Client) SetDecreaseSchedule(ctx context.Context, b Binding, id, schedule
 		return nil, err
 	}
 	state, err := verifySubscription(sub, b)
-	if err != nil || state.State != "active" || state.ProviderStatus != "active" || state.PeriodStart != q.PeriodStart || state.PeriodEnd != q.EffectiveAt || sub.Schedule == nil || sub.Schedule.ID != scheduleID || sub.PendingUpdate != nil || sub.CollectionMethod != "charge_automatically" || len(sub.Discounts) != 0 || len(sub.Items.Data[0].Discounts) != 0 {
+	if err != nil || q.AnnualCents != q.PaidSlots*sub.Items.Data[0].Price.UnitAmount || state.State != "active" || state.ProviderStatus != "active" || state.PeriodStart != q.PeriodStart || state.PeriodEnd != q.EffectiveAt || sub.Schedule == nil || sub.Schedule.ID != scheduleID || sub.PendingUpdate != nil || sub.CollectionMethod != "charge_automatically" || len(sub.Discounts) != 0 || len(sub.Items.Data[0].Discounts) != 0 {
 		return nil, ErrSubscription
 	}
 	if verifiedDecreasePhases(s, b, id, q) {

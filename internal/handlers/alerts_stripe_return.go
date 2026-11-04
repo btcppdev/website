@@ -13,12 +13,12 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
-	"btcpp-web/internal/servicebilling"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
 )
 
 type alertsStripeReturnPage struct {
+	Fifty                                           bool
 	ID, Heading, Message, Total, CSRF, CheckMessage string
 	Slots                                           int64
 	CanPay                                          bool
@@ -27,8 +27,8 @@ type alertsStripeReturnPage struct {
 }
 
 func alertsStripeReturnPresentation(stored *getters.AlertsStripeCheckout, bound, enabled bool, now time.Time) alertsStripeReturnPage {
-	total := stored.Intent.PaidSlots * servicebilling.AlertsAnnualSlotCents
-	page := alertsStripeReturnPage{ID: stored.Intent.ID, Slots: stored.Intent.PaidSlots, Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Heading: "Awaiting payment confirmation", Message: "Payment has not yet been verified. If you just paid, refresh this page shortly to check again."}
+	total := stored.Intent.PaidSlots * stored.Intent.AnnualSlotCents()
+	page := alertsStripeReturnPage{Fifty: stored.Intent.ProductCode == "alerts.projects-50.annual", ID: stored.Intent.ID, Slots: stored.Intent.PaidSlots, Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Heading: "Awaiting payment confirmation", Message: "Payment has not yet been verified. If you just paid, refresh this page shortly to check again."}
 	page.CanCheck = enabled && stored.Reference != "" && !stored.Closed
 	page.CanCancel = enabled && !bound && !stored.Closed
 	if stored.Closed {

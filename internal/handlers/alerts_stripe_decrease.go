@@ -5,7 +5,6 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
-	"btcpp-web/internal/servicebilling"
 	"bytes"
 	"context"
 	"errors"
@@ -159,7 +158,7 @@ func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.Ap
 		case "released":
 			page.Message = "The planned decrease was withdrawn. Your existing annual plan continues. You can manage or cancel future renewals from billing."
 			page.Retained = true
-			page.Annual = fmt.Sprintf("$%d.00", q.PreviousSlots*servicebilling.AlertsAnnualSlotCents/100)
+			page.Annual = fmt.Sprintf("$%d.00", q.PreviousSlots*(q.AnnualCents/q.PaidSlots)/100)
 		default:
 			page.Message = "Your withdrawal request needs review. Contact support before submitting another billing change."
 		}

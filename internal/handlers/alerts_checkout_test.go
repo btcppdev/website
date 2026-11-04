@@ -32,7 +32,7 @@ func TestPrepareAlertsCheckout(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if quote.TotalCents != int64(term.months)*400 || quote.Quantity != 2 || quote.AccountRevision != state.Revision || quote.BillingMonths != term.months || quote.BaseOrderID != "" {
+			if quote.TotalCents != int64(term.months)*200 || quote.Quantity != 2 || quote.AccountRevision != state.Revision || quote.BillingMonths != term.months || quote.BaseOrderID != "" {
 				t.Fatalf("incorrect new term: %+v", quote)
 			}
 			state.Orders = []getters.AlertsBillingOrder{{OrderID: "base", Status: "paid", Quote: *quote, Granted: true}}
@@ -42,7 +42,7 @@ func TestPrepareAlertsCheckout(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if increase.TotalCents != int64(term.months)*100 || increase.Quantity != 1 || increase.BaseOrderID != "base" || increase.AccountRevision != state.Revision || !increase.PeriodEnd.Equal(*quote.PeriodEnd) {
+			if increase.TotalCents != int64(term.months)*50 || increase.Quantity != 1 || increase.BaseOrderID != "base" || increase.AccountRevision != state.Revision || !increase.PeriodEnd.Equal(*quote.PeriodEnd) {
 				t.Fatalf("incorrect increase: %+v", increase)
 			}
 			state.Orders = append(state.Orders, getters.AlertsBillingOrder{OrderID: "upgrade", Status: "paid", Granted: true, Quote: *increase})
@@ -72,7 +72,7 @@ func TestPrepareAlertsCheckout(t *testing.T) {
 func TestPrepareAlertsCheckoutUnresolvedState(t *testing.T) {
 	now := time.Now().UTC()
 	full, _ := servicebilling.AlertsTerm("opennode", 1, 12, now)
-	quote := getters.ServiceQuote{Provider: "opennode", Quantity: 1, UnitCents: 1200, TotalCents: 1200, PeriodStart: &full.Start, PeriodEnd: &full.End, ExpiresAt: now.Add(time.Minute)}
+	quote := getters.ServiceQuote{Provider: "opennode", Quantity: 1, UnitCents: 600, TotalCents: 600, PeriodStart: &full.Start, PeriodEnd: &full.End, ExpiresAt: now.Add(time.Minute)}
 	for _, tc := range []struct {
 		name  string
 		order getters.AlertsBillingOrder
@@ -116,5 +116,24 @@ func TestAlertsPendingOrder(t *testing.T) {
 				t.Fatalf("unexpected pending order: %q", got)
 			}
 		})
+	}
+}
+
+func TestLegacyPrepaidUpgradeAfterPriceCut(t *testing.T) {
+	for _, months := range []int{12, 24, 120} {
+		for _, recordedMonths := range []int{0, months} {
+			start := time.Now().UTC().Truncate(time.Second)
+			full, _ := servicebilling.AlertsTerm("opennode", 2, months, start)
+			quote := getters.ServiceQuote{Provider: "opennode", Quantity: 2, UnitCents: int64(months) * 200, TotalCents: int64(months) * 400, BillingMonths: recordedMonths, PeriodStart: &full.Start, PeriodEnd: &full.End}
+			state := &getters.AlertsBillingState{Revision: "legacy", Orders: []getters.AlertsBillingOrder{{OrderID: "base", Status: "paid", Granted: true, Quote: quote}}}
+			calculate := func(p *stripe.TaxCalculationParams) (*stripe.TaxCalculation, error) {
+				line := p.LineItems[0]
+				return &stripe.TaxCalculation{ID: "taxcalc_legacy", Currency: "usd", AmountTotal: *line.Amount, ExpiresAt: time.Now().Add(time.Hour).Unix(), LineItems: &stripe.TaxCalculationLineItemList{Data: []*stripe.TaxCalculationLineItem{{Amount: *line.Amount, Quantity: *line.Quantity, Reference: *line.Reference, TaxBehavior: "inclusive", TaxCode: *line.TaxCode}}}}, nil
+			}
+			result, _, err := prepareAlertsCheckout(context.Background(), state, "opennode", 3, months, start.Add(full.End.Sub(start)/2), &types.ShopAddress{Line1: "101 Main St", City: "Austin", Country: "US"}, calculate)
+			if err != nil || result.TotalCents != int64(months)*50 || result.BillingMonths != months || !result.PeriodEnd.Equal(full.End) {
+				t.Fatalf("months=%d stored=%d quote=%+v err=%v", months, recordedMonths, result, err)
+			}
+		}
 	}
 }

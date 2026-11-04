@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"github.com/google/uuid"
 )
 
@@ -49,7 +50,7 @@ func initOpenNodeServiceCharge(ctx context.Context, app *config.AppContext, pers
 		return "", ErrServiceChargeReconciliation
 	}
 	description := "Bitcoin++ service order " + attempt.OrderPublicID
-	if attempt.ProductCode == "alerts.repository-slots" {
+	if servicebilling.IsAlertsProduct(attempt.ProductCode) {
 		description = "bitcoin++ alerts subscription - order " + attempt.OrderPublicID
 	}
 	payload, err := json.Marshal(map[string]any{

@@ -41,7 +41,7 @@ func (c Client) SubmitIncrease(ctx context.Context, b Binding, in IncreaseIntent
 	if err != nil {
 		return nil, err
 	}
-	if fresh.SubscriptionItemID != q.SubscriptionItemID || fresh.PeriodStart != q.PeriodStart || fresh.PeriodEnd != q.PeriodEnd || fresh.TotalCents != q.TotalCents || fresh.TaxCents != q.TaxCents || !fresh.ExpiresAt.Equal(q.ExpiresAt) {
+	if fresh.AnnualSlotCents() != q.AnnualSlotCents() || fresh.SubscriptionItemID != q.SubscriptionItemID || fresh.PeriodStart != q.PeriodStart || fresh.PeriodEnd != q.PeriodEnd || fresh.TotalCents != q.TotalCents || fresh.TaxCents != q.TaxCents || !fresh.ExpiresAt.Equal(q.ExpiresAt) {
 		return nil, ErrSubscription
 	}
 	p := &stripe.SubscriptionParams{

@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"btcpp-web/internal/servicebilling"
 	"context"
 	"encoding/json"
 	"errors"
@@ -57,7 +58,7 @@ func FulfillServicePurchase(app *config.AppContext, orderID string) (string, err
 		return "", err
 	}
 	// Insider access is granted by its own fulfillment receiver, not here.
-	if quote.ProductCode != "alerts.repository-slots" {
+	if !servicebilling.IsAlertsProduct(quote.ProductCode) {
 		return "", ErrServiceFulfillment
 	}
 	if quote.PeriodEnd != nil && !quote.PeriodEnd.After(time.Now()) {

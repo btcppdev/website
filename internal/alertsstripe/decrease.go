@@ -56,7 +56,7 @@ func (c Client) attachDecreaseSchedule(ctx context.Context, b Binding, id string
 		return "", err
 	}
 	state, err := verifySubscription(sub, b)
-	if err != nil || state.State != "active" || state.ProviderStatus != "active" || state.PeriodStart != q.PeriodStart || state.PeriodEnd != q.EffectiveAt || sub.PendingUpdate != nil || sub.CollectionMethod != "charge_automatically" || len(sub.Discounts) != 0 || len(sub.Items.Data[0].Discounts) != 0 {
+	if err != nil || q.AnnualCents != q.PaidSlots*sub.Items.Data[0].Price.UnitAmount || state.State != "active" || state.ProviderStatus != "active" || state.PeriodStart != q.PeriodStart || state.PeriodEnd != q.EffectiveAt || sub.PendingUpdate != nil || sub.CollectionMethod != "charge_automatically" || len(sub.Discounts) != 0 || len(sub.Items.Data[0].Discounts) != 0 {
 		return "", ErrSubscription
 	}
 	// Stripe's from_subscription call cannot include phase changes or metadata.
@@ -83,7 +83,7 @@ func (c Client) attachDecreaseSchedule(ctx context.Context, b Binding, id string
 }
 
 func (c Client) PreviewDecrease(ctx context.Context, b Binding, slots int64, now time.Time) (*DecreasePreview, error) {
-	if c.Subscription == nil || c.Live != b.Live || slots < 0 || slots >= b.PaidSlots {
+	if b.Product() != servicebilling.AlertsProduct || c.Subscription == nil || c.Live != b.Live || slots < 0 || slots >= b.PaidSlots {
 		return nil, ErrSubscription
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -100,7 +100,7 @@ func (c Client) PreviewDecrease(ctx context.Context, b Binding, slots int64, now
 		return nil, ErrSubscription
 	}
 	now = now.UTC().Truncate(time.Second)
-	out := &DecreasePreview{PreviousSlots: b.PaidSlots, PaidSlots: slots, PeriodStart: state.PeriodStart, EffectiveAt: state.PeriodEnd, AnnualCents: slots * servicebilling.AlertsAnnualSlotCents, ExpiresAt: now.Add(10 * time.Minute)}
+	out := &DecreasePreview{PreviousSlots: b.PaidSlots, PaidSlots: slots, PeriodStart: state.PeriodStart, EffectiveAt: state.PeriodEnd, AnnualCents: slots * sub.Items.Data[0].Price.UnitAmount, ExpiresAt: now.Add(10 * time.Minute)}
 	if end := time.Unix(state.PeriodEnd, 0).UTC(); out.ExpiresAt.After(end) {
 		out.ExpiresAt = end
 	}
@@ -114,7 +114,7 @@ func decreaseScheduleParams(ctx context.Context, b Binding, id string, q Decreas
 	if _, err := uuid.Parse(id); err != nil {
 		return nil, ErrSubscription
 	}
-	if q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= b.PaidSlots || q.AnnualCents != q.PaidSlots*servicebilling.AlertsAnnualSlotCents || q.PeriodStart <= 0 || q.PeriodStart > now.Unix() || q.EffectiveAt <= now.Unix() || !now.Before(q.ExpiresAt) || q.ExpiresAt.Unix() > q.EffectiveAt {
+	if q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= b.PaidSlots || !servicebilling.ValidAlertsAnnualTotal(q.PaidSlots, q.AnnualCents) || q.PeriodStart <= 0 || q.PeriodStart > now.Unix() || q.EffectiveAt <= now.Unix() || !now.Before(q.ExpiresAt) || q.ExpiresAt.Unix() > q.EffectiveAt {
 		return nil, ErrSubscription
 	}
 	phase := func(slots int64) *stripe.SubscriptionSchedulePhaseParams {
