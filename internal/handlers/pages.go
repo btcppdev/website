@@ -1194,6 +1194,7 @@ type ShiftSignupPage struct {
 }
 
 type VolAdminPage struct {
+	RosterCSRF             string
 	Conf                   *types.Conf
 	Volunteers             []*types.Volunteer
 	Shifts                 []*types.WorkShift

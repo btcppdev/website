@@ -78,13 +78,15 @@ type PersonNostrCredential struct {
 }
 
 type PersonPasswordCredential struct {
-	PersonID          string
-	PasswordHash      string
-	FailedAttempts    int
-	LockedUntil       *time.Time
-	CreatedAt         time.Time
-	PasswordChangedAt time.Time
-	UpdatedAt         time.Time
+	MustChangePassword bool
+	TemporaryExpiresAt *time.Time
+	PersonID           string
+	PasswordHash       string
+	FailedAttempts     int
+	LockedUntil        *time.Time
+	CreatedAt          time.Time
+	PasswordChangedAt  time.Time
+	UpdatedAt          time.Time
 }
 
 type PersonPasskeyCredential struct {

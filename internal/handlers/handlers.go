@@ -1250,6 +1250,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		VolAdmin(w, r, app)
 	}).Methods("GET")
 
+	r.HandleFunc("/{conf}/volcoord/add", func(w http.ResponseWriter, r *http.Request) { VolAdminAdd(w, r, app) }).Methods("POST")
 	r.HandleFunc("/{conf}/volcoord/send-orientation", func(w http.ResponseWriter, r *http.Request) {
 		SendVolOrientation(w, r, app)
 	}).Methods("POST")
@@ -1490,6 +1491,8 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/signer/authorize/resume", func(w http.ResponseWriter, r *http.Request) {
 		ManagedSignerAuthorizeResume(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/change-temporary-password", func(w http.ResponseWriter, r *http.Request) { ChangeTemporaryPassword(w, r, app) }).Methods("GET", "POST")
+	r.HandleFunc("/admin/people/temporary-password", func(w http.ResponseWriter, r *http.Request) { AdminTemporaryPassword(w, r, app) }).Methods("GET", "POST")
 	r.HandleFunc("/login/password", func(w http.ResponseWriter, r *http.Request) {
 		PasswordLogin(w, r, app)
 	}).Methods("POST")
@@ -8179,7 +8182,13 @@ func VolAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	orientStartInput, orientEndInput := orientationInputValues(volinfo, conf)
 	orientationRecipientCt := len(dedupeAttendees(append(scheduledVolunteerAttendees(allVols), orientationStaffRecipients(ctx, conf.Tag)...)))
 
+	csrf, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		http.Error(w, "Unable to secure roster form", 500)
+		return
+	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, "volunteers/admin.tmpl", &VolAdminPage{
+		RosterCSRF:             csrf,
 		Conf:                   conf,
 		Volunteers:             vols,
 		Shifts:                 shifts,

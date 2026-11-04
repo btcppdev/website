@@ -44,6 +44,8 @@ func PasswordLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	credentialHash := auth.DummyPasswordHash()
 	personID := ""
 	var lockedUntil *time.Time
+	var mustChange bool
+	var temporaryExpires *time.Time
 	resolution, err := getters.ResolvePersonByEmail(ctx, email)
 	if err == nil && !resolution.IsConflict() && resolution.Alias != nil {
 		personID = resolution.Alias.PersonID
@@ -53,6 +55,8 @@ func PasswordLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		} else if credential != nil {
 			credentialHash = credential.PasswordHash
 			lockedUntil = credential.LockedUntil
+			mustChange = credential.MustChangePassword
+			temporaryExpires = credential.TemporaryExpiresAt
 		}
 	}
 	passwordWithinLimit := len([]rune(password)) <= auth.MaxPasswordLength
@@ -61,7 +65,7 @@ func PasswordLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	valid := passwordWithinLimit && auth.CheckPassword(credentialHash, password)
 	locked := lockedUntil != nil && lockedUntil.After(time.Now())
-	if personID == "" || !valid || locked {
+	if personID == "" || !valid || locked || (mustChange && (temporaryExpires == nil || !temporaryExpires.After(time.Now()))) {
 		if personID != "" && !valid {
 			_ = getters.RecordPasswordFailure(ctx, personID)
 		}
@@ -71,6 +75,15 @@ func PasswordLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	if err := getters.RecordPasswordSuccess(ctx, personID); err != nil {
 		ctx.Err.Printf("password login reset failures: %s", err)
+	}
+	if mustChange {
+		if err := beginTemporaryPasswordChange(ctx, r, personID, credentialHash, next); err != nil {
+			http.Error(w, "Unable to start password change", 500)
+			return
+		}
+		recordAuthAudit(ctx, r, personID, string(auth.MethodPassword), "temporary_password_verified", nil)
+		http.Redirect(w, r, "/change-temporary-password", http.StatusSeeOther)
+		return
 	}
 	if err := auth.LoginPerson(ctx, r, personID, auth.MethodPassword); err != nil {
 		ctx.Err.Printf("password login session: %s", err)

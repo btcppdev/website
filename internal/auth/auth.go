@@ -375,6 +375,7 @@ func establishSession(ctx *config.AppContext, r *http.Request, personID, loginEm
 	if err := ctx.Session.RenewToken(r.Context()); err != nil {
 		return fmt.Errorf("renew session: %w", err)
 	}
+	ClearTemporaryPasswordProof(ctx, r)
 	ctx.Session.Remove(r.Context(), SessionPersonIDKey)
 	ctx.Session.Remove(r.Context(), SessionEmailKey)
 	ctx.Session.Remove(r.Context(), SessionMethodKey)
@@ -402,9 +403,21 @@ func establishSession(ctx *config.AppContext, r *http.Request, personID, loginEm
 	return nil
 }
 
-// Logout drops both established and pending identity state, including the
-// proof metadata used for future step-up authentication.
+// Temporary-password proofs are restricted to the password replacement form.
+const TemporaryPasswordPersonKey = "temporary-password-person"
+const TemporaryPasswordProofKey = "temporary-password-proof"
+const TemporaryPasswordUntilKey = "temporary-password-until"
+const TemporaryPasswordNextKey = "temporary-password-next"
+
+func ClearTemporaryPasswordProof(ctx *config.AppContext, r *http.Request) {
+	for _, key := range []string{TemporaryPasswordPersonKey, TemporaryPasswordProofKey, TemporaryPasswordUntilKey, TemporaryPasswordNextKey} {
+		ctx.Session.Remove(r.Context(), key)
+	}
+}
+
+// Logout drops both established identity and pending password-change proof.
 func Logout(ctx *config.AppContext, r *http.Request) {
+	ClearTemporaryPasswordProof(ctx, r)
 	ctx.Session.Remove(r.Context(), SessionPersonIDKey)
 	ctx.Session.Remove(r.Context(), SessionEmailKey)
 	ctx.Session.Remove(r.Context(), SessionMethodKey)

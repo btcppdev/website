@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"net/mail"
 	"strings"
 	"time"
 )
@@ -50,6 +51,30 @@ func GetVolInfoMap(ctx *config.AppContext) (map[string]*types.VolInfo, error) {
 // registerConfirmedVolunteer persists an application only after the applicant
 // has proved control of the submitted email address.
 func registerConfirmedVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
+	return registerVolunteer(ctx, vol, true)
+}
+
+// AddVolunteerToRoster adds a volunteer whose email ownership the coordinator
+// has explicitly confirmed. It sends no mail and does not issue tickets or roles.
+func AddVolunteerToRoster(ctx *config.AppContext, vol *types.Volunteer) error {
+	if vol == nil {
+		return fmt.Errorf("name and email are required")
+	}
+	vol.Name = strings.TrimSpace(vol.Name)
+	vol.Email = strings.ToLower(strings.TrimSpace(vol.Email))
+	parsed, err := mail.ParseAddress(vol.Email)
+	if err != nil || parsed.Address != vol.Email || vol.Name == "" {
+		return fmt.Errorf("a name and valid email address are required")
+	}
+	vol.Status = "PendingShifts"
+	if vol.Availability == nil {
+		vol.Availability = []string{}
+	}
+	vol.Subscribe = false
+	return registerVolunteer(ctx, vol, false)
+}
+
+func registerVolunteer(ctx *config.AppContext, vol *types.Volunteer, confirmed bool) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
@@ -65,7 +90,7 @@ func registerConfirmedVolunteer(ctx *config.AppContext, vol *types.Volunteer) er
 		}
 	}
 	vol.Shirt = types.ValidShirtSizeCode(vol.Shirt)
-	if vol.Shirt == "" {
+	if confirmed && vol.Shirt == "" {
 		return fmt.Errorf("registerConfirmedVolunteer: valid shirt size required")
 	}
 	if len(vol.ScheduleFor) == 0 || vol.ScheduleFor[0] == nil || vol.ScheduleFor[0].Ref == "" {
@@ -127,8 +152,8 @@ func registerConfirmedVolunteer(ctx *config.AppContext, vol *types.Volunteer) er
 		}
 	} else if err != nil {
 		return fmt.Errorf("resolve volunteer identity %q: %w", vol.Email, err)
-	} else {
-		// This function is called only after the submitted email has confirmed
+	} else if confirmed {
+		// This branch runs only after the submitted email has confirmed
 		// the staged application. Fill missing canonical fields, but never replace
 		// profile data that the person has already maintained.
 		if _, err := tx.Exec(ctx.DatabaseContext(), `

@@ -22,11 +22,11 @@ func GetPersonPasswordCredential(ctx *config.AppContext, personID string) (*type
 	credential := &types.PersonPasswordCredential{}
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT person_id::text, password_hash, failed_attempts, locked_until,
-			created_at, password_changed_at, updated_at
+			created_at, password_changed_at, updated_at, must_change_password, temporary_expires_at
 		FROM person_password_credentials
 		WHERE person_id = $1::uuid
 	`, personID).Scan(&credential.PersonID, &credential.PasswordHash, &credential.FailedAttempts,
-		&credential.LockedUntil, &credential.CreatedAt, &credential.PasswordChangedAt, &credential.UpdatedAt)
+		&credential.LockedUntil, &credential.CreatedAt, &credential.PasswordChangedAt, &credential.UpdatedAt, &credential.MustChangePassword, &credential.TemporaryExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -58,7 +58,7 @@ func SetPersonPassword(ctx *config.AppContext, personID, passwordHash string) (v
 		if _, err := tx.Exec(queryCtx, `
 			UPDATE person_password_credentials
 			SET password_hash = $2, failed_attempts = 0,
-				locked_until = NULL, password_changed_at = now()
+				locked_until = NULL, password_changed_at = now(), must_change_password = false, temporary_expires_at = NULL
 			WHERE person_id = $1::uuid
 		`, personID, strings.TrimSpace(passwordHash)); err != nil {
 			return 0, false, fmt.Errorf("replace password: %w", err)
@@ -159,7 +159,7 @@ func ConsumePasswordResetToken(ctx *config.AppContext, token, passwordHash strin
 		VALUES ($1::uuid, $2)
 		ON CONFLICT (person_id) DO UPDATE SET
 			password_hash = EXCLUDED.password_hash,
-			failed_attempts = 0, locked_until = NULL, password_changed_at = now()
+			failed_attempts = 0, locked_until = NULL, password_changed_at = now(), must_change_password = false, temporary_expires_at = NULL
 	`, personID, passwordHash); err != nil {
 		return "", 0, err
 	}
