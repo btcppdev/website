@@ -20,6 +20,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// Shared by sponsor displays and mutations. Scheduled hacking blocks fill the
+// gap when the legacy explicit hacking timestamp is unset.
+const sponsorChallengeStartSQL = `coalesce(competitions.hacking_starts_at,
+ (SELECT min(t.scheduled_start)
+  FROM competition_schedule_segments segment
+  JOIN conf_talks t ON t.id = segment.conf_talk_id
+  WHERE segment.competition_id = competitions.id AND segment.segment_type = 'hacking'
+    AND t.conference_id = conferences.id AND t.archived_at IS NULL),
+ conferences.start_date)`
+
 func organizationInviteTokenHash(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return fmt.Sprintf("%x", sum[:])
@@ -961,7 +971,7 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			coalesce(entitlements.created_at, sponsorships.created_at),
 			coalesce(entitlements.updated_at, sponsorships.updated_at),
 			coalesce(competitions.id::text, ''), coalesce(competitions.title, ''),
-			competitions.hacking_starts_at,
+			`+sponsorChallengeStartSQL+`,
 			(SELECT count(*) FROM awards
 			 JOIN competitions ON competitions.id = awards.competition_id
 			 WHERE competitions.conference_id = conferences.id
@@ -1411,8 +1421,8 @@ func CreateSponsorAwardProposal(ctx *config.AppContext, in SponsorAwardProposalI
 		  AND sponsorships.archived_at IS NULL
 		  AND lower(sponsorships.status) IN ('paid', 'committed')
 		  AND (conferences.end_date IS NULL OR conferences.end_date >= now())
-		  AND (coalesce(competitions.hacking_starts_at, conferences.start_date) IS NULL
-		       OR coalesce(competitions.hacking_starts_at, conferences.start_date) > now())
+		  AND (`+sponsorChallengeStartSQL+` IS NULL
+		       OR `+sponsorChallengeStartSQL+` > now())
 		FOR UPDATE OF entitlements
 	`, in.SponsorshipID, in.ConferenceID, in.CompetitionID, in.OrganizationID).Scan(&proposalLimit); err != nil {
 		return nil, fmt.Errorf("this sponsorship cannot propose prizes for that hackathon")
@@ -1498,7 +1508,7 @@ func UpdateSponsorAwardProposal(ctx *config.AppContext, proposalID, organization
 			sponsorships.organization_id::text, proposals.status,
 			coalesce(proposals.award_id::text, ''),
 			coalesce(primary_prize.id::text, ''),
-			competitions.hacking_starts_at, conferences.start_date
+			`+sponsorChallengeStartSQL+`, conferences.start_date
 		FROM sponsor_award_proposals proposals
 		JOIN sponsorships ON sponsorships.id = proposals.sponsorship_id
 		JOIN competitions ON competitions.id = proposals.competition_id
@@ -1635,7 +1645,7 @@ func listOrganizerManagedSponsorAwards(ctx *config.AppContext, organizationID st
 			conferences.id::text,
 			coalesce(nullif(conferences.description, ''), conferences.tag),
 			competitions.title,
-			coalesce(competitions.hacking_starts_at, conferences.start_date)
+			`+sponsorChallengeStartSQL+`
 		FROM awards
 		JOIN organizations ON organizations.id = awards.sponsored_by_org_id
 		JOIN competitions ON competitions.id = awards.competition_id
@@ -1788,7 +1798,7 @@ func listSponsorAwardProposals(ctx *config.AppContext, where string, arg string)
 			coalesce(proposals.award_id::text, ''), proposals.created_at, proposals.updated_at,
 			coalesce(primary_prize.id::text, ''),
 			coalesce(nullif(conferences.description, ''), conferences.tag), competitions.title,
-			coalesce(competitions.hacking_starts_at, conferences.start_date)
+			`+sponsorChallengeStartSQL+`
 		FROM sponsor_award_proposals proposals
 		JOIN sponsorships ON sponsorships.id = proposals.sponsorship_id
 		JOIN organizations ON organizations.id = sponsorships.organization_id

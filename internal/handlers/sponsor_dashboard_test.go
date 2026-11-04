@@ -303,3 +303,21 @@ func TestSponsorDashboardChallengeEditWindow(t *testing.T) {
 		t.Fatal("ordinary organization member could edit a challenge")
 	}
 }
+
+func TestSponsorProposalsStayWithinEvent(t *testing.T) {
+	page := &SponsorDashboardPage{PrizeProposals: []*types.SponsorAwardProposal{
+		{SponsorshipID: "shared", ConferenceID: "berlin", Status: "pending"},
+		{SponsorshipID: "shared", ConferenceID: "seoul", Status: "pending"},
+		{SponsorshipID: "other", ConferenceID: "seoul", Status: "pending"},
+	}}
+	proposals := page.ProposalsFor("shared", "seoul")
+	if len(proposals) != 1 || proposals[0].ConferenceID != "seoul" {
+		t.Fatalf("cross-event proposals: %+v", proposals)
+	}
+	event := &types.SponsorDashboardEvent{Sponsorship: &types.Sponsorship{}, Conference: &types.Conf{}, Entitlement: &types.SponsorshipEntitlement{SponsorAwardLimit: 2}}
+	event.Sponsorship.Ref = "shared"
+	event.Conference.Ref = "seoul"
+	if got := page.ProposalSlotsRemaining(event); got != 1 {
+		t.Fatalf("remaining slots = %d, want 1", got)
+	}
+}

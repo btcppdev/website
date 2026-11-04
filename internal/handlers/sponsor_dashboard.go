@@ -62,10 +62,10 @@ func hasManagedSponsorOrganization(ctx *config.AppContext, personID, logContext 
 	return len(organizationIDs) > 0
 }
 
-func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID string) []*types.SponsorAwardProposal {
+func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID, conferenceID string) []*types.SponsorAwardProposal {
 	var out []*types.SponsorAwardProposal
 	for _, proposal := range p.PrizeProposals {
-		if proposal != nil && proposal.SponsorshipID == sponsorshipID {
+		if proposal != nil && proposal.SponsorshipID == sponsorshipID && proposal.ConferenceID == conferenceID {
 			out = append(out, proposal)
 		}
 	}
@@ -239,7 +239,7 @@ func (p *SponsorDashboardPage) ProposalSlotsRemaining(event *types.SponsorDashbo
 	}
 	used := event.AwardCount
 	for _, proposal := range p.PrizeProposals {
-		if proposal != nil && proposal.SponsorshipID == event.Sponsorship.Ref && proposal.Status == "pending" {
+		if proposal != nil && proposal.SponsorshipID == event.Sponsorship.Ref && event.Conference != nil && proposal.ConferenceID == event.Conference.Ref && proposal.Status == "pending" {
 			used++
 		}
 	}

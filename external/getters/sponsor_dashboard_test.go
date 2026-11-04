@@ -193,6 +193,21 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 		t.Fatalf("sponsor registrations=%d err=%v, want 2", registrations, err)
 	}
 
+	// Conference midnight has passed, but scheduled hacking has not begun.
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE conferences SET start_date=now()-interval '1 hour' WHERE id=$1::uuid`, confID); err != nil {
+		t.Fatal(err)
+	}
+	var scheduledTalkID string
+	if err := ctx.DB.QueryRow(context.Background(), `INSERT INTO conf_talks(conference_id,scheduled_start,scheduled_end) VALUES($1::uuid,now()+interval '2 hours',now()+interval '3 hours') RETURNING id::text`, confID).Scan(&scheduledTalkID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `INSERT INTO competition_schedule_segments(competition_id,conf_talk_id,segment_type,title) VALUES($1::uuid,$2::uuid,'hacking','Hacking time')`, competitionID, scheduledTalkID); err != nil {
+		t.Fatal(err)
+	}
+	events, err = ListSponsorDashboardEvents(ctx, orgID)
+	if err != nil || len(events) != 1 || events[0].Competition.HackingStartsAt == nil || !events[0].Competition.HackingStartsAt.After(time.Now()) {
+		t.Fatalf("scheduled hacking cutoff missing: %v %v", events, err)
+	}
 	proposalInput := SponsorAwardProposalInput{
 		SponsorshipID: sponsorshipID, ConferenceID: confID,
 		CompetitionID: competitionID, OrganizationID: orgID,
@@ -253,6 +268,19 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 		awardTitle != proposalInput.Title || awardDescription != proposalInput.Description ||
 		maxAwardees != 2 || prizeTitle != proposalInput.PrizeTitle || prizeValue != "2000000" {
 		t.Fatalf("updated approved challenge: award=%q description=%q max=%d prize=%q value=%q err=%v", awardTitle, awardDescription, maxAwardees, prizeTitle, prizeValue, err)
+	}
+	// The scheduled boundary is enforced by writes too, without an explicit timestamp.
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE conf_talks SET scheduled_start=now()-interval '1 minute' WHERE id=$1::uuid`, scheduledTalkID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UpdateSponsorAwardProposal(ctx, proposal.ID, orgID, proposalInput); err == nil || !strings.Contains(err.Error(), "hackathon has started") {
+		t.Fatalf("scheduled start did not close edits: %v", err)
+	}
+	if _, err := CreateSponsorAwardProposal(ctx, proposalInput); err == nil {
+		t.Fatal("scheduled start did not close proposals")
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE conf_talks SET scheduled_start=now()+interval '2 hours' WHERE id=$1::uuid`, scheduledTalkID); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := ctx.DB.Exec(context.Background(), `
 		UPDATE competitions SET hacking_starts_at = now() - interval '1 minute'
