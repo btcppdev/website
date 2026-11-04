@@ -1151,6 +1151,15 @@ func sponsorDashboardIdentity(w http.ResponseWriter, r *http.Request, ctx *confi
 		return nil, nil, false
 	}
 	if id == nil || strings.TrimSpace(id.PersonID) == "" {
+		// Email verification can succeed before a first-time visitor has a
+		// person record. Finish profile creation instead of asking them to
+		// verify the same address again on every dashboard visit.
+		if r.Method == http.MethodGet {
+			if email, pendingErr := validatedSessionEmail(r, ctx, true); pendingErr == nil && email != "" {
+				http.Redirect(w, r, dashboardProfileURLWithFlash("", "", r.URL.RequestURI(), "Create your profile to finish setting up your account."), http.StatusSeeOther)
+				return nil, nil, false
+			}
+		}
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
 		return nil, nil, false
 	}
