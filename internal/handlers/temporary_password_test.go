@@ -49,7 +49,7 @@ func TestTemporaryPasswordRestrictedSession(t *testing.T) {
 	if session.GetString(q, temporaryPersonKey) != "new-person" {
 		t.Fatal("missing password-change proof")
 	}
-	session.Put(q, temporaryUntilKey, time.Now().Add(-time.Minute))
+	session.Put(q, temporaryUntilKey, time.Now().Add(-time.Minute).Unix())
 	w := httptest.NewRecorder()
 	ChangeTemporaryPassword(w, req, app)
 	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
@@ -74,10 +74,48 @@ func TestTemporaryPasswordCSRF(t *testing.T) {
 	}
 	session.Put(q, temporaryPersonKey, "person")
 	session.Put(q, temporaryHashKey, "proof")
-	session.Put(q, temporaryUntilKey, time.Now().Add(time.Minute))
+	session.Put(q, temporaryUntilKey, time.Now().Add(time.Minute).Unix())
 	w = httptest.NewRecorder()
 	ChangeTemporaryPassword(w, req, &config.AppContext{Session: session})
 	if w.Code != 403 {
 		t.Fatal("invalid change csrf reached database", w.Code)
 	}
+}
+
+func TestTemporaryPasswordSessionPersistence(t *testing.T) {
+	session := scs.New()
+	app := &config.AppContext{Session: session}
+	login := session.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := beginTemporaryPasswordChange(app, r, "person", "proof", "/dashboard/sponsor"); err != nil {
+			t.Fatal(err)
+		}
+		http.Redirect(w, r, "/change-temporary-password", http.StatusSeeOther)
+	}))
+	w := httptest.NewRecorder()
+	login.ServeHTTP(w, httptest.NewRequest("POST", "/login/password", nil))
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("persist session: status %d: %s", w.Code, w.Body.String())
+	}
+	cookies := w.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("missing session cookie")
+	}
+	next := httptest.NewRequest("GET", "/change-temporary-password", nil)
+	for _, cookie := range cookies {
+		next.AddCookie(cookie)
+	}
+	session.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if session.GetString(r.Context(), temporaryPersonKey) != "person" || session.GetString(r.Context(), temporaryHashKey) != "proof" {
+			t.Fatal("password proof did not survive session storage")
+		}
+		if session.GetInt64(r.Context(), temporaryUntilKey) <= time.Now().Unix() {
+			t.Fatal("expiry did not survive session storage")
+		}
+		if session.GetString(r.Context(), temporaryNextKey) != "/dashboard/sponsor" {
+			t.Fatal("return path lost")
+		}
+		if id, err := auth.Resolve(r, app); err != nil || id != nil {
+			t.Fatalf("restricted session gained identity: %v %v", id, err)
+		}
+	})).ServeHTTP(httptest.NewRecorder(), next)
 }

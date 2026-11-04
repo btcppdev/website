@@ -114,7 +114,7 @@ func beginTemporaryPasswordChange(ctx *config.AppContext, r *http.Request, perso
 	}
 	ctx.Session.Put(r.Context(), temporaryPersonKey, person)
 	ctx.Session.Put(r.Context(), temporaryHashKey, hash)
-	ctx.Session.Put(r.Context(), temporaryUntilKey, time.Now().Add(15*time.Minute))
+	ctx.Session.Put(r.Context(), temporaryUntilKey, time.Now().Add(15*time.Minute).Unix())
 	ctx.Session.Put(r.Context(), temporaryNextKey, auth.SafeNext(next, "/dashboard"))
 	return nil
 }
@@ -123,7 +123,7 @@ func ChangeTemporaryPassword(w http.ResponseWriter, r *http.Request, ctx *config
 	w.Header().Set("Cache-Control", "private, no-store")
 	person := ctx.Session.GetString(r.Context(), temporaryPersonKey)
 	proof := ctx.Session.GetString(r.Context(), temporaryHashKey)
-	if person == "" || proof == "" || !ctx.Session.GetTime(r.Context(), temporaryUntilKey).After(time.Now()) {
+	if person == "" || proof == "" || ctx.Session.GetInt64(r.Context(), temporaryUntilKey) <= time.Now().Unix() {
 		auth.ClearTemporaryPasswordProof(ctx, r)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
