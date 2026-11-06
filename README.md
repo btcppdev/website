@@ -64,6 +64,18 @@ corrupt, explicitly rebuild the local dev database with:
 This moves the previous local data directory aside with a `.reset-<timestamp>`
 suffix before creating a fresh one.
 
+## Agenda browsing
+
+Event-page agendas support stage and session-type filters, title/speaker search,
+and sorting by time, talk title or speaker name within each day. The agenda
+browser at `/{conference}/agenda` shares the filters and keeps its time grid
+chronological. Filters persist when switching days; Reset filters restores the
+full schedule. Shared talk links reveal the destination even when filters hide it.
+
+Run `go test ./internal/handlers -run TestPublicAgendaFilters` for template checks
+and desktop/mobile interaction tests. The interaction checks require Chromium
+or Chrome on `PATH` and skip when neither is installed.
+
 ## Insider account, delivery, and membership
 
 bitcoin++ owns central email contacts and scoped newsletter preferences. Insider

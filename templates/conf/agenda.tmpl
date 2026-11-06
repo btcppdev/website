@@ -32,6 +32,7 @@
             </a>
             {{ end }}
           </div>
+          {{ template "public_agenda_filters" (dict "Sortable" false) }}
           <div class="tabs-content rebrand-agenda-tabs__content">
             {{ range .AgendaDays }}
               {{ template "public_conf_agenda_grid_day" . }}
@@ -57,7 +58,7 @@
     <div class="rebrand-schedule-grid" style="--agenda-venue-count: {{ len .Info.Venues }};">
       <div class="rebrand-schedule-head rebrand-schedule-head--time">Time</div>
       {{ range .Info.Venues }}
-      <div class="rebrand-schedule-head">{{ mapVenue . }}</div>
+      <div class="rebrand-schedule-head" data-agenda-stage="{{ . }}">{{ with mapVenue . }}{{ . }}{{ else }}{{ . }}{{ end }}</div>
       {{ end }}
 
       <div class="rebrand-schedule-time-rail" style="height: {{ printf "%.0f" (agendaDayHeight .) }}px;">
@@ -68,19 +69,20 @@
 
       {{ range .Info.Venues }}
       {{ $venue := . }}
-      <div class="rebrand-schedule-venue" style="height: {{ printf "%.0f" (agendaDayHeight $) }}px;">
+      <div class="rebrand-schedule-venue" data-agenda-stage="{{ . }}" style="height: {{ printf "%.0f" (agendaDayHeight $) }}px;">
         {{ range agendaHourMarks $ }}
         <div class="rebrand-schedule-line" style="top: {{ printf "%.0f" .Top }}px;"></div>
         {{ end }}
         {{ range agendaSessionsForVenue $ $venue }}
-          {{ template "public_conf_agenda_grid_session" (dict "Day" $ "Session" .) }}
+          {{ template "public_conf_agenda_grid_session" (dict "Day" $ "Session" . "Venue" $venue) }}
         {{ end }}
       </div>
       {{ end }}
     </div>
   </div>
+  <div class="rebrand-agenda-browser__empty" data-agenda-empty role="status" hidden>{{ msg "agenda.no_matches" }}</div>
   {{ else }}
-  <div class="rebrand-agenda-browser__empty">No venue tracks are configured for this day.</div>
+  <div class="rebrand-agenda-browser__empty" data-agenda-empty role="status">No venue tracks are configured for this day.</div>
   {{ end }}
 </div>
 {{ end }}
@@ -88,7 +90,7 @@
 {{ define "public_conf_agenda_grid_session" }}
 {{ $s := .Session }}
 {{ $dialogID := printf "agenda-dialog-%s" $s.AnchorTag }}
-<div id="{{ $s.AnchorTag }}" class="rebrand-schedule-card" style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight .Day $s) }}px;">
+<div id="{{ $s.AnchorTag }}" class="rebrand-schedule-card" data-agenda-session data-agenda-venue="{{ .Venue }}" data-agenda-venue-label="{{ with mapVenue .Venue }}{{ . }}{{ else }}{{ .Venue }}{{ end }}" data-agenda-title="{{ $s.Name }}" data-agenda-speakers="{{ range $idx, $speaker := $s.Speakers }}{{ if $idx }}, {{ end }}{{ $speaker.Name }}{{ end }}" data-agenda-type="{{ agendaTypeLabel $s.Type }}" style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight .Day $s) }}px;">
   <button type="button" class="rebrand-schedule-card__open" data-agenda-dialog-open="{{ $dialogID }}">
     <span class="rebrand-schedule-card__time">{{ if $s.Sched }}{{ $s.Sched.Start.Format "3:04 PM" }}{{ if $s.Sched.End }} – {{ $s.Sched.End.Format "3:04 PM" }}{{ end }}{{ else }}{{ $s.StartTime }}{{ end }}</span>
     <strong>{{ $s.Name }}</strong>

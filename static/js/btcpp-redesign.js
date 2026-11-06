@@ -76,6 +76,101 @@
     });
   });
 
+  const agendaFilters = new Map();
+  document.querySelectorAll(".rebrand-agenda-tabs").forEach(function (tabs) {
+    const controls = tabs.querySelector("[data-agenda-filter-controls]");
+    if (!controls) return;
+    const stageFilter = controls.querySelector("[data-agenda-stage-filter]");
+    const typeFilter = controls.querySelector("[data-agenda-type-filter]");
+    const search = controls.querySelector("[data-agenda-search]");
+    const sort = controls.querySelector("[data-agenda-sort]");
+    const panels = Array.from(tabs.querySelectorAll("[data-agenda-panel]"));
+    const stages = new Map();
+    const types = new Set();
+    tabs.querySelectorAll(".rebrand-schedule-head[data-agenda-stage]").forEach(function (head) {
+      stages.set(head.dataset.agendaStage, head.textContent.trim());
+    });
+    const days = panels.map(function (panel) {
+      const sessions = Array.from(panel.querySelectorAll("[data-agenda-session]"));
+      sessions.forEach(function (session) {
+        if (session.dataset.agendaVenue) stages.set(session.dataset.agendaVenue, session.dataset.agendaVenueLabel);
+        if (session.dataset.agendaType) types.add(session.dataset.agendaType);
+      });
+      return { panel: panel, sessions: sessions };
+    });
+    stages.forEach(function (label, venue) { stageFilter.add(new Option(label, venue)); });
+    types.forEach(function (label) { typeFilter.add(new Option(label, label)); });
+
+    function updateCount() {
+      const active = days.find(function (day) { return day.panel.classList.contains("w--tab-active"); });
+      controls.querySelector("[data-agenda-result-count]").textContent = active
+        ? active.sessions.filter(function (session) { return !session.hidden; }).length : 0;
+    }
+
+    function applyFilters() {
+      const terms = search.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+      days.forEach(function (day) {
+        let visible = 0;
+        day.sessions.forEach(function (session) {
+          const text = (session.dataset.agendaTitle + " " + session.dataset.agendaSpeakers).toLocaleLowerCase();
+          session.hidden = (stageFilter.value !== "" && session.dataset.agendaVenue !== stageFilter.value)
+            || (typeFilter.value !== "" && session.dataset.agendaType !== typeFilter.value)
+            || !terms.every(function (term) { return text.includes(term); });
+          if (!session.hidden) visible++;
+        });
+        const grid = day.panel.querySelector(".rebrand-schedule-grid");
+        if (grid) {
+          let count = 0;
+          grid.querySelectorAll("[data-agenda-stage]").forEach(function (column) {
+            column.hidden = stageFilter.value !== "" && column.dataset.agendaStage !== stageFilter.value;
+            if (!column.hidden && column.classList.contains("rebrand-schedule-venue")) count++;
+          });
+          grid.style.setProperty("--agenda-venue-count", count);
+          day.panel.querySelector(".rebrand-schedule-scroll").hidden = visible === 0;
+        }
+        day.panel.querySelector("[data-agenda-empty]").hidden = visible !== 0;
+        if (sort) {
+          // Always start from the server's chronological order so resetting also
+          // restores simultaneous sessions and breaks to their original order.
+          const ordered = day.sessions.slice();
+          if (sort.value !== "time") {
+            const key = sort.value === "speaker" ? "agendaSpeakers" : "agendaTitle";
+            ordered.sort(function (a, b) { return a.dataset[key].localeCompare(b.dataset[key], undefined, { sensitivity: "base" }); });
+          }
+          const list = day.panel.querySelector(".rebrand-agenda-rows");
+          ordered.forEach(function (session) { list.appendChild(session); });
+        }
+      });
+      updateCount();
+    }
+
+    function resetFilters() {
+      stageFilter.value = "";
+      typeFilter.value = "";
+      search.value = "";
+      if (sort) sort.value = "time";
+      applyFilters();
+    }
+    controls.addEventListener("input", applyFilters);
+    controls.addEventListener("change", applyFilters);
+    controls.querySelector("[data-agenda-reset]").addEventListener("click", resetFilters);
+    tabs.addEventListener("click", function (event) {
+      if (event.target.closest("[data-agenda-tab]")) updateCount();
+    });
+    agendaFilters.set(tabs, function (session) {
+      if (session.hidden) {
+        // Keep a useful stage choice, but clear type/search constraints that
+        // would conceal the destination of a shared talk link.
+        stageFilter.value = session.dataset.agendaVenue;
+        typeFilter.value = "";
+        search.value = "";
+        applyFilters();
+      }
+    });
+    applyFilters();
+    controls.hidden = false;
+  });
+
   const triggers = Array.from(document.querySelectorAll("[data-agenda-dialog-open]"));
   let returnFocus = null;
 
@@ -103,6 +198,9 @@
       return item.getAttribute("data-agenda-dialog-open") === dialog.id;
     });
     if (trigger) {
+      const session = trigger.closest("[data-agenda-session]");
+      const reveal = agendaFilters.get(trigger.closest(".rebrand-agenda-tabs"));
+      if (session && reveal) reveal(session);
       const panel = trigger.closest("[data-agenda-panel]");
       const tabs = panel && panel.closest(".tabs");
       if (tabs) {
