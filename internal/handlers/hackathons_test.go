@@ -423,6 +423,7 @@ func TestConferenceScopedHackathonAdminRoutes(t *testing.T) {
 		"/toronto/admin/hackathon/timeline",
 		"/toronto/admin/hackathon/managers",
 		"/toronto/admin/hackathon/judging",
+		"/toronto/admin/hackathon/judging/print",
 		"/toronto/admin/hackathon/judging/scores",
 		"/toronto/admin/hackathon/awards",
 	} {

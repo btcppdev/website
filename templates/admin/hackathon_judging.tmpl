@@ -15,7 +15,10 @@
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} judging</h1>
         <p class="mt-1 text-sm text-gray-600">Assign judges for each scoring round.</p>
       </div>
-      <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ .JudgingSheetURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Print judging sheet</a>
+        <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+      </div>
     </div>
     {{ template "admin_hackathon_tabs" . }}
     {{ template "admin_hackathon_judging_tabs" . }}

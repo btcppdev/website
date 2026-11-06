@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Competition.Title }} - Judging sheet - bitcoin++</title>
+  <link rel="stylesheet" href="/static/css/hackathon-judging-sheet.css">
+</head>
+<body>
+  {{ $projects := .JudgingSheetProjects }}
+  {{ $awards := .JudgingSheetAwards }}
+  <nav class="sheet-toolbar" aria-label="Judging sheet actions">
+    <a href="{{ .JudgingURL .Competition }}">&larr; Back to judging</a>
+    <span>Landscape &middot; {{ len $projects }} project{{ if ne (len $projects) 1 }}s{{ end }}</span>
+    <button type="button" onclick="window.print()">Print judging sheet</button>
+  </nav>
+  <main>
+    <header class="sheet-header">
+      <div>
+        <p class="sheet-brand">bitcoin++ &middot; Judging sheet</p>
+        <h1>{{ .Competition.Title }}</h1>
+      </div>
+      <p class="sheet-judge">Judge: <span></span></p>
+    </header>
+    <p class="sheet-instructions">Score each project from 1 to 10 for Idea, Execution, and General Effect.{{ if $awards }} Checked boxes show the challenges each project has opted into.{{ end }}</p>
+    {{ if $projects }}
+    <table class="judging-sheet{{ if not $awards }} judging-sheet--no-challenges{{ end }}" aria-label="Project judging sheet">
+      <colgroup>
+        <col class="sheet-col-table">
+        <col class="sheet-col-project">
+        <col class="sheet-col-score" span="3">
+        {{ range $awards }}<col>{{ end }}
+        <col class="sheet-col-notes">
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">Table #</th>
+          <th scope="col">Project</th>
+          <th scope="col">Idea <small>1&ndash;10</small></th>
+          <th scope="col">Execution <small>1&ndash;10</small></th>
+          <th scope="col">General Effect <small>1&ndash;10</small></th>
+          {{ range $awards }}<th scope="col" class="sheet-challenge">{{ .Title }}<small>Opt-in</small></th>{{ end }}
+          <th scope="col">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $project := $projects }}
+        <tr>
+          <td class="sheet-table-number">{{ $.ProjectNumberLabel $project }}</td>
+          <th scope="row">{{ $project.Title }}</th>
+          <td></td>
+          <td></td>
+          <td></td>
+          {{ range $award := $awards }}
+          <td class="sheet-opt-in"><span class="sheet-checkbox{{ if $.ProjectOptedIntoAward $project $award }} sheet-checkbox--checked{{ end }}" role="img" aria-label="{{ if $.ProjectOptedIntoAward $project $award }}Opted in{{ else }}Not opted in{{ end }}"></span></td>
+          {{ end }}
+          <td></td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+    <p class="sheet-empty">No submitted projects yet. Submitted projects and finalists will appear here when they are ready for judging.</p>
+    {{ end }}
+  </main>
+</body>
+</html>

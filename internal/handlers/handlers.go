@@ -1730,6 +1730,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminJudging(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/print", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminJudgingSheet(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/mode", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateJudgingMode(w, r, app)
 	}).Methods("POST")
@@ -1905,6 +1908,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/hackathon/projects/new", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectNew(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/{conf}/hackathon/projects", func(w http.ResponseWriter, r *http.Request) {
+		target := "/" + url.PathEscape(mux.Vars(r)["conf"]) + "/hackathon#projects"
+		http.Redirect(w, r, target, http.StatusSeeOther)
+	}).Methods("GET", "HEAD")
 	r.HandleFunc("/{conf}/hackathon/projects", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectCreate(w, r, app)
 	}).Methods("POST")
