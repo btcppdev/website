@@ -1,0 +1,28 @@
+{{ define "public_agenda_filters" }}
+<div class="rebrand-agenda-filters" data-agenda-filter-controls hidden>
+  <label>
+    <span>{{ msg "agenda.search" }}</span>
+    <input type="search" data-agenda-search placeholder="{{ msg "agenda.search_hint" }}">
+  </label>
+  <label>
+    <span>{{ msg "agenda.stage" }}</span>
+    <select data-agenda-stage-filter><option value="">{{ msg "agenda.all_stages" }}</option></select>
+  </label>
+  <label>
+    <span>{{ msg "agenda.type" }}</span>
+    <select data-agenda-type-filter><option value="">{{ msg "agenda.all_types" }}</option></select>
+  </label>
+  {{ if .Sortable }}
+  <label>
+    <span>{{ msg "agenda.sort" }}</span>
+    <select data-agenda-sort>
+      <option value="time">{{ msg "agenda.time" }}</option>
+      <option value="title">{{ msg "agenda.talk_title" }}</option>
+      <option value="speaker">{{ msg "agenda.speaker_name" }}</option>
+    </select>
+  </label>
+  {{ end }}
+  <button type="button" data-agenda-reset>{{ msg "agenda.reset" }}</button>
+  <span class="rebrand-agenda-filters__count" role="status">{{ msg "agenda.sessions_shown" }}: <span data-agenda-result-count></span></span>
+</div>
+{{ end }}

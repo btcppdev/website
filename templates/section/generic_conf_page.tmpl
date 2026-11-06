@@ -308,6 +308,7 @@
       </a>
       {{ end }}
     </div>
+    {{ template "public_agenda_filters" (dict "Sortable" true) }}
     <div class="tabs-content rebrand-agenda-tabs__content">
       {{ range .AgendaDays }}
         {{ template "generic_conf_agenda_day_rows" . }}
@@ -325,12 +326,13 @@
       {{ template "generic_conf_agenda_row" . }}
     {{ end }}
   </div>
+  <div class="rebrand-agenda-browser__empty" data-agenda-empty role="status" hidden>{{ msg "agenda.no_matches" }}</div>
 </div>
 {{ end }}
 
 {{ define "generic_conf_agenda_row" }}
 {{ $dialogID := printf "agenda-dialog-%s" .AnchorTag }}
-<div id="{{ .AnchorTag }}" class="rebrand-agenda-row">
+<div id="{{ .AnchorTag }}" class="rebrand-agenda-row" data-agenda-session data-agenda-venue="{{ .Venue }}" data-agenda-venue-label="{{ with mapVenue .Venue }}{{ . }}{{ else }}{{ .Venue }}{{ end }}" data-agenda-title="{{ .Name }}" data-agenda-speakers="{{ range $idx, $speaker := .Speakers }}{{ if $idx }}, {{ end }}{{ $speaker.Name }}{{ end }}" data-agenda-type="{{ agendaTypeLabel .Type }}">
   <button type="button" class="rebrand-agenda-row__open" data-agenda-dialog-open="{{ $dialogID }}">
     <div class="rebrand-agenda-row__time">
       {{ if .Sched }}{{ .Sched.Start.Format "3:04 PM" }}{{ if .Sched.End }} <span>— {{ .Sched.End.Format "3:04 PM" }}</span>{{ end }}{{ else }}{{ .StartTime }}{{ end }}

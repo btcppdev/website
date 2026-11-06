@@ -4268,6 +4268,55 @@ body.btcpp-rebrand-page {
   text-transform: uppercase;
 }
 
+.rebrand-agenda-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid var(--rebrand-ink);
+  color: var(--rebrand-ink);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.rebrand-agenda-filters label {
+  display: flex;
+  flex: 1 1 160px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rebrand-agenda-filters input,
+.rebrand-agenda-filters select,
+.rebrand-agenda-filters button {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--rebrand-ink);
+  border-radius: 0;
+  background-color: var(--rebrand-paper);
+  color: inherit;
+  font: inherit;
+}
+
+.rebrand-agenda-filters button { cursor: pointer; }
+.rebrand-agenda-filters__count { flex-basis: 100%; }
+
+.rebrand-agenda-filters :is(input, select, button):focus-visible {
+  outline: 2px solid var(--rebrand-ink);
+  outline-offset: 3px;
+}
+
+.rebrand-agenda-filters[hidden],
+.rebrand-schedule-scroll[hidden],
+[data-agenda-stage][hidden],
+[data-agenda-session][hidden],
+[data-agenda-empty][hidden] {
+  display: none;
+}
+
 .rebrand-schedule-panel {
   display: none;
 }
