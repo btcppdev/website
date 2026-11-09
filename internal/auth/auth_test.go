@@ -13,6 +13,26 @@ import (
 	"github.com/alexedwards/scs/v2"
 )
 
+func TestSafeNextRejectsExternalAndBrowserNormalizedDestinations(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		next string
+		want string
+	}{
+		{name: "empty", next: "", want: "/dashboard"},
+		{name: "local path", next: "/dashboard/settings?tab=security", want: "/dashboard/settings?tab=security"},
+		{name: "absolute URL", next: "https://evil.example", want: "/dashboard"},
+		{name: "protocol relative URL", next: "//evil.example", want: "/dashboard"},
+		{name: "encoded backslash remains local", next: "/%5Cevil.example", want: "/%5Cevil.example"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := SafeNext(test.next, "/dashboard"); got != test.want {
+				t.Fatalf("SafeNext(%q) = %q, want %q", test.next, got, test.want)
+			}
+		})
+	}
+}
+
 func TestAuthRedirectInvalidLinkReturnsToConfirmationWithError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/auth", strings.NewReader("token=invalid"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
