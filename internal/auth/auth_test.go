@@ -23,6 +23,10 @@ func TestSafeNextRejectsExternalAndBrowserNormalizedDestinations(t *testing.T) {
 		{name: "local path", next: "/dashboard/settings?tab=security", want: "/dashboard/settings?tab=security"},
 		{name: "absolute URL", next: "https://evil.example", want: "/dashboard"},
 		{name: "protocol relative URL", next: "//evil.example", want: "/dashboard"},
+		{name: "backslash", next: "/\\evil.example", want: "/dashboard"},
+		{name: "newline before second slash", next: "/\n/evil.example", want: "/dashboard"},
+		{name: "tab before second slash", next: "/\t/evil.example", want: "/dashboard"},
+		{name: "carriage return before second slash", next: "/\r/evil.example", want: "/dashboard"},
 		{name: "encoded backslash remains local", next: "/%5Cevil.example", want: "/%5Cevil.example"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
