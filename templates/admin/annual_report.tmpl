@@ -43,7 +43,7 @@
 <section class="paper-sheet impact-community">
 <div class="paper-running"><span></span><span>{{.ReportFolio 3}}</span></div>
 <h2>Many gatherings.<br><em>A shared direction.</em></h2>
-<div class="report-topline-grid">{{if .ShowParticipation}}<article><div class="report-topline-circle"><strong>{{.ParticipationTotal}}</strong><span>{{if .RegistrationBased}}registrations{{else}}event attendances{{end}}</span></div></article>{{end}}{{with .UniquePeopleHeadline}}<article><div class="report-topline-circle"><strong>{{.}}</strong><span>{{if $.RegistrationBased}}unique registered people{{else}}unique checked-in people{{end}}</span></div></article>{{end}}</div>
+<div class="report-topline-grid">{{if .ShowParticipation}}<article><div class="report-topline-circle"><strong>{{.ParticipationTotal}}</strong><span>{{if .RegistrationBased}}registrations{{else}}event attendances{{end}}</span></div></article>{{end}}{{with .UniqueSpeakers}}<article><div class="report-topline-circle" title="Program speakers across included events, counting each person once"><strong>{{.}}</strong><span>total speakers</span></div></article>{{end}}</div>
 <svg viewBox="0 0 720 350" class="annual-globe" role="img" aria-label="Included event locations"><image href="/static/img/report-globes.svg" width="720" height="350"/>{{range .MapPoints}}<circle cx="{{.X}}" cy="{{.Y}}" r="7" fill="#f7b500" stroke="#513762" stroke-width="2"><title>{{.Name}}</title></circle>{{end}}</svg>
 <div class="impact-places"><strong>{{len .Included}} gatherings</strong>{{range .Included}}<a href="https://btcpp.dev/{{.Event.Tag}}">{{.Event.Location}} ↗</a>{{end}}</div>
 <div data-section="community"><div class="story-text report-markdown">{{(.BriefSection "community").Markdown}}</div></div>
