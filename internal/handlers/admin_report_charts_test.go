@@ -12,7 +12,7 @@ func TestReportCharts(t *testing.T) {
 	p := sponsorReportPage{Registrations: 320, Attendees: 286, Teams: 32, ProgramReviewed: true, Talks: 12, Workshops: 6, PanelCount: 0,
 		Saved:   map[string]string{"analytics_metric": "YouTube views", "analytics_period": "Lifetime", "analytics_date": "2026-09-17", "analytics_source": "Studio export"},
 		Popular: []reportSession{{Title: "Example talk", Views: &views}},
-		Winners: []reportWinner{{Title: "No payout", Sats: 0}, {Title: "Paid project", Sats: 1000}}}
+		Winners: []reportWinner{{Title: "No payout", Sats: 0}, {Title: "Paid project", AwardedSats: 1000}}}
 	charts := p.Charts()
 	if len(charts) != 6 || charts[0].Rows[1].Width != 50 || charts[0].Rows[2].Width != 0 || charts[1].Rows[0].Width != 100 || charts[2].Rows[0].Label != "Paid project" {
 		t.Fatalf("bad charts: %+v", charts)

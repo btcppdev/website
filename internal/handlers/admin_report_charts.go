@@ -113,10 +113,10 @@ func (p sponsorReportPage) Charts() []reportChart {
 	if len(popular.Rows) == 0 {
 		popular.Note = "Compare one platform and reporting period at a time. Missing analytics are not zero views."
 	}
-	prizes := reportChart{Title: "Backing the winning projects", Unit: "sats", Kind: "prizes", Note: "Sats recorded as sent or claimed for finalized winning projects. Announced pools, pending payouts and non-sats prizes are excluded; external payments need reconciliation.", Empty: "Awaiting verified payout records and finalized winning projects."}
+	prizes := reportChart{Title: "Backing the winning projects", Unit: "sats awarded", Kind: "prizes", Note: "Configured sat prizes assigned to finalized winning projects, counted once per project/prize. Excludes unassigned pools and non-sats prizes; not a payment settlement total.", Empty: "Awaiting configured sat prizes and finalized winning projects."}
 	if !p.Preview {
 		for _, w := range p.Winners {
-			prizes.Rows = append(prizes.Rows, reportBar{Label: w.Title, Detail: w.Awards, Value: w.Sats, URL: w.GitHub})
+			prizes.Rows = append(prizes.Rows, reportBar{Label: w.Title, Detail: w.Awards, Value: w.AwardedSats, URL: w.GitHub})
 		}
 	}
 	sort.SliceStable(prizes.Rows, func(i, j int) bool { return prizes.Rows[i].Value > prizes.Rows[j].Value })
@@ -133,7 +133,7 @@ func (p sponsorReportPage) Charts() []reportChart {
 	if !p.Preview {
 		teams.Hero, teams.Caption = fmt.Sprint(p.Participants), "distinct project members"
 		histogram.Hero, histogram.Caption = fmt.Sprint(p.Teams), "teams, many ways to collaborate"
-		prizes.Hero, prizes.Caption = compactReportSats(p.Sats), "sats recorded as distributed across the event"
+		prizes.Hero, prizes.Caption = compactReportSats(p.Sats), "sats awarded across the event"
 	}
 	var charts []reportChart
 	for _, chart := range []reportChart{program, popular, prizes, attendance, teams, histogram} {

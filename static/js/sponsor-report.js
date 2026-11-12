@@ -129,6 +129,8 @@ if (reportForm) {
   const markDirty = (event) => {
     if (event?.target?.id === "report-post-search" || event?.target?.id === "report-post-filter") return;
     dirty = true;
+    reportForm.dataset.dirty = "true";
+    if (!event?.target?.matches("[data-report-section]")) reportForm.dataset.figuresEdited = "true";
     saveStatus.textContent = (document.querySelector(".synthetic-banner") || document.body.dataset.readonly === "true")
       ? "Preview updated — changes are not saved."
       : `Unsaved changes — click ${reportForm.dataset.saveLabel || "Save event draft"} to keep them.`;
@@ -143,7 +145,7 @@ if (reportForm) {
     const key = input.dataset.reportSection;
     const preview = document.getElementById("preview-" + key);
     const status = document.getElementById("preview-status-" + key);
-    const stories = document.querySelectorAll('[data-section="' + key + '"] .story-text');
+    const stories = () => document.querySelectorAll('[data-section="' + key + '"] .story-text');
     let timer, controller, version = 0;
     input.addEventListener("input", () => {
       clearTimeout(timer);
@@ -164,7 +166,7 @@ if (reportForm) {
           if (current !== version) return;
           // Only insert HTML from our authenticated, allowlisted Markdown renderer.
           preview.innerHTML = html;
-          for (const story of stories) { story.innerHTML = html; story.classList.add("report-markdown"); styleReportWordmarks(story); }
+          for (const story of stories()) { story.innerHTML = html; story.classList.add("report-markdown"); styleReportWordmarks(story); }
           styleReportWordmarks(preview);
 
           status.textContent = "Preview up to date · not saved";
@@ -213,40 +215,87 @@ postSearch?.addEventListener("input", filterReportPosts);
 postFilter?.addEventListener("change", filterReportPosts);
 document.querySelector(".report-post-review-list")?.addEventListener("change", filterReportPosts);
 
+// Pull source data on opening a live annual draft. Collection never saves this
+// form: narrative edits and exclusion choices remain in the user's control.
 const annualRefresh = document.getElementById("annual-refresh-all");
-annualRefresh?.addEventListener("click", async () => {
-  const form = document.getElementById("report-edit-form");
+async function collectAnnualSources(automatic) {
+  if (!reportForm || annualRefresh.disabled) return;
   const status = document.getElementById("annual-refresh-status");
-  const data = new FormData(form);
-  data.set("action", "save");
-  const events = Array.from(form.querySelectorAll('input[name="event"]:checked:not(:disabled)')).map(input => ({id:input.value, name:input.closest("label").textContent.trim()}));
-  status.replaceChildren();
-  function note(text) { const p = document.createElement("p"); p.textContent = text; status.append(p); return p; }
-  const controls = Array.from(form.elements).filter(el => !el.disabled);
-  controls.forEach(el => el.disabled = true);
+  const summary = document.createElement("p");
+  const details = document.createElement("details");
+  const heading = document.createElement("summary");
+  heading.textContent = "Collection details";
+  details.append(heading);
+  summary.textContent = "Collecting event analytics… You can keep editing.";
+  status.replaceChildren(summary, details);
+  const jobs = Array.from(reportForm.querySelectorAll('input[name="event"]:checked:not(:disabled)'))
+    .map(input => ({action:"refresh_annual_event", id:input.value, name:input.closest("label").textContent.trim()}));
+  if (jobs.length) jobs.push({action:"refresh_annual_posts", id:"", name:"X post analytics"});
+  const freeze = reportForm.querySelector('[value="freeze"]');
+  const blocked = [annualRefresh, freeze, printButton].filter(button => button && !button.disabled);
+  blocked.forEach(button => button.disabled = true);
+  let completed = 0, attention = false;
   try {
-    note("Saving the annual draft…");
-    const save = await fetch(location.href, {method:"POST", body:data});
-    if (!save.ok || save.url.includes("/login")) throw new Error("Could not save the draft. Reload and check your session before retrying.");
-    const html = new DOMParser().parseFromString(await save.text(), "text/html");
-    const revision = html.querySelector('input[name="revision"]');
-    if (!revision) throw new Error("Unexpected save response. Reload before retrying.");
-    form.querySelector('input[name="revision"]').value = revision.value;
-    form.dispatchEvent(new Event("report-saved"));
-    const jobs = events.map(event => ({action:"refresh_annual_event", id:event.id, name:event.name}));
-    jobs.push({action:"refresh_annual_posts", id:"", name:"X post analytics"});
-    for (const job of jobs) {
-      const row = note(job.name + ": refreshing…");
-      const body = new FormData();
-      body.set("csrf", data.get("csrf")); body.set("action",job.action); body.set("event_id",job.id);
+    async function collect(job) {
+      const row = document.createElement("p");
+      row.textContent = job.name + ": checking…";
+      details.append(row);
+      const body = new URLSearchParams();
+      body.set("csrf", reportForm.elements.csrf.value);
+      body.set("action", job.action);
+      body.set("event_id", job.id);
+      body.set("automatic", automatic ? "yes" : "no");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000);
       try {
-        const response = await fetch(location.href,{method:"POST",body});
+        const response = await fetch(location.href, {method:"POST", body, credentials:"same-origin", signal:controller.signal});
         if (response.redirected) throw new Error("Session expired; sign in again.");
         const message = await response.text();
-        row.textContent = job.name + ": " + (response.ok ? "" : "Needs attention — ") + (message.startsWith("<") ? "Server error; retry this refresh." : message);
-      } catch (error) { row.textContent = job.name + ": " + error.message; }
+        if (!response.ok || message.trim().startsWith("<") || /unavailable|retained/i.test(message)) attention = true;
+        row.textContent = job.name + ": " + (message.trim().startsWith("<") ? "Server error; previous data retained." : message);
+      } catch (error) {
+        attention = true;
+        row.textContent = job.name + ": " + (error.name === "AbortError" ? "Timed out; previous data retained." : error.message);
+      } finally {
+        clearTimeout(timeout);
+        summary.textContent = `Checked ${++completed} of ${jobs.length} sources. You can keep editing.`;
+      }
     }
-    const link = document.createElement("a"); link.href = location.href; link.textContent = "Reload report to see updated figures →"; status.append(link);
-  } catch(error) { note(error.message); }
-  finally { controls.forEach(el => el.disabled = false); }
-});
+    // A small queue keeps independent events moving without flooding providers.
+    let next = 0;
+    await Promise.all(Array.from({length:Math.min(2, jobs.length)}, async () => {
+      while (next < jobs.length) await collect(jobs[next++]);
+    }));
+    const response = await fetch(location.href, {credentials:"same-origin", cache:"no-store"});
+    if (!response.ok || response.redirected) throw new Error("Could not update the report preview; your edits are still here.");
+    const refreshed = new DOMParser().parseFromString(await response.text(), "text/html");
+    const main = refreshed.querySelector("main");
+    const sources = refreshed.getElementById("annual-source-review");
+    if (!main || !sources) throw new Error("Could not update the report preview; your edits are still here.");
+    // A changed scope or manual metric must be saved before rendering new totals.
+    // Narrative-only edits can be preserved while figures update around them.
+    if (reportForm.dataset.figuresEdited !== "true") {
+      for (const input of reportForm.querySelectorAll("[data-report-section]")) {
+        if (input.value === input.defaultValue) continue;
+        const preview = document.getElementById("preview-" + input.dataset.reportSection);
+        for (const story of main.querySelectorAll('[data-section="' + input.dataset.reportSection + '"] .story-text')) {
+          story.innerHTML = preview.innerHTML;
+        }
+      }
+      document.querySelector("main").replaceWith(main);
+      sources.open = document.getElementById("annual-source-review").open;
+      document.getElementById("annual-source-review").replaceWith(sources);
+      styleReportWordmarks(main);
+    }
+    summary.textContent = (attention ? "Collection finished with some sources unavailable; previous figures were retained. See details below." : "Available source data is up to date.") +
+      (reportForm.dataset.figuresEdited === "true" ? " Save your edits to apply the latest figures and your exclusions." : " Report figures have updated automatically.");
+    details.open = attention;
+  } catch (error) {
+    summary.textContent = error.message;
+    details.open = true;
+  } finally {
+    blocked.forEach(button => button.disabled = false);
+  }
+}
+annualRefresh?.addEventListener("click", () => collectAnnualSources(false));
+if (annualRefresh && document.body.dataset.readonly !== "true") collectAnnualSources(true);

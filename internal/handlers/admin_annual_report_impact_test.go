@@ -59,3 +59,27 @@ func TestAnnualReportIncompleteHackathonExcluded(t *testing.T) {
 		t.Fatal("partial payout shown as complete")
 	}
 }
+
+func TestAnnualReportPrizeBasisPreservesFrozenEditions(t *testing.T) {
+	p := annualReportPage{Events: []annualEvent{{Included: true, HackCoverage: "records", Sats: 3000}}}
+	if p.FundingChart().Unit != "sats sent / claimed" || annualEventStats(p.Events[0])[2].Label != "sats sent / claimed" {
+		t.Fatal("legacy payout snapshot relabeled")
+	}
+	p.AwardBased = true
+	p.Events[0].AwardBased = true
+	if p.FundingChart().Unit != "sats awarded" || annualEventStats(p.Events[0])[2].Label != "sats awarded" {
+		t.Fatal("live award totals mislabeled")
+	}
+	for _, m := range p.BuildingMetrics() {
+		if m.Label == "sats awarded" {
+			t.Fatal("duplicate prize headline")
+		}
+	}
+}
+
+func TestAnnualReportOfferedPrizeLabels(t *testing.T) {
+	p := annualReportPage{OfferedBased: true, AwardBased: true, Events: []annualEvent{{OfferedBased: true, AwardBased: true, Included: true, HackCoverage: "automatic", Sats: 1000000}}}
+	if p.FundingChart().Unit != "sats offered in prizes" || annualEventStats(p.Events[0])[2].Label != "sats offered in prizes" {
+		t.Fatal("offered prizes mislabeled as payouts or awarded prizes")
+	}
+}

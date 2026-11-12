@@ -162,7 +162,11 @@ func (p sponsorReportPage) PostReview() []reportPostReview {
 	matcher := p.postMatcher()
 	for _, post := range p.PostLibrary.Posts {
 		match, reason := matcher(post)
-		rows = append(rows, reportPostReview{reportPost: reportPost{AnalyticsPost: post, Collected: p.PostLibrary.Collected}, Choice: p.Saved["x_post_"+post.ID], Reason: reason, Suggested: match})
+		choice := p.Saved["x_post_"+post.ID]
+		if choice == "" && match {
+			choice = "include"
+		}
+		rows = append(rows, reportPostReview{reportPost: reportPost{AnalyticsPost: post, Collected: p.PostLibrary.Collected}, Choice: choice, Reason: reason, Suggested: match})
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		if rows[i].Suggested != rows[j].Suggested {
@@ -196,9 +200,9 @@ func uniqueReportPosts(posts []reportPost) []reportPost {
 }
 func (p sponsorReportPage) ApprovedPosts() []reportPost {
 	var out []reportPost
-	for _, post := range p.PostLibrary.Posts {
-		if p.Saved["x_post_"+post.ID] == "include" {
-			out = append(out, reportPost{AnalyticsPost: post, Collected: p.PostLibrary.Collected})
+	for _, post := range p.PostReview() {
+		if post.Choice == "include" {
+			out = append(out, post.reportPost)
 		}
 	}
 	return uniqueReportPosts(out)
@@ -206,7 +210,11 @@ func (p sponsorReportPage) ApprovedPosts() []reportPost {
 func (p annualReportPage) ApprovedPosts() []reportPost {
 	var out []reportPost
 	for _, e := range p.Included() {
-		out = append(out, e.Posts...)
+		for _, post := range e.Posts {
+			if p.Saved[post.ExclusionKey()] != "yes" {
+				out = append(out, post)
+			}
+		}
 	}
 	return uniqueReportPosts(out)
 }
@@ -260,7 +268,7 @@ func reportPostsPlatform(posts []reportPost) reportReachPlatform {
 	if len(date) >= 10 {
 		date = date[:10]
 	}
-	return reportReachPlatform{Key: "x_posts", Name: "X", Source: "@btcplusplus · X account analytics", Date: date, Period: "Lifetime counters through collection", Coverage: fmt.Sprintf("%d approved event posts", len(uniqueReportPosts(posts))), Metrics: []reportReachMetric{{Key: "reach_x_impressions", Label: "post impressions", Value: strconv.FormatInt(postImpressions(posts), 10)}}}
+	return reportReachPlatform{Key: "x_posts", Name: "X", Source: "@btcplusplus · X account analytics", Date: date, Period: "Lifetime counters through collection", Coverage: fmt.Sprintf("%d included event posts", len(uniqueReportPosts(posts))), Metrics: []reportReachMetric{{Key: "reach_x_impressions", Label: "post impressions", Value: strconv.FormatInt(postImpressions(posts), 10)}}}
 }
 func withApprovedPostPlatform(platforms []reportReachPlatform, posts []reportPost) []reportReachPlatform {
 	if len(posts) == 0 {

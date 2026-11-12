@@ -34,8 +34,8 @@ The report adapts the visual design of `bitcoinpp-sponsor-kit-2027-4.pdf`: lands
 | Volunteers | Unique people assigned to event shifts, including leaders; not verified on-site attendance. |
 | Hackathon teams | Submitted/advanced project entries; one project team per entry. Not every registered hacker or unsubmitted idea. Multiple submissions from the same people may count more than once. |
 | Participants | Distinct members of included projects within the event. |
-| Sats distributed | Sats distribution records marked sent/claimed. Excludes pending/cancelled awards, non-sats prizes, and announced pool totals. Reconcile historical, pooled, or external payments separately. |
-| Winners | Awarded, unarchived prizes assigned to submitted/advanced projects, only after results are finalized. Multiple awards do not multiply project cards or payouts. |
+| Sats awarded | Numeric sat prize amounts assigned to finalized winning projects, once per project/prize regardless of payout status or team size. Excludes unassigned/draft/archived awards, non-sats prizes, unresolved pools and invalid amounts. Not a settlement total. |
+| Winners | Awarded, unarchived prizes assigned to submitted/advanced projects, only after results are finalized. Multiple awards do not multiply project cards. Each configured sat prize is counted once per winning project. |
 | Popular sessions | Top five among imported session analytics, sorted using one comparable metric (YouTube views or X video views), reporting period, export date, and source. Does not establish in-room popularity. |
 | Speaker/judge portraits | Existing profile photographs. Missing photos are marked rather than synthesized. Judge roster combines ranked judges and sponsor-award judges without duplicate people. |
 
@@ -47,7 +47,7 @@ The editor includes a source checklist for each pending chart and metric. It is 
 
 The event draft key uses `event-v2/<conference ID>`; earlier annual drafts are retained under their original keys. Database metrics and content load in a read-only repeatable-read transaction. The report never includes contact details, tax records, or payment addresses.
 
-Print / Save as PDF freezes the displayed edition. Enable background graphics and turn off browser-added headers/footers. The live view refreshes from current records; this is not a server-side immutable snapshot or an automatic analytics integration.
+Print / Save as PDF freezes the displayed edition. Enable background graphics and turn off browser-added headers/footers. The live view refreshes from current records; the annual report also refreshes external analytics automatically and supports immutable editions (see `annual-sponsor-reports.md`).
 
 ## Verification
 
@@ -59,7 +59,7 @@ Set `REPORT_TEST_DATABASE_URL` to an isolated PostgreSQL instance for the report
 
 ## Charts
 
-Dedicated print pages show delivered talks/keynotes, workshops and panels; the top five sessions by one sourced view metric; and recorded sats distributed by finalized winning project. Bars start at zero, values are printed beside them, and prize charts paginate after five projects with a shared scale. Public-source previews show explicit pending-data panels rather than fabricated values. Daily attendance and attendee-days are omitted because they are not collected.
+Dedicated print pages show delivered talks/keynotes, workshops and panels; the top five sessions by one sourced view metric; and configured sats awarded by finalized winning project. Bars start at zero, values are printed beside them, and prize charts paginate after five projects with a shared scale. Public-source previews show explicit pending-data panels rather than fabricated values. Daily attendance and attendee-days are omitted because they are not collected.
 
 ### Reference design verification
 
@@ -90,7 +90,7 @@ Demo exports are `artifacts/nairobi-synthetic-demo-paper.pdf` and `artifacts/nai
 
 ### Populated review edition (22 September 2026)
 
-The synthetic demo now renders five charts: program delivery, comparable recording views, sats paid by winning project, valid registrations versus unique check-ins, and submitted versus winning project teams. Attendance compares records with deduplicated people, not a conversion rate; winners are a subset of project teams. Local SQL supplies 320 registrations, 286 check-ins, 32 teams, 96 members, six challenges, 18 volunteers and 5 million sent/claimed sats. Session delivery is editor-confirmed; application and social/view counts remain explicitly synthetic editorial inputs, not automatic platform imports.
+The synthetic demo now renders five charts: program delivery, comparable recording views, sats awarded by winning project, valid registrations versus unique check-ins, and submitted versus winning project teams. Attendance compares records with deduplicated people, not a conversion rate; winners are a subset of project teams. Local SQL supplies 320 registrations, 286 check-ins, 32 teams, 96 members, six challenges, 18 volunteers and 5 million awarded sats. Session delivery is editor-confirmed; application and social/view counts remain explicitly synthetic editorial inputs, not automatic platform imports.
 
 For populated layout review, open `artifacts/nairobi-synthetic-demo-paper.pdf` or `http://127.0.0.1:8106/?layout=paper`. The public-source paper draft intentionally retains pending private metrics.
 
@@ -128,3 +128,7 @@ sections with live preview. Counts and source definitions remain generated.
 The local preview is intentionally read-only for persistence; narrative edits
 and recipient changes are temporary there. Use **Save event draft** in the
 connected admin report to keep changes.
+
+## Automatic post matching
+
+X posts matching an event link, recording, program title or event mention are included by default; dates alone do not establish a match. Exclude incorrect matches in the event editor. Existing explicit exclusions survive collection. The annual report refreshes event recording snapshots and the year's post analytics automatically when opened, deduplicates shared sources and supports additional exclusions per recipient. Event winner charts continue to show awarded prizes; annual funding totals show all offered prizes.

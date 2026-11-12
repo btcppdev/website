@@ -24,10 +24,10 @@ func TestReportPostAttribution(t *testing.T) {
 			t.Fatalf("bad match %s: %s", r.ID, r.Reason)
 		}
 	}
-	if len(p.ApprovedPosts()) != 0 {
-		t.Fatal("suggestions counted without approval")
+	if len(p.ApprovedPosts()) != 4 || postImpressions(p.ApprovedPosts()) != 10000 {
+		t.Fatal("matched posts were not included automatically")
 	}
-	form := url.Values{"x_posts_editor": {"yes"}, "action": {"approve_x_posts"}, "x_post_2": {"exclude"}, "x_post_5": {"include"}}
+	form := url.Values{"x_posts_editor": {"yes"}, "action": {"save"}, "x_post_2": {"exclude"}, "x_post_5": {"include"}}
 	saved := map[string]string{}
 	if err := saveReportPostChoices(form, saved, &p); err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestReportPostAttribution(t *testing.T) {
 		t.Fatalf("wrong approved total %d", got)
 	}
 	if p.Saved["x_post_2"] != "exclude" {
-		t.Fatal("bulk approval overwrote exclusion")
+		t.Fatal("automatic matching overwrote exclusion")
 	}
 	p.Saved["x_post_999"] = "include"
 	saved = map[string]string{}

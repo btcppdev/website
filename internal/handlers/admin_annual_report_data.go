@@ -23,6 +23,8 @@ const annualRegistrationsSQL = `WITH visits AS (
 SELECT count(*),count(*) FILTER(WHERE events>1) FROM people`
 
 func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualReportPage) error {
+	p.AwardBased = true
+	p.OfferedBased = true
 	tx, err := app.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return err
@@ -71,7 +73,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 				e.HackCoverage = "none"
 			}
 		}
-		e.Included = e.Eligible && (p.Saved["selection_saved"] != "yes" || p.Saved["include_"+event.ID] == "yes")
+		e.Included = e.Eligible && annualEventIncluded(*p, event)
 		if e.Included {
 			data := sponsorReportPage{Event: event, Saved: map[string]string{}}
 			if err := loadEventReportTx(ctx, app, tx, &data); err != nil {
@@ -82,7 +84,12 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 			if err := tx.QueryRow(ctx, annualRegistrationsSQL, []string{event.ID}).Scan(&e.Registrations, &repeated); err != nil {
 				return err
 			}
+			e.AwardBased = true
+			e.OfferedBased = true
 			e.Projects, e.Participants, e.Challenges, e.Sats = data.Teams, data.Participants, data.Challenges, data.Sats
+			if err := tx.QueryRow(ctx, `SELECT coalesce(sum(offered.sats),0)::bigint FROM (`+reportOfferedPrizesSQL+`) offered`, event.ID).Scan(&e.Sats); err != nil {
+				return err
+			}
 			e.Winners = int64(len(data.Winners))
 			e.WinningProjects = data.Winners
 			e.detectHackathonRecords()
@@ -112,8 +119,18 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 			e.Proposals = data.Proposals
 			e.Applications = verifiedReportApplications(data.Saved)
 			data.PostLibrary = postLibrary
-			e.Posts = data.ApprovedPosts()
-			e.Media = data.Media()
+			e.SourcePosts = data.ApprovedPosts()
+			e.SourceMedia = data.Media()
+			for _, post := range e.SourcePosts {
+				if p.Saved[post.ExclusionKey()] != "yes" {
+					e.Posts = append(e.Posts, post)
+				}
+			}
+			for _, media := range e.SourceMedia {
+				if p.Saved[media.ExclusionKey()] != "yes" {
+					e.Media = append(e.Media, media)
+				}
+			}
 			for _, platform := range data.ReachPlatforms() {
 				if platform.Ready() {
 					e.Reach = append(e.Reach, platform)

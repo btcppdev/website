@@ -83,9 +83,9 @@ func TestReportMediaPreservedAndRendered(t *testing.T) {
 }
 
 func TestReportMediaFailurePreservesSnapshot(t *testing.T) {
-	previous := []reportMedia{{Platform: "X", ID: "abc", Views: 123, Collected: "2026-10-22"}}
+	previous := []reportMedia{{Platform: "X", ID: "abc", URL: "https://x.com/i/broadcasts/abc", Views: 123, Collected: "2026-10-22"}}
 	raw, _ := json.Marshal(previous)
-	saved := map[string]string{"media_snapshot": string(raw), "media_links": "https://x.com/i/broadcasts/abc"}
+	saved := map[string]string{"media_snapshot": string(raw)}
 	refreshReportMedia(context.Background(), &config.AppContext{Env: &types.EnvConfig{}}, &sponsorReportPage{}, saved)
 	var got []reportMedia
 	if err := json.Unmarshal([]byte(saved["media_snapshot"]), &got); err != nil {

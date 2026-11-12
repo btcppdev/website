@@ -7,13 +7,22 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
+func reportSourceRecent(collected string, now time.Time) bool {
+	t, err := time.Parse(time.RFC3339, collected)
+	return err == nil && !t.After(now) && now.Sub(t) < 6*time.Hour
+}
+
 // Each event is a separate request, so a failed platform/event does not discard
 // successful refreshes. Existing event edits remain protected by revision checks.
 func refreshAnnualSource(ctx context.Context, w http.ResponseWriter, r *http.Request, app *config.AppContext, p *annualReportPage) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	automatic := r.PostForm.Get("automatic") == "yes"
 	if cutoff := p.Saved["cutoff"]; cutoff != "" {
 		p.Cutoff = cutoff
 	}
@@ -22,11 +31,22 @@ func refreshAnnualSource(ctx context.Context, w http.ResponseWriter, r *http.Req
 		return
 	}
 	if r.PostForm.Get("action") == "refresh_annual_posts" {
+		if automatic {
+			posts, err := loadReportPosts(ctx, app.DB, p.Year)
+			if err != nil {
+				http.Error(w, "Unable to read X post analytics; previous data retained.", 503)
+				return
+			}
+			if reportSourceRecent(posts.Collected, time.Now()) {
+				w.Write([]byte("Using X post analytics collected " + posts.Collected + ". Matching posts are included automatically."))
+				return
+			}
+		}
 		if err := refreshReportPosts(ctx, app, p.Year); err != nil {
 			http.Error(w, "X post refresh failed; previous data retained. Check the production X session.", 502)
 			return
 		}
-		w.Write([]byte("X post analytics updated. Event attribution still requires review."))
+		w.Write([]byte("X post analytics updated. Matching posts are included automatically; you can exclude incorrect matches."))
 		return
 	}
 	var event *reportEvent
@@ -65,6 +85,10 @@ func refreshAnnualSource(ctx context.Context, w http.ResponseWriter, r *http.Req
 	}
 	if page.Saved == nil {
 		page.Saved = map[string]string{}
+	}
+	if automatic && reportSourceRecent(page.Saved["media_refresh_attempted"], time.Now()) {
+		w.Write([]byte("Last checked " + page.Saved["media_refresh_attempted"] + ". " + page.Saved["media_status"]))
+		return
 	}
 	refreshReportMedia(ctx, app, &page, page.Saved)
 	if err = saveEventReportDraft(ctx, app, page.Scope, page.Revision, page.Saved); err != nil {

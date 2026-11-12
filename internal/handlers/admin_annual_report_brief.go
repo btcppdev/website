@@ -57,7 +57,7 @@ func (p annualReportPage) BriefHackMetrics() []reportMetric {
 		result = append(result, reportMetric{Label: "distinct project members", Value: compactReportSats(p.UniqueParticipants)})
 	}
 	if sats > 0 {
-		result = append(result, reportMetric{Label: "sats sent / claimed", Value: compactReportSats(sats)})
+		result = append(result, reportMetric{Label: p.PrizeUnit(), Value: compactReportSats(sats)})
 	}
 	return result
 }

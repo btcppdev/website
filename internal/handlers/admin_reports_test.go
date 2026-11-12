@@ -246,7 +246,7 @@ func TestReportMetricsPostgres(t *testing.T) {
 	if len(page.TeamSizes) != 6 || page.TeamSizes[1].Value != 1 || page.TeamSizes[2].Value != 1 || page.TeamSizes[0].Value != 0 {
 		t.Fatal("team-size distribution lost project membership or included drafts")
 	}
-	if page.Attendees != 2 || page.Registrations != 4 || page.Teams != 2 || page.Participants != 2 || page.Challenges != 1 || page.Sats != 300 || page.Volunteers != 1 || page.Proposals != 2 {
+	if page.Attendees != 2 || page.Registrations != 4 || page.Teams != 2 || page.Participants != 2 || page.Challenges != 1 || page.Sats != 3000 || page.Volunteers != 1 || page.Proposals != 2 {
 		t.Fatalf("bad metrics: %+v", page)
 	}
 	if _, err = db.Exec(ctx, `UPDATE registrations SET revoked_before_account_deletion=revoked,revoked=true`); err != nil {
@@ -278,6 +278,9 @@ func TestReportMetricsPostgres(t *testing.T) {
 	if len(page.Projects) != 2 {
 		t.Fatal("project wall must include submitted/advanced projects and exclude drafts")
 	}
+	if page.Winners[0].AwardedSats != 3000 {
+		t.Fatal("assigned prizes were not counted independently of payouts")
+	}
 	if page.Winners[0].Sats != 300 {
 		t.Fatal("duplicate awards multiplied payouts")
 	}
@@ -288,7 +291,7 @@ func TestReportMetricsPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	page = sponsorReportPage{Event: reportEvent{ID: "event", Tag: "nairobi", Timezone: "Africa/Nairobi"}}
-	if err = loadEventReport(ctx, &config.AppContext{DB: db}, &page); err != nil || len(page.Winners) != 0 {
+	if err = loadEventReport(ctx, &config.AppContext{DB: db}, &page); err != nil || len(page.Winners) != 0 || page.Sats != 0 {
 		t.Fatal("provisional winners published", err)
 	}
 }
@@ -342,7 +345,8 @@ CREATE TEMP TABLE person_emails(person_id text,email text UNIQUE);
 CREATE TEMP TABLE competitions(id text,conference_id text,results_finalized_at timestamptz);
 CREATE TEMP TABLE projects(id text PRIMARY KEY,competition_id text,status text,title text,short_description text,image_url text,github_url text,demo_url text);
 CREATE TEMP TABLE project_members(project_id text,person_id text);
-CREATE TEMP TABLE awards(id text,competition_id text,award_type text,sponsored_by_org_id text,status text,archived_at timestamptz,title text,award_rank integer);
+CREATE TEMP TABLE awards(id text,competition_id text,award_type text,sponsored_by_org_id text,status text,archived_at timestamptz,title text,award_rank integer,max_awardees integer NOT NULL DEFAULT 1);
+CREATE TEMP TABLE prizes(id text PRIMARY KEY,award_id text,prize_type text,value_text text);
 CREATE TEMP TABLE project_awards(project_id text,award_id text);
 CREATE TEMP TABLE award_distributions(competition_id text,project_id text,amount_sats bigint,distribution_type text,status text);
 CREATE TEMP TABLE people(id text PRIMARY KEY,name text,norm_photo_path text,company text);
@@ -363,6 +367,7 @@ INSERT INTO projects VALUES ('project1','competition','submitted','Winner','Usef
 INSERT INTO project_members VALUES ('project1','person1'),('project1','person2'),('project2','person1'),('draft','person3');
 INSERT INTO awards(id,competition_id,award_type,sponsored_by_org_id,status,archived_at,title) VALUES ('award1','competition','normal','org','awarded',NULL,'First place'),('award2','competition','challenge','org','awarded',NULL,'Sponsor prize'),('draftaward','competition','challenge','org','draft',NULL,'Draft');
 INSERT INTO project_awards VALUES ('project1','award1'),('project1','award2');
+INSERT INTO prizes VALUES ('prize1','award1','sats','1000'),('prize2','award2','sats','2000'),('ticket','award1','tickets','9999'),('pool','award2','pooled','9999'),('bad','award1','sats','unknown'),('overflow','award1','sats','9223372036854775808'),('draftprize','draftaward','sats','8888');
 INSERT INTO award_distributions VALUES ('competition','project1',100,'sats','sent'),('competition','project1',200,'sats','claimed'),('competition','project1',500,'sats','pending'),('competition','project1',500,'sats','cancelled'),('competition','project1',900,'tickets','sent');
 INSERT INTO people VALUES ('person1','Speaker Judge','','Org'),('person2','Teammate','','');
 INSERT INTO proposals VALUES ('proposal1','event','Talk','talk','Scheduled'),('proposal2','event','Declined','workshop','Declined'),('proposal3','event','Hacking','hackathon','Scheduled');
@@ -375,3 +380,44 @@ INSERT INTO volunteers VALUES ('volunteer1','person1'),('volunteer2','person1');
 INSERT INTO work_shifts VALUES ('shift1','event'),('shift2','event');
 INSERT INTO work_shifts_volunteers VALUES ('shift1','volunteer1'),('shift2','volunteer2');
 `
+
+func TestReportAwardedPrizesIgnorePayoutStatePostgres(t *testing.T) {
+	db := reportTestDB(t)
+	ctx := context.Background()
+	_, err := db.Exec(ctx, reportFixtureSQL+`
+ DELETE FROM award_distributions;
+ INSERT INTO project_awards VALUES ('project1','award1'),('project2','award1'),('draft','award1');
+ INSERT INTO awards(id,competition_id,status,archived_at,title) VALUES ('archived','competition','awarded',now(),'Archived'),('unassigned','competition','awarded',NULL,'Unassigned'),('foreign','other','awarded',NULL,'Foreign');
+ INSERT INTO prizes VALUES ('archivedprize','archived','sats','9999'),('unassignedprize','unassigned','sats','9999'),('foreignprize','foreign','sats','9999');
+ INSERT INTO project_awards VALUES ('project1','archived'),('project1','foreign');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := sponsorReportPage{Event: reportEvent{ID: "event"}}
+	if err := loadEventReport(ctx, &config.AppContext{DB: db}, &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Sats != 4000 {
+		t.Fatalf("award totals multiplied by duplicate assignments or invalid projects: %d", p.Sats)
+	}
+	var sum int64
+	for _, w := range p.Winners {
+		sum += w.AwardedSats
+		if w.Sats != 0 {
+			t.Fatal("payout amount invented")
+		}
+	}
+	if sum != p.Sats {
+		t.Fatalf("winner prizes %d disagree with total %d", sum, p.Sats)
+	}
+	if _, err := db.Exec(ctx, `INSERT INTO award_distributions VALUES('competition','project1',99999,'sats','sent')`); err != nil {
+		t.Fatal(err)
+	}
+	p = sponsorReportPage{Event: reportEvent{ID: "event"}}
+	if err := loadEventReport(ctx, &config.AppContext{DB: db}, &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Sats != 4000 {
+		t.Fatal("payouts changed awarded prize total", p.Sats)
+	}
+}

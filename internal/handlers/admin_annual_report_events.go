@@ -28,10 +28,16 @@ func annualEventStats(e annualEvent) []annualEventStat {
 		views.Value = compactReportSats(total)
 		views.Detail = "Recorded X and YouTube video views; each video counted once per platform"
 	}
-	prizes := annualEventStat{Kind: "prizes", Value: "—", Label: "sats distributed", Detail: "Hackathon payout records not yet reviewed"}
+	prizes := annualEventStat{Kind: "prizes", Value: "—", Label: e.PrizeUnit(), Detail: "Hackathon prize records not yet reviewed"}
 	if e.HackKnown() {
 		prizes.Value = compactReportSats(e.Sats)
 		prizes.Detail = "Recorded sent or claimed hackathon prize distributions"
+		if e.AwardBased {
+			prizes.Detail = "Configured sat prizes assigned to finalized winning projects; not a settlement total"
+		}
+		if e.OfferedBased {
+			prizes.Detail = "Configured sats per winning project × available winner slots, including unawarded prizes; independent of payouts"
+		}
 	} else if e.HackCoverage == "incomplete" {
 		prizes.Label = "prize data unavailable"
 		prizes.Detail = "Incomplete historical records; excluded from annual hackathon totals"

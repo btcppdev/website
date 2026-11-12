@@ -69,7 +69,9 @@ func reportMediaIdentity(raw string) (platform, id string) {
 }
 
 func saveReportMediaFields(form url.Values, saved, previous map[string]string) error {
-	saved["media_snapshot"] = previous["media_snapshot"]
+	for _, key := range []string{"media_snapshot", "media_status", "media_refresh_attempted"} {
+		saved[key] = previous[key]
+	}
 	raw := strings.TrimSpace(form.Get("media_links"))
 	if len(raw) > 12000 {
 		return fmt.Errorf("media links exceed 12,000 bytes")
@@ -95,11 +97,14 @@ func saveReportMediaFields(form url.Values, saved, previous map[string]string) e
 	if count > 100 {
 		return fmt.Errorf("at most 100 additional media links per event")
 	}
+	if raw != previous["media_links"] {
+		delete(saved, "media_refresh_attempted")
+	}
 	saved["media_links"] = raw
 	return nil
 }
 
-// Refresh is explicit, outside database transactions. A failed platform retains its
+// Refresh runs outside database transactions. A failed platform retains its
 // previous snapshot; successful platforms replace theirs, removing unavailable media.
 func refreshReportMedia(ctx context.Context, app *config.AppContext, p *sponsorReportPage, saved map[string]string) {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
@@ -127,6 +132,17 @@ func refreshReportMedia(ctx context.Context, app *config.AppContext, p *sponsorR
 	}
 	var previous []reportMedia
 	_ = json.Unmarshal([]byte(saved["media_snapshot"]), &previous)
+	// Existing snapshots also contain full-day recordings and imported sources
+	// that need not be linked to an individual talk. Keep refreshing those too.
+	for _, m := range previous {
+		if _, exists := wanted[m.Platform][m.ID]; !exists {
+			seconds := 0
+			if u, err := url.Parse(m.MomentURL); err == nil {
+				seconds, _ = strconv.Atoi(strings.TrimSuffix(u.Query().Get("t"), "s"))
+			}
+			add(m.URL, seconds)
+		}
+	}
 	var result []reportMedia
 	var notices []string
 	collected := time.Now().UTC().Format(time.RFC3339)
@@ -200,6 +216,7 @@ func refreshReportMedia(ctx context.Context, app *config.AppContext, p *sponsorR
 	raw, _ := json.Marshal(result)
 	saved["media_snapshot"] = string(raw)
 	saved["media_status"] = strings.Join(notices, " ")
+	saved["media_refresh_attempted"] = collected
 }
 
 func reportMediaPages(media []reportMedia) [][]reportMedia {

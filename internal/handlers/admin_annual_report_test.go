@@ -85,6 +85,9 @@ func TestAnnualReportRender(t *testing.T) {
 		if strings.Contains(body, `id="report-edit-form"`) == frozen {
 			t.Fatal("frozen edition exposes editor")
 		}
+		if strings.Contains(body, `id="annual-refresh-all"`) == frozen {
+			t.Fatal("collection controls missing from live draft or exposed on frozen edition")
+		}
 	}
 }
 
@@ -258,6 +261,9 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	}
 	if len(p.Events[0].Reach) != 1 {
 		t.Fatal("Nairobi default evidence was not carried through")
+	}
+	if !p.OfferedBased || !p.Events[0].OfferedBased || p.FundingChart().DonutTotal() != 3000 {
+		t.Fatal("annual totals did not load offered prizes")
 	}
 	id, err := saveAnnualReport(ctx, app, p, true)
 	if err != nil || id == "" {

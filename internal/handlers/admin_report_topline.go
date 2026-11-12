@@ -79,7 +79,11 @@ func (p sponsorReportPage) MediaTotals() []reportMediaTotal { return reportMedia
 func (p annualReportPage) AllMedia() []reportMedia {
 	var media []reportMedia
 	for _, e := range p.Included() {
-		media = append(media, e.Media...)
+		for _, m := range e.Media {
+			if p.Saved[m.ExclusionKey()] != "yes" {
+				media = append(media, m)
+			}
+		}
 	}
 	return uniqueReportMedia(media)
 }

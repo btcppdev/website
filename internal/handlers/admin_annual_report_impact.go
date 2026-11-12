@@ -1,9 +1,8 @@
 package handlers
 
-// Only reconciled event payouts contribute to the funding chart. Announced
-// prize pools and per-project awarded amounts are not added to distributions.
+// Live annual reports count prizes offered. Frozen editions retain their saved basis.
 func (p annualReportPage) FundingChart() reportChart {
-	c := reportChart{Kind: "program", Unit: "sats sent / claimed"}
+	c := reportChart{Kind: "program", Unit: p.PrizeUnit()}
 	for _, e := range p.Included() {
 		if e.HackKnown() && e.Sats > 0 {
 			c.Rows = append(c.Rows, reportBar{Label: e.Event.Location, Value: e.Sats})
@@ -16,7 +15,7 @@ func (p annualReportPage) BuildingMetrics() []reportMetric {
 	metrics := p.BriefHackMetrics()
 	var out []reportMetric
 	for _, m := range metrics {
-		if m.Label != "sats sent / claimed" {
+		if m.Label != p.PrizeUnit() {
 			out = append(out, m)
 		}
 	}
@@ -24,7 +23,7 @@ func (p annualReportPage) BuildingMetrics() []reportMetric {
 }
 
 // Existing records can be included without an extra manual review flag. This does
-// not assert completeness or turn announced awards into recorded distributions.
+// not assert completeness; prize offers do not require finalized results.
 func (e *annualEvent) detectHackathonRecords() {
 	if e.HackCoverage != "unknown" && e.HackCoverage != "" {
 		return
@@ -38,28 +37,47 @@ func (e annualEvent) DataStatus() string {
 		return "Outside the completion cutoff; shown editorially where applicable."
 	}
 	if !e.Included {
-		return "Excluded from this draft. Select this event or use Include all completed events."
+		return "Excluded from this draft. Select this event or use Restore all completed events."
 	}
 	status := "Registrations and program loaded from the database. "
 	if e.HackKnown() {
 		status += "Available hackathon records included automatically. "
 		if e.Sats == 0 {
-			status += "No sent/claimed sats payouts recorded; funding chart has no amount for this event. "
+			status += "No qualifying sat prize amounts recorded; funding chart has no amount for this event. "
 		}
 	} else if e.HackCoverage == "incomplete" {
-		status += "Incomplete historical hackathon records: excluded from project, participant, winner and payout totals. Other event statistics remain included. "
+		status += "Incomplete historical hackathon records: excluded from project, participant, winner and prize totals. Other event statistics remain included. "
 	} else if e.HackCoverage == "none" {
 		status += "No hackathon. "
 	} else {
 		status += "No hackathon records found; external results may still be needed. "
 	}
 	if len(e.Media) == 0 {
-		status += "No recording analytics saved yet: use the bulk analytics refresh below."
+		status += "Recording analytics will be collected automatically."
 	} else {
 		status += "Saved recording analytics included."
 	}
 	if len(e.Posts) == 0 {
-		status += " No X posts approved for attribution yet."
+		status += " No matching X posts in the latest snapshot."
 	}
 	return status
+}
+
+func (p annualReportPage) PrizeUnit() string {
+	if p.OfferedBased {
+		return "sats offered in prizes"
+	}
+	if p.AwardBased {
+		return "sats awarded"
+	}
+	return "sats sent / claimed"
+}
+func (e annualEvent) PrizeUnit() string {
+	if e.OfferedBased {
+		return "sats offered in prizes"
+	}
+	if e.AwardBased {
+		return "sats awarded"
+	}
+	return "sats sent / claimed"
 }

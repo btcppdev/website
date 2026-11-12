@@ -8,6 +8,33 @@ import (
 	"sort"
 )
 
+// One configured sat prize per winning project. EXISTS prevents duplicate award
+// links from multiplying amounts; team membership and payout state are irrelevant.
+// Use the same integer format as the prize payout configuration, excluding pools,
+// tickets, prose amounts and values outside int64 instead of guessing conversions.
+const reportAwardedPrizesSQL = `SELECT p.id AS project_id, pr.id AS prize_id,
+ CASE WHEN trim(pr.value_text) ~ '^[0-9]{1,19}$'
+ THEN CASE WHEN trim(pr.value_text)::numeric BETWEEN 1 AND 9223372036854775807
+ THEN trim(pr.value_text)::bigint ELSE 0 END ELSE 0 END AS sats
+ FROM projects p JOIN competitions k ON k.id=p.competition_id
+ JOIN awards a ON a.competition_id=k.id
+ JOIN prizes pr ON pr.award_id=a.id AND pr.prize_type='sats'
+ WHERE k.conference_id=$1 AND k.results_finalized_at IS NOT NULL
+ AND p.status IN ('submitted','advanced') AND a.status='awarded' AND a.archived_at IS NULL
+ AND EXISTS (SELECT 1 FROM project_awards pa WHERE pa.project_id=p.id AND pa.award_id=a.id)`
+
+// The advertised amount is per winning project, so each available winner slot
+// contributes to the offer. Unawarded prizes count; assignments and payments do
+// not affect this total. Draft/archived awards and non-numeric pools do not count.
+const reportOfferedPrizesSQL = `SELECT pr.id AS prize_id,
+ CASE WHEN trim(pr.value_text) ~ '^[0-9]{1,19}$'
+ THEN CASE WHEN trim(pr.value_text)::numeric BETWEEN 1 AND 9223372036854775807
+ THEN trim(pr.value_text)::numeric * coalesce(a.max_awardees,1) ELSE 0 END ELSE 0 END AS sats
+ FROM prizes pr JOIN awards a ON a.id=pr.award_id
+ JOIN competitions k ON k.id=a.competition_id
+ WHERE k.conference_id=$1 AND a.archived_at IS NULL
+ AND a.status IN ('available','unawarded','awarded') AND pr.prize_type='sats'`
+
 // Aggregate relationships separately so team size cannot multiply prizes.
 const eventReportAttendanceSQL = `SELECT
  (SELECT count(*) FROM registrations WHERE conference_id=$1 AND NOT coalesce(revoked_before_account_deletion,revoked)),
@@ -17,7 +44,7 @@ const eventReportMetricsSQL = eventReportAttendanceSQL + `,
  (SELECT count(*) FROM projects p JOIN competitions k ON k.id=p.competition_id WHERE k.conference_id=$1 AND p.status IN ('submitted','advanced')),
  (SELECT count(DISTINCT m.person_id) FROM project_members m JOIN projects p ON p.id=m.project_id JOIN competitions k ON k.id=p.competition_id WHERE k.conference_id=$1 AND p.status IN ('submitted','advanced')),
  (SELECT count(*) FROM awards a JOIN competitions k ON k.id=a.competition_id WHERE k.conference_id=$1 AND a.award_type='challenge' AND a.sponsored_by_org_id IS NOT NULL AND a.status<>'draft' AND a.archived_at IS NULL),
- (SELECT coalesce(sum(d.amount_sats),0)::bigint FROM award_distributions d JOIN competitions k ON k.id=d.competition_id WHERE k.conference_id=$1 AND d.distribution_type='sats' AND d.status IN ('sent','claimed')),
+ (SELECT coalesce(sum(aw.sats),0)::bigint FROM (` + reportAwardedPrizesSQL + `) aw),
  (SELECT count(DISTINCT coalesce(v.person_id::text,v.id::text)) FROM work_shifts_volunteers wv JOIN work_shifts w ON w.id=wv.shift_id JOIN volunteers v ON v.id=wv.volunteer_id WHERE w.conference_id=$1),
  (SELECT count(*) FROM proposals WHERE conference_id=$1 AND lower(talk_type) IN ('talk','keynote','workshop','panel'))`
 
@@ -48,6 +75,7 @@ const eventReportWinnersSQL = `SELECT p.id::text,p.title,p.short_description,p.i
  coalesce((SELECT jsonb_agg(jsonb_build_object('Name',person.name,'Photo',coalesce(person.norm_photo_path,'')) ORDER BY person.name)
  FROM project_members m JOIN people person ON person.id=m.person_id
  WHERE m.project_id=p.id),'[]'::jsonb),
+ (SELECT coalesce(sum(aw.sats),0)::bigint FROM (` + reportAwardedPrizesSQL + `) aw WHERE aw.project_id=p.id),
  coalesce(min(coalesce(a.award_rank,CASE WHEN lower(a.title) ~ '(1st|first)' THEN 1 WHEN lower(a.title) ~ '(2nd|second)' THEN 2 WHEN lower(a.title) ~ '(3rd|third)' THEN 3 END)) FILTER (WHERE a.award_type='normal'),-1)
  FROM projects p JOIN project_awards pa ON pa.project_id=p.id JOIN awards a ON a.id=pa.award_id AND a.competition_id=p.competition_id JOIN competitions k ON k.id=p.competition_id
  WHERE k.conference_id=$1 AND k.results_finalized_at IS NOT NULL AND p.status IN ('submitted','advanced') AND a.status='awarded' AND a.archived_at IS NULL
@@ -147,7 +175,7 @@ func loadEventReportTx(ctx context.Context, app *config.AppContext, tx pgx.Tx, p
 	page.Winners, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportWinner, error) {
 		var p reportWinner
 		var portraits []byte
-		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image, &p.GitHub, &p.Demo, &p.Awards, &p.Members, &p.Sats, &portraits, &p.Rank)
+		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image, &p.GitHub, &p.Demo, &p.Awards, &p.Members, &p.Sats, &portraits, &p.AwardedSats, &p.Rank)
 		if err == nil {
 			err = json.Unmarshal(portraits, &p.Portraits)
 		}

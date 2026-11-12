@@ -18,6 +18,10 @@ import (
 )
 
 type annualEvent struct {
+	SourcePosts                                                                 []reportPost
+	SourceMedia                                                                 []reportMedia
+	OfferedBased                                                                bool
+	AwardBased                                                                  bool
 	Proposals                                                                   int64
 	Applications                                                                *int64
 	Posts                                                                       []reportPost
@@ -39,6 +43,9 @@ func (e annualEvent) HackKnown() bool {
 
 type annualEditionLink struct{ URL, Date string }
 type annualReportPage struct {
+	OfferedBased                                                            bool
+	DraftUpdatedAt                                                          *time.Time
+	AwardBased                                                              bool
 	Year                                                                    int
 	Recipient, Cutoff, Generated, Frozen, CSRF, Message                     string
 	Revision                                                                int64
@@ -229,7 +236,7 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 		return
 	}
 	var content []byte
-	err := app.DB.QueryRow(ctx, `SELECT content,revision FROM sponsor_report_drafts WHERE scope=$1`, p.Scope()).Scan(&content, &p.Revision)
+	err := app.DB.QueryRow(ctx, `SELECT content,revision,updated_at FROM sponsor_report_drafts WHERE scope=$1`, p.Scope()).Scan(&content, &p.Revision, &p.DraftUpdatedAt)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, "Unable to load annual draft", 503)
 		return
@@ -338,6 +345,9 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 		return fmt.Errorf("choose a cutoff in the report year, not in the future")
 	}
 	saved := map[string]string{"cutoff": f.Get("cutoff"), "selection_saved": "yes"}
+	if err := saveAnnualExclusions(p, f, saved); err != nil {
+		return err
+	}
 	if f.Get("action") == "include_all" {
 		saved["selection_saved"] = "no"
 	}

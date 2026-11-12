@@ -526,11 +526,11 @@ func hydrateEventReport(page *sponsorReportPage) {
 		{"Submitted project teams", display(page.Teams), "One team entry per submitted/advanced project."},
 		{"Hackathon participants", display(page.Participants), "Unique members of submitted/advanced projects."},
 		{"Sponsor challenges", display(page.Challenges), "Published sponsor-backed challenges."},
-		{"Sats distributed", func() string {
+		{"Sats awarded", func() string {
 			if page.Preview {
 				return "—"
 			}
 			return compactReportSats(page.Sats)
-		}(), "Sats distributions recorded as sent or claimed."},
+		}(), "Configured sat prizes assigned to finalized winning projects; not a settlement total."},
 	}
 }
