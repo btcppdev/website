@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -133,8 +134,34 @@ func (p sponsorReportPage) HeadlinePlatforms() []reportReachPlatform {
 }
 func (p annualReportPage) HeadlinePlatforms() []reportReachPlatform {
 	platforms := (sponsorReportPage{Saved: p.Saved}).HeadlinePlatforms()
-	// An explicit account-wide annual total already includes the event posts.
-	if p.Saved["reach_x_impressions"] == "" {
+	if p.AnnualPostLibrary != nil && p.AnnualPostLibrary.Collected != "" {
+		// A collected annual library is authoritative, including when the editor
+		// excludes every post. Never resurrect a stale manual impressions total.
+		var out []reportReachPlatform
+		for _, v := range platforms {
+			var metrics []reportReachMetric
+			for _, m := range v.Metrics {
+				if m.Key != "reach_x_impressions" {
+					metrics = append(metrics, m)
+				}
+			}
+			v.Metrics = metrics
+			if len(v.HeadlineMetrics()) > 0 {
+				out = append(out, v)
+			}
+		}
+		posts := p.ApprovedPosts()
+		v := reportPostsPlatform(posts)
+		v.Coverage = fmt.Sprintf("%d @btcplusplus posts published in %d, after exclusions", len(posts), p.Year)
+		if p.AnnualPostLibrary.Unavailable > 0 {
+			v.Coverage += fmt.Sprintf(" · %d unavailable posts omitted", p.AnnualPostLibrary.Unavailable)
+		}
+		if len(v.HeadlineMetrics()) > 0 {
+			out = append(out, v)
+		}
+		platforms = out
+		// An explicit account-wide annual total already includes the event posts.
+	} else if p.Saved["reach_x_impressions"] == "" {
 		v := reportPostsPlatform(p.ApprovedPosts())
 		if len(p.ApprovedPosts()) > 0 && len(v.HeadlineMetrics()) > 0 {
 			platforms = append(platforms, v)

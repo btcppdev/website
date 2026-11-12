@@ -32,17 +32,11 @@ func (p reportPost) ExclusionKey() string  { return "exclude_post_" + p.ID }
 
 func (p annualReportPage) SourceChoices() []annualSourceChoice {
 	var media []reportMedia
-	var posts []reportPost
 	for _, e := range p.Included() {
 		if e.SourceMedia != nil {
 			media = append(media, e.SourceMedia...)
 		} else {
 			media = append(media, e.Media...)
-		}
-		if e.SourcePosts != nil {
-			posts = append(posts, e.SourcePosts...)
-		} else {
-			posts = append(posts, e.Posts...)
 		}
 	}
 	var choices []annualSourceChoice
@@ -52,7 +46,7 @@ func (p annualReportPage) SourceChoices() []annualSourceChoice {
 			fmt.Sprintf("%s · %s · %s views · %s", m.Event, m.Platform, compactReportSats(m.Views), m.CollectionDate()),
 			m.URL, p.Saved[key] == "yes"})
 	}
-	for _, post := range uniqueReportPosts(posts) {
+	for _, post := range p.annualSourcePosts() {
 		key := post.ExclusionKey()
 		choices = append(choices, annualSourceChoice{key, post.Text,
 			fmt.Sprintf("X post · %s impressions · collected %s", post.Display(), post.Collected),

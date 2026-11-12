@@ -311,6 +311,7 @@
 .annual-recap-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:12px 0 0; padding:0; }
 .annual-recap-stat { display:flex; align-items:center; gap:7px; min-width:0; }
 .annual-recap-stat dd { display:flex; flex:0 0 49px; height:49px; align-items:center; justify-content:center; border:2px solid #29232e; border-radius:50%; margin:0; font-size:16px; font-weight:700; letter-spacing:-.6px; background:#d6c3ef; }
+.annual-recap-stat--compact dd { font-size:12px; letter-spacing:-.3px; white-space:nowrap; }
 .annual-recap-stat--views dd { background:#f5c400; }
 .annual-recap-stat--prizes dd { background:#29232e; color:#fff4cf; }
 .annual-recap-stat dt { font-size:10px; line-height:1.2; max-width:70px; }
@@ -318,11 +319,13 @@
 @media(max-width:650px) {
  .annual-recap-stat { flex-direction:column; align-items:flex-start; }
  .annual-recap-stat dd { flex-basis:auto; width:43px; height:43px; font-size:14px; }
+ .annual-recap-stat--compact dd { font-size:10.5px; }
 }
 @media print {
  .annual-recap-stats { margin-top:2mm; gap:2mm; }
  .annual-recap-stat { gap:1.5mm; }
  .annual-recap-stat dd { flex-basis:11mm; height:11mm; font-size:13px; border-width:1.5px; }
+ .annual-recap-stat--compact dd { font-size:10px; }
  .annual-recap-stat dt { font-size:9px; }
  .annual-recap-date { margin-bottom:2mm; }
  .annual-event-recap .annual-recap-link { margin-top:1.5mm; }

@@ -4,7 +4,9 @@ import (
 	"btcpp-web/external/xstudio"
 	"btcpp-web/internal/config"
 	"context"
+	"encoding/json"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -77,18 +79,75 @@ func TestReportPostAnnualDeduplication(t *testing.T) {
 }
 func TestReportPostSnapshot(t *testing.T) {
 	snapshot := defaultReportPosts(2026)
-	if snapshot.Account != "btcplusplus" || len(snapshot.Posts) != 774 {
+	if snapshot.Account != "btcplusplus" || len(snapshot.Posts) != 808 {
 		t.Fatal("invalid bundled public snapshot")
 	}
 	var total int64
 	for _, p := range snapshot.Posts {
 		total += p.Impressions
 	}
-	if total != 1160550 {
+	if total != 1203010 {
 		t.Fatalf("invalid snapshot sum %d", total)
 	}
 	if len(defaultReportPosts(2027).Posts) != 0 {
 		t.Fatal("2026 posts leaked into another year")
+	}
+}
+
+func TestAnnualAccountPostCoverage(t *testing.T) {
+	library := defaultReportPosts(2026)
+	p := annualReportPage{Year: 2026, AnnualPostLibrary: &library, Saved: map[string]string{
+		"reach_x_impressions": "5000", "reach_x_source": "Old export", "reach_x_period": "2026", "reach_x_date": "2026-10-23", "reach_x_coverage": "Event posts",
+	}}
+	// No included events: the account-wide headline must still include all posts.
+	if got := postImpressions(p.ApprovedPosts()); got != 1203010 {
+		t.Fatal("annual account coverage depends on event matching", got)
+	}
+	first := p.ApprovedPosts()[0]
+	p.Saved[first.ExclusionKey()] = "yes"
+	if len(p.SourceChoices()) != 808 || postImpressions(p.ApprovedPosts()) != 1203010-first.Impressions {
+		t.Fatal("excluded posts must stay reviewable and leave the total")
+	}
+	platforms := p.HeadlinePlatforms()
+	if len(platforms) != 1 || !strings.Contains(platforms[0].Coverage, "807 @btcplusplus posts published in 2026") || platforms[0].Metrics[0].Value == "5000" {
+		t.Fatal("stale manual value or incorrect coverage", platforms)
+	}
+	// Frozen editions retain their snapshot even when the shared library changes.
+	raw, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var frozen annualReportPage
+	if err := json.Unmarshal(raw, &frozen); err != nil {
+		t.Fatal(err)
+	}
+	library.Posts = nil
+	if len(frozen.ApprovedPosts()) != 807 {
+		t.Fatal("frozen account snapshot lost")
+	}
+	if len(p.HeadlinePlatforms()) != 0 {
+		t.Fatal("empty collected library resurrected a manual total")
+	}
+	for _, post := range frozen.ApprovedPosts() {
+		frozen.Saved[post.ExclusionKey()] = "yes"
+	}
+	if len(frozen.HeadlinePlatforms()) != 0 {
+		t.Fatal("excluding all posts resurrected a manual total")
+	}
+}
+
+func TestAnnualAccountPostYearAndDeduplication(t *testing.T) {
+	valid := xstudio.AnalyticsPost{ID: "1", Created: "2026-01-01T00:00:00Z", Impressions: 3000}
+	library := reportPostLibrary{Year: 2026, Account: "btcplusplus", Collected: "2026-11-12T00:00:00Z", Posts: []xstudio.AnalyticsPost{
+		valid, valid, {ID: "old", Created: "2025-12-31T23:59:59Z", Impressions: 9000}, {ID: "invalid", Created: "bad", Impressions: 9000},
+	}}
+	p := annualReportPage{Year: 2026, AnnualPostLibrary: &library}
+	if len(p.ApprovedPosts()) != 1 || postImpressions(p.ApprovedPosts()) != 3000 {
+		t.Fatal("wrong-year, invalid or duplicate posts counted")
+	}
+	library.Account = "another-account"
+	if len(p.ApprovedPosts()) != 0 {
+		t.Fatal("wrong account counted")
 	}
 }
 
@@ -101,10 +160,17 @@ func TestReportPostSnapshotPersistencePostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	initial, err := loadReportPosts(ctx, db, 2026)
-	if err != nil || len(initial.Posts) != 774 {
+	if err != nil || len(initial.Posts) != 808 {
 		t.Fatal("bundled fallback unavailable", err)
 	}
-	fresh := reportPostLibrary{Account: "btcplusplus", Year: 2026, Collected: "2026-10-24T00:00:00Z", Posts: []xstudio.AnalyticsPost{{ID: "1", Impressions: 2000}}}
+	old := reportPostLibrary{Account: "btcplusplus", Year: 2026, Collected: "2026-10-23T00:00:00Z"}
+	if err = saveReportPostSnapshot(ctx, app, old); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := loadReportPosts(ctx, db, 2026); err != nil || got.Collected != initial.Collected || len(got.Posts) != 808 {
+		t.Fatal("old database snapshot hid the newer bundled collection", err)
+	}
+	fresh := reportPostLibrary{Account: "btcplusplus", Year: 2026, Collected: "2026-11-13T00:00:00Z", Posts: []xstudio.AnalyticsPost{{ID: "1", Impressions: 2000}}}
 	if err = saveReportPostSnapshot(ctx, app, fresh); err != nil {
 		t.Fatal(err)
 	}

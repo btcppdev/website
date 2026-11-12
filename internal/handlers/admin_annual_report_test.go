@@ -315,6 +315,23 @@ func TestAnnualReportPreview(t *testing.T) {
 			return
 		}
 		p := annualFixture()
+		if r.URL.Query().Get("recap-regression") == "1" {
+			library := defaultReportPosts(p.Year)
+			p.AnnualPostLibrary = &library
+			p.OfferedBased = true
+			p.Cutoff = "2026-11-12"
+			for i := range p.Events {
+				e := &p.Events[i]
+				e.OfferedBased = true
+				if i > 0 {
+					e.Media = (sponsorReportPage{Event: e.Event}).Media()
+				}
+				if e.Event.Tag == "berlin26" {
+					e.Sats = 21750000
+				}
+				e.Included, e.Eligible = true, true
+			}
+		}
 		if r.URL.Query().Get("recipient") == "HRF" {
 			p.Recipient = "HRF"
 			p.Sections = annualSections(p.Year, p.Recipient)

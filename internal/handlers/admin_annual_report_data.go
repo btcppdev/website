@@ -34,6 +34,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 	if err != nil {
 		return err
 	}
+	p.AnnualPostLibrary = &postLibrary
 	// Fetch the roster first and close it before opening reading each event.
 	rows, err := tx.Query(ctx, `SELECT id::text,tag,coalesce(nullif(description,''),tag),location,timezone,date_desc,start_date,end_date FROM conferences WHERE publication_status='published' ORDER BY start_date,tag`)
 	if err != nil {

@@ -17,38 +17,32 @@ type annualEventStat struct {
 	Kind, Value, Label, Detail string
 }
 
+func (s annualEventStat) Compact() bool { return len(s.Value) > 5 }
+
 func annualEventStats(e annualEvent) []annualEventStat {
-	views := annualEventStat{Kind: "views", Value: "—", Label: "video views", Detail: "Video analytics not yet available"}
+	var stats []annualEventStat
+	if e.Talks > 0 {
+		stats = append(stats, annualEventStat{Kind: "talks", Value: fmt.Sprint(e.Talks), Label: "talks & keynotes", Detail: "Accepted program talks and keynotes; workshops and panels counted separately"})
+	}
 	media := uniqueReportMedia(e.Media)
 	if len(media) > 0 {
 		var total int64
 		for _, m := range media {
 			total += m.Views
 		}
-		views.Value = compactReportSats(total)
-		views.Detail = "Recorded X and YouTube video views; each video counted once per platform"
+		stats = append(stats, annualEventStat{Kind: "views", Value: compactReportSats(total), Label: "video views", Detail: "Recorded X and YouTube video views; each video counted once per platform"})
 	}
-	prizes := annualEventStat{Kind: "prizes", Value: "—", Label: e.PrizeUnit(), Detail: "Hackathon prize records not yet reviewed"}
-	if e.HackKnown() {
-		prizes.Value = compactReportSats(e.Sats)
-		prizes.Detail = "Recorded sent or claimed hackathon prize distributions"
+	if e.HackKnown() && e.Sats > 0 {
+		prizes := annualEventStat{Kind: "prizes", Value: compactReportSats(e.Sats), Label: e.PrizeUnit(), Detail: "Recorded sent or claimed hackathon prize distributions"}
 		if e.AwardBased {
 			prizes.Detail = "Configured sat prizes assigned to finalized winning projects; not a settlement total"
 		}
 		if e.OfferedBased {
 			prizes.Detail = "Configured sats per winning project × available winner slots, including unawarded prizes; independent of payouts"
 		}
-	} else if e.HackCoverage == "incomplete" {
-		prizes.Label = "prize data unavailable"
-		prizes.Detail = "Incomplete historical records; excluded from annual hackathon totals"
-	} else if e.HackCoverage == "none" {
-		prizes.Label = "no hackathon"
-		prizes.Detail = "This edition did not include a hackathon"
+		stats = append(stats, prizes)
 	}
-	return []annualEventStat{
-		{Kind: "talks", Value: fmt.Sprint(e.Talks), Label: "talks & keynotes", Detail: "Accepted program talks and keynotes; workshops and panels counted separately"},
-		views, prizes,
-	}
+	return stats
 }
 
 type annualEventHighlightPage struct {

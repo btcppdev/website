@@ -79,12 +79,26 @@ func TestAnnualReportEventStats(t *testing.T) {
 	e.Media = nil
 	e.HackCoverage = "unknown"
 	stats = annualEventStats(e)
-	if stats[1].Value != "—" || stats[2].Value != "—" {
-		t.Fatal("unknown data presented as a number")
+	if len(stats) != 1 || stats[0].Kind != "talks" {
+		t.Fatalf("missing stats should have no circles: %+v", stats)
 	}
-	e.HackCoverage = "none"
-	if annualEventStats(e)[2].Label != "no hackathon" {
-		t.Fatal("missing no-hackathon label")
+	for _, coverage := range []string{"none", "incomplete", "unknown"} {
+		e.HackCoverage = coverage
+		if len(annualEventStats(e)) != 1 {
+			t.Fatalf("%s prize data has a circle", coverage)
+		}
+	}
+	e.Talks = 0
+	if len(annualEventStats(e)) != 0 {
+		t.Fatal("empty event has circles")
+	}
+	e.Media = []reportMedia{{Platform: "X", ID: "measured-zero", Views: 0}}
+	if got := annualEventStats(e); len(got) != 1 || got[0].Value != "0" {
+		t.Fatal("a measured zero is not missing data", got)
+	}
+	e.HackCoverage, e.OfferedBased, e.Sats = "records", true, 21750000
+	if got := annualEventStats(e)[1]; got.Value != "21.75M" || !got.Compact() || got.Label != "sats offered in prizes" {
+		t.Fatal("Berlin prize amount must retain precision and fit", got)
 	}
 	p := annualFixture()
 	if len(p.UpcomingHighlights()[0].Stats) != 0 {

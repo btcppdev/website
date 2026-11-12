@@ -43,6 +43,8 @@ func (e annualEvent) HackKnown() bool {
 
 type annualEditionLink struct{ URL, Date string }
 type annualReportPage struct {
+	// Nil retains event-only reach for editions frozen before account-wide reach.
+	AnnualPostLibrary                                                       *reportPostLibrary
 	OfferedBased                                                            bool
 	DraftUpdatedAt                                                          *time.Time
 	AwardBased                                                              bool

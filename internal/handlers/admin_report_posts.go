@@ -67,13 +67,22 @@ func loadReportPosts(ctx context.Context, db reportPostQuerier, year int) (xstud
 	if err != nil {
 		return data, err
 	}
-	if err = json.Unmarshal(raw, &data); err != nil {
+	var stored reportPostLibrary
+	if err = json.Unmarshal(raw, &stored); err != nil {
 		return data, err
 	}
-	if data.Year != year || !strings.EqualFold(data.Account, "btcplusplus") {
+	if stored.Year != year || !strings.EqualFold(stored.Account, "btcplusplus") {
 		return data, fmt.Errorf("unexpected X analytics account or year")
 	}
-	return data, nil
+	collected, err := time.Parse(time.RFC3339Nano, stored.Collected)
+	if err != nil {
+		return data, fmt.Errorf("invalid X analytics collection date")
+	}
+	bundled, _ := time.Parse(time.RFC3339Nano, data.Collected)
+	if bundled.After(collected) {
+		return data, nil
+	}
+	return stored, nil
 }
 func refreshReportPosts(ctx context.Context, app *config.AppContext, year int) error {
 	client, err := xstudio.New(xstudio.Config{Cookie: app.Env.Recordings.X.Cookie, UserAgent: app.Env.Recordings.X.UserAgent, IngestID: app.Env.Recordings.X.IngestID})
@@ -209,11 +218,34 @@ func (p sponsorReportPage) ApprovedPosts() []reportPost {
 }
 func (p annualReportPage) ApprovedPosts() []reportPost {
 	var out []reportPost
-	for _, e := range p.Included() {
-		for _, post := range e.Posts {
-			if p.Saved[post.ExclusionKey()] != "yes" {
-				out = append(out, post)
+	for _, post := range p.annualSourcePosts() {
+		if p.Saved[post.ExclusionKey()] != "yes" {
+			out = append(out, post)
+		}
+	}
+	return uniqueReportPosts(out)
+}
+
+func (p annualReportPage) annualSourcePosts() []reportPost {
+	var out []reportPost
+	if p.AnnualPostLibrary != nil {
+		library := p.AnnualPostLibrary
+		if library.Year != p.Year || !strings.EqualFold(library.Account, "btcplusplus") {
+			return nil
+		}
+		for _, post := range library.Posts {
+			created, err := time.Parse(time.RFC3339, post.Created)
+			if err == nil && created.UTC().Year() == p.Year {
+				out = append(out, reportPost{AnalyticsPost: post, Collected: library.Collected})
 			}
+		}
+		return uniqueReportPosts(out)
+	}
+	for _, e := range p.Included() {
+		if e.SourcePosts != nil {
+			out = append(out, e.SourcePosts...)
+		} else {
+			out = append(out, e.Posts...)
 		}
 	}
 	return uniqueReportPosts(out)
