@@ -4655,6 +4655,31 @@ body.btcpp-admin-page {
 .sponsor-team-row__actions button:hover,
 .sponsor-team-row__actions button:focus-visible { background: #a63a20; color: #fff; }
 .sponsor-dashboard-note { padding: 12px 14px; border-left: 3px solid var(--sponsor-orange); background: var(--sponsor-orange-soft); color: #5c514a; font-size: 13px; line-height: 1.55; }
+.sponsor-payout-steps { margin: 0; padding-left: 22px; color: var(--sponsor-muted); line-height: 1.6; }
+.sponsor-dashboard-page #payouts { scroll-margin-top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height) + 72px); }
+.sponsor-payout-steps li + li { margin-top: 8px; }
+.sponsor-payout-steps strong { color: var(--sponsor-ink); }
+.sponsor-payout-steps a { color: inherit; text-decoration: underline; }
+.sponsor-payout-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); margin-top: 24px; }
+.sponsor-payout-total { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 18px 24px; border-bottom: 1px solid var(--sponsor-border); }
+.sponsor-payout-total span { color: var(--sponsor-muted); font-size: 13px; }
+.sponsor-payout-total strong { font-variant-numeric: tabular-nums; }
+.sponsor-payout-recipients { padding: 0 24px; }
+.sponsor-payout-recipient { padding: 20px 0; }
+.sponsor-payout-recipient + .sponsor-payout-recipient { border-top: 1px solid var(--sponsor-border); }
+.sponsor-payout-recipient__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.sponsor-payout-recipient h4 { margin: 0; font-size: 18px; }
+.sponsor-payout-status { padding: 5px 8px; background: #f0ece5; color: #5c514a; font-size: 12px; font-weight: 750; }
+.sponsor-payout-status.is-ready { background: #e1f2df; color: #28532b; }
+.sponsor-payout-amount { margin: 12px 0; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sponsor-payout-amount small { display: block; color: var(--sponsor-muted); font-size: 12px; font-weight: 500; }
+.sponsor-event-card .sponsor-payout-addresses { grid-template-columns: minmax(0, 1fr); }
+.sponsor-event-card .sponsor-payout-addresses dd { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; user-select: all; }
+.sponsor-payout-help { margin: 12px 0 0; color: var(--sponsor-muted); font-size: 13px; line-height: 1.55; }
+.sponsor-payout-confirm { margin: 16px 0 0; }
+.sponsor-payout-confirm summary { cursor: pointer; color: #6f3a05; font-size: 13px; font-weight: 800; }
+.sponsor-payout-confirm .sponsor-benefit-form { margin: 0; padding: 14px; }
+.sponsor-payout-confirm .sponsor-profile-checkbox > span { text-transform: none; letter-spacing: normal; font-weight: 500; line-height: 1.5; }
 .sponsor-invite-form { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: end; margin-top: 20px; }
 .sponsor-invite-form label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
 .sponsor-invite-form input, .sponsor-invite-form select, .sponsor-invite-link input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px; border: 1px solid #9d968b; border-radius: 0; background: #fff; color: var(--sponsor-ink); }

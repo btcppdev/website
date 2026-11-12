@@ -35,6 +35,7 @@ type SponsorDashboardPage struct {
 	Members                        []*types.OrganizationMembership
 	PrizeProposals                 []*types.SponsorAwardProposal
 	PrizeEntries                   []*types.SponsorPrizeEntry
+	Payouts                        []*types.SponsorPayout
 	CanViewAllHackathonSubmissions bool
 	CanExportParticipants          bool
 	TicketIssuances                []*types.SponsorTicketIssuance
@@ -279,6 +280,7 @@ func SponsorDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *config.A
 }
 
 func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
 	if !ok {
 		return
@@ -346,6 +348,19 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 	attachSponsorPrizeEntryPublicIDs(ctx, prizeEntries)
+	payouts, err := getters.ListSponsorPayouts(ctx, organizationID, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s payouts: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor payouts", http.StatusInternalServerError)
+		return
+	}
+	if len(payouts) > 0 {
+		if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID,
+			"sponsor.payouts_viewed", "organization", organizationID,
+			map[string]any{"prize_count": len(payouts)}); err != nil {
+			ctx.Err.Printf("/dashboard/sponsor/%s payout audit: %s", organizationID, err)
+		}
+	}
 	if canManage {
 		visiblePrizeEntries := previewSponsorPrizeEntries(prizeEntries)
 		contactCount := sponsorPrizeEntryContactCount(visiblePrizeEntries)
@@ -401,6 +416,7 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		PrizeProposals:                 proposals,
 		TicketIssuances:                issuances,
 		PrizeEntries:                   prizeEntries,
+		Payouts:                        payouts,
 		CanViewAllHackathonSubmissions: canViewAllHackathonSubmissions,
 		CanExportParticipants:          canExportParticipants,
 		CanManage:                      canManage,

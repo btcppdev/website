@@ -50,12 +50,15 @@
       </header>
 
       <nav class="sponsor-workspace-nav" aria-label="Sponsor workspace sections">
-        <a href="#sponsorships"><span>01</span> Sponsorships</a>
-        <a href="#challenges"><span>02</span> Challenges</a>
-        <a href="#prize-entrants"><span>03</span> Prize entrants</a>
-        {{ if .Past }}<a href="#history"><span>04</span> Trophy case</a>{{ end }}
+        <a href="#payouts"><span>01</span> Payouts</a>
+        <a href="#sponsorships"><span>02</span> Sponsorships</a>
+        <a href="#challenges"><span>03</span> Challenges</a>
+        <a href="#prize-entrants"><span>04</span> Prize entrants</a>
+        {{ if .Past }}<a href="#history"><span>05</span> Trophy case</a>{{ end }}
         <a href="/dashboard/orgs/{{ .Organization.Ref }}"><span>↗</span> Manage organization</a>
       </nav>
+
+      {{ template "sponsor_payouts" . }}
 
       <section class="sponsor-dashboard-section dashboard-workspace-panel" id="sponsorships">
         <div class="sponsor-dashboard-section__head">

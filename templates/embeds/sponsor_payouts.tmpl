@@ -1,0 +1,68 @@
+{{ define "sponsor_payouts" }}
+<section class="sponsor-dashboard-section dashboard-workspace-panel" id="payouts">
+  <div class="sponsor-dashboard-section__head">
+    <div><div class="dashboard-kicker">§ Hackathon payouts</div><h2>Pay your prize winners.</h2></div>
+    <p>Payment instructions for your organization's Bitcoin prizes, after hackathon results are finalized.</p>
+  </div>
+  {{ if .Payouts }}
+  <ol class="sponsor-payout-steps">
+    <li><strong>Check each share.</strong> Prize totals cover the whole team. Pay each recipient the share prepared by organizers below.</li>
+    <li><strong>Send from your wallet.</strong> For recipients marked “Ready to pay,” send the exact sats shown using either listed address.</li>
+    <li><strong>Record your payment.</strong> Once your wallet confirms success, save the transaction ID or payment hash below and mark that share as paid.</li>
+  </ol>
+  <p class="sponsor-dashboard-note">Already paid? Record it below instead of sending again. This records your confirmation; it does not send or verify a payment. Need help? <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.</p>
+  <div class="sponsor-event-grid sponsor-payout-grid">
+    {{ range .Payouts }}
+    <article class="sponsor-event-card dashboard-workspace-widget">
+      <header class="sponsor-event-card__header">
+        <div class="sponsor-event-card__eyebrow"><span>{{ .ConferenceTitle }}</span><span>Winner</span></div>
+        <h3>{{ .ProjectTitle }}</h3>
+        <p>{{ .AwardTitle }} · {{ .PrizeTitle }}</p>
+      </header>
+      <div class="sponsor-payout-total"><span>Prize total for this project</span><strong>{{ if .PrizeSats }}{{ sats .PrizeSats }} sats{{ else }}Awaiting amount{{ end }}</strong></div>
+      <div class="sponsor-payout-recipients">
+        {{ range .Recipients }}
+        <section class="sponsor-payout-recipient">
+          <div class="sponsor-payout-recipient__head">
+            <h4>{{ .Name }}</h4>
+            <span class="sponsor-payout-status{{ if .ReadyToPay }} is-ready{{ end }}">{{ .StatusLabel }}</span>
+          </div>
+          {{ with .AmountSats }}<p class="sponsor-payout-amount">{{ sats . }} sats <small>this recipient's share</small></p>{{ end }}
+          {{ if .ReadyToPay }}
+          <dl class="sponsor-payout-addresses">
+            {{ if .LightningAddress }}<div><dt>Lightning address</dt><dd><code>{{ .LightningAddress }}</code></dd></div>{{ end }}
+            {{ if .BitcoinAddress }}<div><dt>On-chain Bitcoin address</dt><dd><code>{{ .BitcoinAddress }}</code></dd></div>{{ end }}
+          </dl>
+          <details class="sponsor-benefit-action sponsor-payout-confirm">
+            <summary>Record payment for {{ .Name }}</summary>
+            <form method="POST" action="/dashboard/sponsor/{{ $.Organization.Ref }}/payouts/{{ .DistributionID }}/paid" class="sponsor-benefit-form">
+              <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+              <label><span>Payment reference</span><input name="PaymentReference" required maxlength="500" placeholder="Transaction ID or payment hash"><small>Find this in your wallet's payment details.</small></label>
+              <label class="sponsor-profile-checkbox"><input name="ConfirmPaid" type="checkbox" value="yes" required><span>I have sent {{ sats .AmountSats }} sats to {{ .Name }} and my wallet confirms success.</span></label>
+              <button type="submit">Mark {{ sats .AmountSats }} sats as paid</button>
+            </form>
+          </details>
+          {{ else if or (eq .Status "sent") (eq .Status "claimed") }}
+          <p class="sponsor-payout-help">Payment recorded{{ with .CompletedAt }} on {{ .Format "Jan 2, 2006" }}{{ end }}. No further payment is needed.</p>
+          {{ else if eq .Status "cancelled" }}
+          <p class="sponsor-payout-help">This payout was cancelled. Contact organizers before making a payment.</p>
+          {{ else if or (not .DistributionID) (not .AmountSats) }}
+          <p class="sponsor-payout-help">Organizers are preparing this recipient's share. Wait for an exact amount before paying.</p>
+          {{ else if not .TaxFormOnFile }}
+          <p class="sponsor-payout-help">The winner needs to upload their payout paperwork. Payment addresses will appear once it is on file.</p>
+          {{ else }}
+          <p class="sponsor-payout-help">The winner needs to add a Lightning or on-chain address to their profile. Contact organizers if you need help.</p>
+          {{ end }}
+        </section>
+        {{ else }}
+        <p class="sponsor-payout-help">Organizers need to confirm the recipients for this team before payment.</p>
+        {{ end }}
+      </div>
+    </article>
+    {{ end }}
+  </div>
+  {{ else }}
+  <div class="sponsor-dashboard-empty">No finalized Bitcoin prize winners yet. Your winners and payout instructions will appear here after organizers finalize the results. For help with a prize, contact <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.</div>
+  {{ end }}
+</section>
+{{ end }}

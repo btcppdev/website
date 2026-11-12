@@ -1445,6 +1445,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/tickets", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardTicketsIssue(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/payouts/{distributionID}/paid", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardPayoutPaid(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/sponsor-invites/{token}", func(w http.ResponseWriter, r *http.Request) {
 		SponsorInvite(w, r, app)
 	}).Methods("GET")
