@@ -62,7 +62,7 @@
 <section class="paper-sheet impact-reach">
 <div class="paper-running"><span></span><span>{{.ReportFolio 5}}</span></div>
 <h2>The event ends.<br><em>The ideas keep moving.</em></h2>
-<div class="impact-reach-heroes">{{range .MediaTotals}}<article><strong>{{.Display}}</strong><span>{{.Platform}} recording views</span><p class="paper-source">{{.Recordings}} matched recordings · {{.FirstCollected}}{{if ne .FirstCollected .LastCollected}} – {{.LastCollected}}{{end}}</p></article>{{end}}
+<div class="impact-reach-heroes">{{range .MediaTotals}}<article><strong>{{.Display}}</strong><span>{{.Platform}} recording views</span>{{if ne $.Recipient "NYDIG"}}<p class="paper-source">{{.Recordings}} matched recordings · {{.FirstCollected}}{{if ne .FirstCollected .LastCollected}} – {{.LastCollected}}{{end}}</p>{{end}}</article>{{end}}
 {{range .HeadlinePlatforms}}{{$platform := .}}{{range .HeadlineMetrics}}<article><strong>{{.Display}}</strong><span>{{$platform.Name}} {{.Label}}</span><p class="paper-source">{{$platform.Coverage}} · {{$platform.Period}} · collected {{$platform.Date}}</p></article>{{end}}{{end}}</div>
 <div class="brief-recordings">{{range .BriefMedia}}<article><a href="{{.URL}}">{{if .ImageURL}}<img src="{{.ImageURL}}" alt="{{.Title}} recording thumbnail">{{end}}<h3>{{.Title}}</h3></a><p class="report-card-detail">{{.Event}} · {{.Platform}}</p><a href="{{.URL}}">Watch the recording ↗</a>{{if .MomentURL}} · <a href="{{.MomentURL}}">Selected moment ↗</a>{{end}}</article>{{end}}</div>
 {{with .TopPost}}<div class="annual-post-highlight"><p>{{.Excerpt}}</p><a href="{{.URL}}">Read on X ↗</a></div>{{end}}
