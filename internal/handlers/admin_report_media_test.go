@@ -32,6 +32,47 @@ func TestReportMediaIdentity(t *testing.T) {
 	}
 }
 
+func TestReportBroadcastInventoryDefaults(t *testing.T) {
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	p := sponsorReportPage{Event: reportEvent{Tag: "berlin26", Location: "Berlin", Start: &start}, Saved: map[string]string{}}
+	initial := p.Media()
+	if len(initial) != 7 {
+		t.Fatal("reviewed full-day broadcasts not loaded", len(initial))
+	}
+	latest := initial[0]
+	latest.Views = 123
+	latest.Collected = "2026-11-13T00:00:00Z"
+	raw, _ := json.Marshal([]reportMedia{latest})
+	p.Saved["media_snapshot"] = string(raw)
+	merged := p.Media()
+	if len(merged) != 7 {
+		t.Fatal("inventory and snapshot not deduplicated", len(merged))
+	}
+	for _, m := range merged {
+		if m.ID == latest.ID && m.Views != 123 {
+			t.Fatal("newer counter lost to older inventory")
+		}
+	}
+	// Failed refreshes keep the seed evidence; successful removals stay removed.
+	refreshReportMedia(context.Background(), &config.AppContext{Env: &types.EnvConfig{}}, &p, p.Saved)
+	if len(p.Media()) != 7 || p.Saved["media_inventory"] != reportMediaInventoryVersion {
+		t.Fatal("failed refresh lost inventory")
+	}
+	p.Saved["media_snapshot"] = "[]"
+	if len(p.Media()) != 0 {
+		t.Fatal("removed broadcasts were reintroduced")
+	}
+	saved := map[string]string{}
+	if err := saveReportMediaFields(url.Values{}, saved, p.Saved); err != nil || saved["media_inventory"] != reportMediaInventoryVersion {
+		t.Fatal("form lost inventory marker", err)
+	}
+	p.Saved = map[string]string{}
+	start = start.AddDate(1, 0, 0)
+	if len(p.Media()) != 0 {
+		t.Fatal("inventory leaked into a different event year")
+	}
+}
+
 func TestReportMediaPreservedAndRendered(t *testing.T) {
 	media := []reportMedia{{Platform: "YouTube", ID: "abcdefghijk", Event: "Nairobi", Title: "Example recording", URL: "https://youtube.com/watch?v=abcdefghijk", MomentURL: "https://youtube.com/watch?v=abcdefghijk&t=135s", Views: 42, Collected: "2026-10-22", Basis: "Lifetime views"}}
 	raw, _ := json.Marshal(media)

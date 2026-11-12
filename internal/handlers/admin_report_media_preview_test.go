@@ -35,7 +35,7 @@ func TestReportMediaPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	attributionRaw, err := os.ReadFile("../../docs/2026-report-broadcasts.json")
+	attributionRaw, err := os.ReadFile("reportdata/x-broadcasts-2026.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestReportMediaPreview(t *testing.T) {
 }
 
 func TestReportBroadcastInventoryRollup(t *testing.T) {
-	raw, err := os.ReadFile("../../docs/2026-report-broadcasts.json")
+	raw, err := os.ReadFile("reportdata/x-broadcasts-2026.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,11 +175,11 @@ func TestReportBroadcastInventoryRollup(t *testing.T) {
 		t.Fatal("unmatched event in broadcast inventory")
 	}
 	totals := p.MediaTotals()
-	if len(totals) != 1 || totals[0].Platform != "X" || totals[0].Views != 12306 || totals[0].Recordings != 17 {
+	if len(totals) != 1 || totals[0].Platform != "X" || totals[0].Views != 12675 || totals[0].Recordings != 17 {
 		t.Fatalf("unexpected rollup: %+v", totals)
 	}
 	p.Events[3].Included = false
-	if got := p.MediaTotals()[0].Views; got != 11606 {
+	if got := p.MediaTotals()[0].Views; got != 11975 {
 		t.Fatalf("excluded Nairobi still counted: %d", got)
 	}
 }

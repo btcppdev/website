@@ -5,6 +5,7 @@ import (
 	"btcpp-web/external/youtube"
 	"btcpp-web/internal/config"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -20,9 +21,34 @@ type reportMedia struct {
 	Views                                                                               int64
 }
 
-func (p sponsorReportPage) Media() []reportMedia {
+// Reviewed public recordings include full-day streams absent from talk links.
+//
+//go:embed reportdata/x-broadcasts-2026.json
+var reportBroadcasts2026 []byte
+
+const reportMediaInventoryVersion = "2026-v1"
+
+func reportMediaSnapshot(event reportEvent, saved map[string]string) []reportMedia {
 	var media []reportMedia
-	_ = json.Unmarshal([]byte(p.Saved["media_snapshot"]), &media)
+	_ = json.Unmarshal([]byte(saved["media_snapshot"]), &media)
+	if saved["media_inventory"] != reportMediaInventoryVersion && event.Start != nil && reportPostYear(event) == 2026 {
+		var inventory []struct {
+			EventTag string
+			reportMedia
+		}
+		_ = json.Unmarshal(reportBroadcasts2026, &inventory)
+		for _, m := range inventory {
+			if m.EventTag == event.Tag {
+				m.Event = event.Location
+				media = append(media, m.reportMedia)
+			}
+		}
+	}
+	return uniqueReportMedia(media)
+}
+
+func (p sponsorReportPage) Media() []reportMedia {
+	media := reportMediaSnapshot(p.Event, p.Saved)
 	attachReportSocialCards(media, p.Sessions)
 	sort.SliceStable(media, func(i, j int) bool {
 		if media[i].Platform != media[j].Platform {
@@ -69,7 +95,7 @@ func reportMediaIdentity(raw string) (platform, id string) {
 }
 
 func saveReportMediaFields(form url.Values, saved, previous map[string]string) error {
-	for _, key := range []string{"media_snapshot", "media_status", "media_refresh_attempted"} {
+	for _, key := range []string{"media_snapshot", "media_status", "media_refresh_attempted", "media_inventory"} {
 		saved[key] = previous[key]
 	}
 	raw := strings.TrimSpace(form.Get("media_links"))
@@ -130,8 +156,7 @@ func refreshReportMedia(ctx context.Context, app *config.AppContext, p *sponsorR
 			add(fields[0], seconds)
 		}
 	}
-	var previous []reportMedia
-	_ = json.Unmarshal([]byte(saved["media_snapshot"]), &previous)
+	previous := reportMediaSnapshot(p.Event, saved)
 	// Existing snapshots also contain full-day recordings and imported sources
 	// that need not be linked to an individual talk. Keep refreshing those too.
 	for _, m := range previous {
@@ -217,6 +242,9 @@ func refreshReportMedia(ctx context.Context, app *config.AppContext, p *sponsorR
 	saved["media_snapshot"] = string(raw)
 	saved["media_status"] = strings.Join(notices, " ")
 	saved["media_refresh_attempted"] = collected
+	// After a successful refresh, unavailable recordings must stay removed.
+	// On failure the merged inventory is already retained in media_snapshot.
+	saved["media_inventory"] = reportMediaInventoryVersion
 }
 
 func reportMediaPages(media []reportMedia) [][]reportMedia {

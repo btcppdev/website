@@ -86,7 +86,7 @@ func refreshAnnualSource(ctx context.Context, w http.ResponseWriter, r *http.Req
 	if page.Saved == nil {
 		page.Saved = map[string]string{}
 	}
-	if automatic && reportSourceRecent(page.Saved["media_refresh_attempted"], time.Now()) {
+	if automatic && page.Saved["media_inventory"] == reportMediaInventoryVersion && reportSourceRecent(page.Saved["media_refresh_attempted"], time.Now()) {
 		w.Write([]byte("Last checked " + page.Saved["media_refresh_attempted"] + ". " + page.Saved["media_status"]))
 		return
 	}
