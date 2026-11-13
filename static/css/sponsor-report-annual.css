@@ -332,6 +332,9 @@
 }
 
 /* A funding spread with a clear total, builder counters and event destinations. */
+.annual-funding-intro { margin:0 0 24px; }
+.annual-funding-intro .story-text,.annual-funding-intro .story-text p { font-size:20px; line-height:1.5; }
+.annual-funding-intro .story-text p:last-child { margin-bottom:0; }
 .annual-funding-overview { display:grid; grid-template-columns:1.35fr 1fr; align-items:center; gap:24px; margin:0 0 26px; background:#e6dcef; padding:20px; }
 .annual-funding-overview .impact-funding-chart { margin:0; }
 .annual-funding-overview .impact-funding-chart svg { height:300px; }
@@ -357,6 +360,8 @@
  .annual-funding-events { grid-template-columns:1fr; }
 }
 @media print {
+ .annual-funding-intro { margin-bottom:5mm; }
+ .annual-funding-intro .story-text,.annual-funding-intro .story-text p { font-size:17px; }
  .annual-funding-overview { gap:5mm; padding:4mm; margin-bottom:5mm; }
  .annual-funding-overview .impact-funding-chart svg { height:70mm; }
  .annual-funding-events { gap:4mm; margin-bottom:5mm; }

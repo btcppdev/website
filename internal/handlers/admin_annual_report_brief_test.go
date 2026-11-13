@@ -58,3 +58,23 @@ func TestAnnualReportBriefPreservesEditorialCopy(t *testing.T) {
 		t.Fatal("editor source was changed")
 	}
 }
+
+func TestAnnualReportHackathonParticipationCountsEachEvent(t *testing.T) {
+	// Two people join the first event, and one returns for the second.
+	// The headline should count three participations, not two unique people.
+	p := annualReportPage{UniqueParticipants: 2, Events: []annualEvent{
+		{Included: true, HackCoverage: "records", Participants: 2},
+		{Included: true, HackCoverage: "automatic", Participants: 1},
+		{Included: false, HackCoverage: "records", Participants: 10},
+		{Included: true, HackCoverage: "incomplete", Participants: 20},
+	}}
+	metrics := p.BuildingMetrics()
+	if len(metrics) != 1 || metrics[0].Label != "hackathon participations" || metrics[0].Value != "3" {
+		t.Fatalf("participation headline = %+v, want 3 hackathon participations", metrics)
+	}
+	p.Events[0].Included = false
+	p.Events[1].Included = false
+	if metrics = p.BuildingMetrics(); len(metrics) != 0 {
+		t.Fatalf("excluded or incomplete events contributed to headline: %+v", metrics)
+	}
+}

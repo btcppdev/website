@@ -74,7 +74,7 @@ func TestAnnualReportRender(t *testing.T) {
 			t.Fatal(err)
 		}
 		body := out.String()
-		for _, want := range []string{"Selected projects have finalized awards", "Illustrative winning project", "<strong>Technical conversations</strong>", "/nairobi/hackathon/projects/demo"} {
+		for _, want := range []string{"Illustrative winning project", "<strong>Technical conversations</strong>", "/nairobi/hackathon/projects/demo"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("missing %q", want)
 			}

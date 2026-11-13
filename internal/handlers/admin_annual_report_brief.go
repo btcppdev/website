@@ -42,10 +42,11 @@ func (p annualReportPage) BriefMedia() []reportMedia {
 	return media
 }
 func (p annualReportPage) BriefHackMetrics() []reportMetric {
-	var projects, sats int64
+	var projects, participations, sats int64
 	for _, e := range p.Included() {
 		if e.HackKnown() {
 			projects += e.Projects
+			participations += e.Participants
 			sats += e.Sats
 		}
 	}
@@ -53,8 +54,8 @@ func (p annualReportPage) BriefHackMetrics() []reportMetric {
 	if projects > 0 {
 		result = append(result, reportMetric{Label: "submitted projects", Value: compactReportSats(projects)})
 	}
-	if p.UniqueParticipants > 0 {
-		result = append(result, reportMetric{Label: "distinct project members", Value: compactReportSats(p.UniqueParticipants)})
+	if participations > 0 {
+		result = append(result, reportMetric{Label: "hackathon participations", Value: compactReportSats(participations)})
 	}
 	if sats > 0 {
 		result = append(result, reportMetric{Label: p.PrizeUnit(), Value: compactReportSats(sats)})
