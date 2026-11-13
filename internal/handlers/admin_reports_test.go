@@ -97,6 +97,9 @@ func TestReportRender(t *testing.T) {
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			// Re-read the checked-in public snapshot and template for design review.
 			current := reportFixturePage(t)
+			if r.URL.Path == "/print-demo" {
+				current = reportPrintFixture(t)
+			}
 			current.Sponsors = sponsorPreview
 			if err := loadAttendance(&current); err != nil {
 				http.Error(w, "Local attendance preview unavailable", 500)

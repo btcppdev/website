@@ -136,3 +136,21 @@ connected admin report to keep changes.
 ## Automatic post matching
 
 X posts matching an event link, recording, program title or event mention are included by default; dates alone do not establish a match. Exclude incorrect matches in the event editor. Existing explicit exclusions survive collection. The annual report refreshes event recording snapshots and the year's post analytics automatically when opened, deduplicates shared sources and supports additional exclusions per recipient. Event winner charts continue to show awarded prizes; annual funding totals show all offered prizes.
+
+## Event PDF layout checks
+
+Both event formats paginate repeating rosters before rendering. Paper reports
+give panels, additional winning projects and the team-size chart dedicated
+sheets; long schedules, speaker origins and portrait rosters continue on sheets
+with their own headings and footers. Slide rosters are paginated separately, and
+paper-only spread introductions do not become standalone slides. Print styles
+reserve room for footers and keep portraits circular without clipping content.
+
+With `REPORT_PREVIEW=1`, `/print-demo?layout=paper` and
+`/print-demo?layout=slides` provide a dense, clearly marked synthetic fixture:
+34 travel origins, eight featured speakers, 15 winners with team portraits,
+the public judge roster and populated charts. It is local and read-only.
+Export both formats with background graphics, 100% scale and browser headers
+and footers disabled; the paper edition uses A4 portrait and slides use their
+CSS landscape size. Verify that physical PDF pages match the rendered sheets,
+with no orphan footers, split cards or missing roster entries.
