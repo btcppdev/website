@@ -85,11 +85,6 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
 .paper-setting figcaption { font-size:8px; line-height:1.5; color:var(--paper-muted); margin:6px 0 10px }
 .paper-next { background:radial-gradient(ellipse at 100% 0,#c8b3f566,transparent 50%),#f3f0e9 }
 .paper-closing { max-width:600px!important }
-.paper-thanks { padding:26px 0; margin:22px 0; border-top:1px solid var(--paper-rule); border-bottom:1px solid var(--paper-rule) }
-.paper-thanks p:not(.paper-kicker) { font-size:32px; font-weight:600; letter-spacing:-1px }
-.paper-thanks span { font-size:12px }
-.paper-thanks p span { font-size:24px; color:#aa8ec9; padding:0 9px }
-.paper-methods { margin-top:15px }
 .paper-sheet .paper-intro-small p { font:9px/1.6 'Space Mono',monospace;color:var(--paper-muted);margin:0 0 14px }
 .speaker-mosaic { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:17px 12px; margin:20px 0 }
 .speaker-mosaic figure { margin:0; min-width:0; break-inside:avoid }
@@ -142,8 +137,6 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
 .paper-reach-platform dd { font-size:32px; font-weight:650; letter-spacing:-1px; margin:6px 0 }
 .paper-reach-status { font-weight:600; padding-top:20px }
 .paper-reach-plan { border-top:1px solid var(--paper-rule); padding-top:24px; margin:16px 0 24px }
-.paper-methods summary { font:600 11px 'Space Mono',monospace; margin-bottom:12px }
-.paper-methods p { font-size:10px; line-height:1.6; color:var(--paper-muted) }
 .report-tools { font:12px Archivo,Arial,sans-serif }
 .report-editor { max-width:1000px }
 .notice { max-width:850px; font:12px/1.6 Archivo,Arial,sans-serif; border-left:3px solid #9977bd }
@@ -180,7 +173,6 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
  .paper-judges { grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 10px }
  .paper-judges img { width:70px; height:70px; max-width:100% }
  .paper-folio { margin-top:26px; font-size:7px }
- .paper-thanks p:not(.paper-kicker) { font-size:26px }
 }
 @page paper-editorial { size:A4 portrait; margin:0 }
 @media print {
@@ -203,9 +195,7 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
  .paper-chart-split { grid-template-columns:135px 1fr }
  .paper-chart-split>svg { width:135px; height:135px }
  .paper-discussions p { font-size:11px }
- .paper-methods p { font-size:9px }
  .paper-sheet .paper-source,.paper-sheet .paper-byline { font-size:8px }
- .paper-methods summary { list-style:none }
  .paper-judges img { width:80px; height:80px }
  .paper-setting img { height:145px }
 }

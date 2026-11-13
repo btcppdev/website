@@ -41,7 +41,7 @@ The report adapts the visual design of `bitcoinpp-sponsor-kit-2027-4.pdf`: lands
 
 ## Editing and export
 
-Paper and slide editions automatically acknowledge every distinct, non-archived Paid or Committed sponsor attached to the selected event, matching the public event roster. Sponsor pages show organization logos (or names when no logo is available), with up to 12 organizations per page. Each tier size group occupies its own row; card widths, heights, padding, and logos taper from headline sponsors to community partners, using the same five size groups as the public event pages. Pagination also accounts for row heights so large headline rosters fit the printed page. Organizations with multiple sponsorships use their highest confirmed tier for that event. Choosing a report recipient changes the cover and recipient acknowledgment; it does not narrow the event's sponsor roster.
+Paper and slide editions automatically acknowledge every distinct, non-archived Paid or Committed sponsor attached to the selected event, matching the public event roster. Sponsor pages show organization logos (or names when no logo is available), with up to 12 organizations per page. Each tier size group occupies its own row; card widths, heights, padding, and logos taper from headline sponsors to community partners, using the same five size groups as the public event pages. Pagination also accounts for row heights so large headline rosters fit the printed page. Organizations with multiple sponsorships use their highest confirmed tier for that event. Choosing a report recipient changes the cover; it does not narrow the event's sponsor roster. The paper edition ends with the editable closing message and standard footer, without the repeated recipient acknowledgment or sources/disclaimer block.
 
 Drafts store narrative, speaker/panel choices, delivery confirmations, judge notes, application count, and per-session view counts. Save before printing. Counts require non-negative integers and imports require provenance. Draft revisions prevent stale saves overwriting another administrator’s work.
 
@@ -120,7 +120,7 @@ The local synthetic demo exposes the same editor and renderer on loopback for pr
 
 Use **Edit report** to open the editor. **Prepared for** accepts NYDIG, HRF,
 Btrust, or a custom organization name (up to 200 bytes). It updates the cover
-and acknowledgments in both formats immediately and saves with the event
+in both formats immediately and saves with the event
 report draft. Empty recipients render as “Our partners”. Each event currently
 has one saved draft, not independent per-organization versions: export the PDF
 for one recipient before preparing the next. Review the letter for custom
