@@ -78,12 +78,26 @@ func TestReportRender(t *testing.T) {
 	if os.Getenv("REPORT_PREVIEW") == "1" {
 		page = reportFixturePage(t)
 		loadAttendance := reportPreviewAttendance(t)
+		var sponsorPreview []reportSponsor
+		if path := os.Getenv("REPORT_SPONSOR_PREVIEW"); path != "" {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(raw, &sponsorPreview); err != nil {
+				t.Fatal(err)
+			}
+			for i := range sponsorPreview {
+				sponsorPreview[i].Logo = reportRecipientLogo(sponsorPreview[i])
+			}
+		}
 		mux := http.NewServeMux()
 		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 		mux.HandleFunc("/admin/reports/preview", renderReportMarkdownPreview)
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			// Re-read the checked-in public snapshot and template for design review.
 			current := reportFixturePage(t)
+			current.Sponsors = sponsorPreview
 			if err := loadAttendance(&current); err != nil {
 				http.Error(w, "Local attendance preview unavailable", 500)
 				return

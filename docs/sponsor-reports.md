@@ -41,6 +41,8 @@ The report adapts the visual design of `bitcoinpp-sponsor-kit-2027-4.pdf`: lands
 
 ## Editing and export
 
+Paper and slide editions automatically acknowledge every distinct, non-archived Paid or Committed sponsor attached to the selected event, matching the public event roster. Sponsor pages show organization logos (or names when no logo is available), with up to 12 organizations per page. Each tier size group occupies its own row; card widths, heights, padding, and logos taper from headline sponsors to community partners, using the same five size groups as the public event pages. Pagination also accounts for row heights so large headline rosters fit the printed page. Organizations with multiple sponsorships use their highest confirmed tier for that event. Choosing a report recipient changes the cover and recipient acknowledgment; it does not narrow the event's sponsor roster.
+
 Drafts store narrative, speaker/panel choices, delivery confirmations, judge notes, application count, and per-session view counts. Save before printing. Counts require non-negative integers and imports require provenance. Draft revisions prevent stale saves overwriting another administrator’s work.
 
 The editor includes a source checklist for each pending chart and metric. It is hidden in print. Public previews cannot load private event counts; use the authenticated live report for database metrics. Nairobi’s default closing suggests follow-up priorities, without presenting them as measured outcomes. Existing saved narratives take precedence over updated defaults.
@@ -56,6 +58,8 @@ Print / Save as PDF freezes the displayed edition. Enable background graphics an
 Set `REPORT_TEST_DATABASE_URL` to an isolated PostgreSQL instance for the report SQL and persistence checks. Tests use session-local tables and cover cross-event isolation, check-in deduplication, project status, volunteer deduplication, finalized awards, duplicate awards, payout states, stale saves, local dates, count provenance, and output escaping.
 
 `REPORT_PREVIEW=1 go test ./internal/handlers -run TestReportRender -count=1 -timeout=0 -v` serves the public-source Nairobi draft on port 8102.
+
+For local sponsor-layout review, set `REPORT_SPONSOR_PREVIEW` to a JSON array of public organization records with `ID`, `Name`, `Logo`, `Level`, and `Confirmed` fields. This supplies only the opt-in preview and does not change stored sponsorships.
 
 ## Charts
 

@@ -5,28 +5,113 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 )
 
-type reportSponsor struct{ ID, Name, Logo string }
+type reportSponsor struct {
+	ID, Name, Logo, Level string
+	Confirmed             bool
+}
 
 func loadReportSponsors(ctx context.Context, app *config.AppContext, p *sponsorReportPage) error {
-	rows, err := app.DB.Query(ctx, `SELECT DISTINCT o.id::text,o.name,coalesce(nullif(o.logo_light_url,''),o.logo_dark_url,'')
+	rows, err := app.DB.Query(ctx, `SELECT o.id::text,o.name,coalesce(nullif(o.logo_light_url,''),o.logo_dark_url,''),
+ coalesce(array_agg(DISTINCT coalesce(s.level,'')) FILTER (WHERE lower(trim(s.status)) IN ('paid','committed')),'{}'::text[])
  FROM organizations o JOIN sponsorships s ON s.organization_id=o.id JOIN sponsorships_conferences sc ON sc.sponsorship_id=s.id
- WHERE sc.conference_id::text=$1 AND s.archived_at IS NULL ORDER BY o.name,o.id::text`, p.Event.ID)
+ WHERE sc.conference_id::text=$1 AND s.archived_at IS NULL
+ GROUP BY o.id,o.name,o.logo_light_url,o.logo_dark_url ORDER BY o.name,o.id::text`, p.Event.ID)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
+	var sponsors []reportSponsor
 	for rows.Next() {
 		var s reportSponsor
-		if err = rows.Scan(&s.ID, &s.Name, &s.Logo); err != nil {
+		var levels []string
+		if err = rows.Scan(&s.ID, &s.Name, &s.Logo, &levels); err != nil {
 			return err
 		}
+		s.Confirmed = len(levels) > 0
+		// An organization can have several sponsorships; use its highest
+		// confirmed tier for this event, never an unconfirmed upgrade.
+		for _, level := range levels {
+			if normalized := normalizeLevel(level); normalized != "" && tierRank(normalized) < tierRank(s.Level) {
+				s.Level = normalized
+			}
+		}
 		s.Logo = reportRecipientLogo(s)
-		p.Sponsors = append(p.Sponsors, s)
+		sponsors = append(sponsors, s)
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	p.Sponsors = sponsors
+	return nil
+}
+
+// Match the public event roster without limiting acknowledgments to the recipient.
+func (p sponsorReportPage) EventSponsors() []reportSponsor {
+	var sponsors []reportSponsor
+	for _, sponsor := range p.Sponsors {
+		if sponsor.Confirmed {
+			sponsors = append(sponsors, sponsor)
+		}
+	}
+	sort.Slice(sponsors, func(i, j int) bool {
+		a, b := sponsors[i], sponsors[j]
+		if ar, br := a.DisplayRank(), b.DisplayRank(); ar != br {
+			return ar < br
+		}
+		if ar, br := tierRank(normalizeLevel(a.Level)), tierRank(normalizeLevel(b.Level)); ar != br {
+			return ar < br
+		}
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+		return a.ID < b.ID
+	})
+	return sponsors
+}
+
+func (s reportSponsor) DisplayRank() int { return sponsorDisplayRank(s.Level) }
+
+type reportSponsorRow struct {
+	Rank     int
+	Sponsors []reportSponsor
+}
+
+type reportSponsorPage struct {
+	Rows []reportSponsorRow
+}
+
+func (p sponsorReportPage) SponsorPages() []reportSponsorPage {
+	sponsors := p.EventSponsors()
+	var pages []reportSponsorPage
+	var page reportSponsorPage
+	weight, count := 0, 0
+	// Row capacity follows the card widths. Larger tiers consume more of
+	// the page's height budget in both paper and slide editions.
+	columns := [...]int{0, 2, 2, 3, 4, 5}
+	rowWeight := [...]int{0, 5, 4, 3, 2, 2}
+	for len(sponsors) > 0 {
+		rank := sponsors[0].DisplayRank()
+		n := 1
+		for n < min(columns[rank], len(sponsors)) && sponsors[n].DisplayRank() == rank {
+			n++
+		}
+		if weight+rowWeight[rank] > 16 || count+n > 12 {
+			pages = append(pages, page)
+			page, weight, count = reportSponsorPage{}, 0, 0
+		}
+		page.Rows = append(page.Rows, reportSponsorRow{Rank: rank, Sponsors: sponsors[:n]})
+		weight += rowWeight[rank]
+		count += n
+		sponsors = sponsors[n:]
+	}
+	if len(page.Rows) > 0 {
+		pages = append(pages, page)
+	}
+	return pages
 }
 func reportSponsorLogo(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
