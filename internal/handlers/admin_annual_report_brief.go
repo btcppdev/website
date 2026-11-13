@@ -77,7 +77,7 @@ func (p annualReportPage) BriefHackMetrics() []reportMetric {
 		result = append(result, reportMetric{Label: "hackathon participations", Value: approximateReportCount(participations, estimated)})
 	}
 	if sats > 0 {
-		result = append(result, reportMetric{Label: p.PrizeUnit(), Value: compactReportSats(sats)})
+		result = append(result, reportMetric{Label: p.PrizeUnit(), Value: p.PrizeTotalDisplay()})
 	}
 	return result
 }

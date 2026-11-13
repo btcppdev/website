@@ -10,6 +10,18 @@ func (p annualReportPage) FundingChart() reportChart {
 	}
 	return c
 }
+
+func (p annualReportPage) PrizeTotalDisplay() string {
+	var total int64
+	var estimated bool
+	for _, e := range p.Included() {
+		if e.HackKnown() && e.Sats > 0 {
+			total += e.Sats
+			estimated = estimated || e.PrizesEstimated
+		}
+	}
+	return approximateReportCount(total, estimated)
+}
 func (s reportSlice) CompactValue() string { return compactReportSats(s.Value) }
 func (p annualReportPage) BuildingMetrics() []reportMetric {
 	metrics := p.BriefHackMetrics()
@@ -42,6 +54,9 @@ func (e annualEvent) DataStatus() string {
 	status := "Registrations and program loaded from the database. "
 	if e.HackathonRetrospective != nil && e.HackKnown() {
 		status += "Hackathon totals and named winning projects come from the published Insider retrospective. Participant count is approximate; prize amounts and a complete winner roster are not supplied by that source. "
+		if e.PrizesEstimated {
+			status += "The prize pool uses the organizer’s estimate of approximately 8M sats, supplied 13 November 2026. "
+		}
 	} else if e.HackKnown() {
 		status += "Available hackathon records included automatically. "
 		if e.Sats == 0 {

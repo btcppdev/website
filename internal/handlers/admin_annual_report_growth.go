@@ -89,7 +89,7 @@ func (p annualReportPage) BuildingGrowth() []annualGrowthChart {
 			for _, e := range p.Included() {
 				if n, known := value(e); known {
 					chart.Total += n
-					chart.Estimated = chart.Estimated || (kind == "participants" && e.ParticipantsEstimated)
+					chart.Estimated = chart.Estimated || e.growthEstimated(kind)
 				}
 			}
 		}
@@ -98,6 +98,10 @@ func (p annualReportPage) BuildingGrowth() []annualGrowthChart {
 		}
 	}
 	return out
+}
+
+func (e annualEvent) growthEstimated(kind string) bool {
+	return (kind == "participants" && e.ParticipantsEstimated) || (kind == "prizes" && e.PrizesEstimated)
 }
 
 // These are cumulative event totals ordered by local event end date, not a
@@ -123,7 +127,7 @@ func (p annualReportPage) eventGrowth(kind, label, unit string, value func(annua
 		if err != nil || date.Year() != p.Year {
 			return nil
 		}
-		values = append(values, datedValue{date: date, event: e.Event.Location, value: n, estimated: kind == "participants" && e.ParticipantsEstimated})
+		values = append(values, datedValue{date: date, event: e.Event.Location, value: n, estimated: e.growthEstimated(kind)})
 	}
 	if len(values) < 2 {
 		return nil

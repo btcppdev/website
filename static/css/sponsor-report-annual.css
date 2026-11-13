@@ -548,6 +548,7 @@
 .annual-impact .annual-recap-edition { font-size:15px; margin-bottom:4px; }
 .annual-impact .annual-recap-date { font-size:12px; margin-bottom:12px; color:#67517c; }
 .annual-recap-stats { grid-template-columns:repeat(3,minmax(0,1fr)); margin:12px 0 16px; gap:12px; }
+.annual-recap-stats:where(:has(>:nth-child(4))) { grid-template-columns:repeat(4,minmax(0,1fr)); }
 .annual-recap-stat { flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:7px; text-align:left; }
 .annual-recap-stat dt { font-size:11px; line-height:1.3; max-width:none; text-wrap:wrap; }
 .annual-impact .annual-event-recap .story-text p { font-size:14px; line-height:1.5; margin-bottom:10px; }
@@ -783,8 +784,9 @@
  .annual-year-comparison { padding:4mm; margin-bottom:3mm; }
  .annual-impact .annual-year-comparison h3 { font-size:19px; }
  .annual-year-bars { gap:3mm; }
- .annual-recap-list { flex:0 0 auto; grid-template-rows:none; gap:3mm; }
- .annual-event-recap { grid-template-columns:44mm minmax(0,1fr); gap:0 5mm; padding:3mm 0; }
+ .annual-event-recaps .paper-running { margin-bottom:3mm; }
+ .annual-recap-list { flex:0 0 auto; grid-template-rows:none; gap:2mm; }
+ .annual-event-recap { grid-template-columns:44mm minmax(0,1fr); gap:0 5mm; padding:2mm 0; }
  .annual-recap-globe { flex-basis:18mm; }
  .annual-recap-visuals>img,.annual-recap-visuals:has(.annual-recap-people)>img { height:34mm; }
  .annual-recap-people img { max-width:13mm; }
@@ -844,7 +846,7 @@
  .annual-funding-events:has(>article:nth-child(5)) a { margin-top:2mm; }
  .annual-funding-events:has(>article:nth-child(5)) .annual-funding-card-footer { display:block; position:relative; }
  .annual-funding-events:has(>article:nth-child(5)) .annual-funding-globe { position:absolute; right:0; bottom:0; width:9mm; }
- .annual-funding-events:has(>article:nth-child(5)) :is(a,.annual-funding-retrospective) { max-width:calc(100% - 10mm); }
+ .annual-funding-events:has(>article:nth-child(5)) a { max-width:calc(100% - 10mm); }
  .impact-winner-visuals .annual-winner-event-art img { height:30mm; }
 }
 @media screen and (max-width:700px) {

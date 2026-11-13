@@ -20,6 +20,14 @@ roster, team sizes, or participant identities. Do not infer these or add the
 participant estimate to deduplicated-person counts. The two named projects are
 report-only entries with stable editorial keys, not inserted database projects.
 
+On 13 November 2026, the organizer separately supplied **approximately 8M sats
+offered in prizes**, stating that the exact amount was uncertain. Annual reports
+use this estimate only when there is no recorded offered amount. The event card,
+recap, annual headline and cumulative prize chart retain the `~` marker. This
+amount is not attributed to the article and is never used as an awarded or paid
+amount. Known database prize amounts take precedence; frozen editions retain
+their saved values and estimate markers.
+
 Live annual reports replace the old incomplete coverage with this source.
 The editor can explicitly exclude hackathon totals or select reviewed database
 records instead. Whole-event exclusions still apply. Frozen editions retain

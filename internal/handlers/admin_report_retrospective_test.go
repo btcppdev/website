@@ -94,20 +94,27 @@ func TestAnnualReportHackathonRetrospective(t *testing.T) {
 	if !e.HackKnown() || e.HackCoverage != "retrospective" || e.Projects != 21 || !e.ParticipantsEstimated || e.Winners != 0 {
 		t.Fatal("historical coverage was not replaced with the scoped source")
 	}
+	if e.Sats != 8_000_000 || !e.PrizesEstimated || e.SatsDisplay() != "~8M" {
+		t.Fatal("organizer prize estimate was omitted or presented as exact")
+	}
 	metrics := p.BriefHackMetrics()
-	if metrics[0].Value != "35" || metrics[1].Value != "~100" || metrics[2].Value != "2M" {
+	if metrics[0].Value != "35" || metrics[1].Value != "~100" || metrics[2].Value != "~10M" {
 		t.Fatalf("source totals were doubled or lost their estimate: %+v", metrics)
 	}
 	charts := p.BuildingGrowth()
 	if charts[0].Display() != "35" || charts[1].Display() != "~100" || charts[1].Points[0].Estimated || !charts[1].Points[1].Estimated || charts[1].Points[2].Display() != "~100" {
 		t.Fatal("cumulative chart lost the estimate or changed exact project counts")
 	}
+	prizes := p.PrizeGrowth()
+	if prizes == nil || prizes.Display() != "~10M" || prizes.Points[0].Estimated || prizes.Points[1].Display() != "~9000000" || prizes.Points[2].Display() != "~10000000" {
+		t.Fatal("cumulative prize chart lost the organizer estimate")
+	}
 	projects := p.BriefProjects()
 	if len(projects) != 1 || projects[0].Project.Title != "MineExploit" || projects[0].URL() != e.HackathonURL() {
 		t.Fatal("first-place gallery did not use the published winner and source")
 	}
 	p.Events[1].Included = false
-	if p.BriefHackMetrics()[1].Value != "40" || len(p.BriefProjects()) != 0 {
+	if p.BriefHackMetrics()[1].Value != "40" || p.PrizeTotalDisplay() != "2M" || len(p.BriefProjects()) != 0 {
 		t.Fatal("excluded event remained in totals or winner gallery")
 	}
 	for _, coverage := range []string{"none", "excluded", "records"} {
@@ -122,6 +129,18 @@ func TestAnnualReportHackathonRetrospective(t *testing.T) {
 	if x.HackKnown() || x.Projects != 0 {
 		t.Fatal("source leaked into another report year")
 	}
+	for _, offered := range []bool{false, true} {
+		x := annualEvent{Event: e.Event, HackCoverage: "retrospective", OfferedBased: offered, Sats: 5_000_000}
+		x.applyHackathonRetrospective(2026)
+		if x.Sats != 5_000_000 || x.PrizesEstimated {
+			t.Fatal("organizer estimate replaced known prize records")
+		}
+	}
+	x = annualEvent{Event: e.Event, HackCoverage: "retrospective", AwardBased: true}
+	x.applyHackathonRetrospective(2026)
+	if x.Sats != 0 || x.PrizesEstimated {
+		t.Fatal("prize offer estimate was treated as an award")
+	}
 }
 
 func TestAnnualReportRetrospectiveRenderAndSnapshot(t *testing.T) {
@@ -135,7 +154,7 @@ func TestAnnualReportRetrospectiveRenderAndSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := out.String()
-	for _, want := range []string{"MineExploit", "~100", "~60 participants", "22 hours", "bugs found", "Read retrospective", p.Events[1].HackathonURL()} {
+	for _, want := range []string{"MineExploit", "~100", "~60 participants", "~8M", "~10M", "22 hours", "bugs found", "Read retrospective", p.Events[1].HackathonURL()} {
 		if !strings.Contains(body, want) {
 			t.Error("missing", want)
 		}
@@ -156,7 +175,17 @@ func TestAnnualReportRetrospectiveRenderAndSnapshot(t *testing.T) {
 	if err := json.Unmarshal(raw, &frozen); err != nil {
 		t.Fatal(err)
 	}
-	if frozen.Events[1].HackathonRetrospective.URL != p.Events[1].HackathonURL() || !frozen.Events[1].ParticipantsEstimated || frozen.BriefProjects()[0].Story.Built != "Reviewed winner summary" {
+	if frozen.Events[1].HackathonRetrospective.URL != p.Events[1].HackathonURL() || !frozen.Events[1].ParticipantsEstimated || !frozen.Events[1].PrizesEstimated || frozen.PrizeTotalDisplay() != "~10M" || frozen.BriefProjects()[0].Story.Built != "Reviewed winner summary" {
 		t.Fatal("frozen edition lost its source, estimate or editorial copy")
+	}
+	// With only one event there is no cumulative chart; the fallback must still
+	// label the estimated prize total, including in its accessible description.
+	p.Events = p.Events[1:2]
+	out.Reset()
+	if err = tmpl.Execute(&out, p); err != nil {
+		t.Fatal(err)
+	}
+	if p.PrizeGrowth() != nil || !strings.Contains(out.String(), `aria-label="~8M sats offered in prizes; event breakdown below"`) || !strings.Contains(out.String(), `class="funding-total">~8M</text>`) {
+		t.Fatal("single-event prize fallback lost its estimate marker")
 	}
 }

@@ -74,12 +74,15 @@ func annualEventStats(e annualEvent) []annualEventStat {
 		stats = append(stats, annualEventStat{Kind: "views", Value: compactReportSats(total), Label: "video views", Detail: "Recorded X and YouTube video views; each video counted once per platform"})
 	}
 	if e.HackKnown() && e.Sats > 0 {
-		prizes := annualEventStat{Kind: "prizes", Value: compactReportSats(e.Sats), Label: e.PrizeUnit(), Detail: "Recorded sent or claimed hackathon prize distributions"}
+		prizes := annualEventStat{Kind: "prizes", Value: e.SatsDisplay(), Label: e.PrizeUnit(), Detail: "Recorded sent or claimed hackathon prize distributions"}
 		if e.AwardBased {
 			prizes.Detail = "Configured sat prizes assigned to finalized winning projects; not a settlement total"
 		}
 		if e.OfferedBased {
 			prizes.Detail = "Configured sats per winning project × available winner slots, including unawarded prizes; independent of payouts"
+		}
+		if e.PrizesEstimated {
+			prizes.Detail = "Approximate prize pool supplied by the organizer on 13 November 2026; not an awarded or paid amount"
 		}
 		stats = append(stats, prizes)
 	}

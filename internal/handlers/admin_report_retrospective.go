@@ -94,6 +94,11 @@ func (e *annualEvent) applyHackathonRetrospective(year int) {
 	e.ParticipantsEstimated = source.ParticipantsEstimated
 	e.WinningProjects = source.Winners
 	e.Winners = 0 // The complete winner count is not published.
+	// Organizer estimate supplied 13 November 2026, separate from the article.
+	// This is a prize offer, never an awarded or paid amount. Prefer known records.
+	if e.OfferedBased && e.Sats == 0 {
+		e.Sats, e.PrizesEstimated = 8_000_000, true
+	}
 }
 
 func (e annualEvent) HackathonURL() string {

@@ -20,6 +20,7 @@ import (
 type annualEvent struct {
 	HackathonRetrospective                                                      *reportHackathonRetrospective
 	ParticipantsEstimated                                                       bool
+	PrizesEstimated                                                             bool
 	SpeakerPortraits                                                            []reportPerson
 	SourcePosts                                                                 []reportPost
 	SourceMedia                                                                 []reportMedia
@@ -39,7 +40,7 @@ type annualEvent struct {
 }
 
 func (e annualEvent) Sessions() int64     { return e.Talks + e.Workshops + e.Panels }
-func (e annualEvent) SatsDisplay() string { return compactReportSats(e.Sats) }
+func (e annualEvent) SatsDisplay() string { return approximateReportCount(e.Sats, e.PrizesEstimated) }
 func (e annualEvent) HackKnown() bool {
 	return e.HackCoverage == "records" || e.HackCoverage == "automatic" || e.HackCoverage == "retrospective"
 }
