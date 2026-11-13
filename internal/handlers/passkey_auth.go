@@ -115,14 +115,8 @@ func PasskeyRegisterChallenge(w http.ResponseWriter, r *http.Request, ctx *confi
 		writePasskeyError(w, http.StatusInternalServerError, "Passkey registration is not configured correctly.")
 		return
 	}
-	requireResident := true
-	selection := protocol.AuthenticatorSelection{
-		RequireResidentKey: &requireResident,
-		ResidentKey:        protocol.ResidentKeyRequirementRequired,
-		UserVerification:   protocol.VerificationRequired,
-	}
 	creation, session, err := rp.BeginRegistration(user,
-		webauthn.WithAuthenticatorSelection(selection),
+		webauthn.WithAuthenticatorSelection(passkeyAuthenticatorSelection()),
 		webauthn.WithExclusions(webauthn.Credentials(user.WebAuthnCredentials()).CredentialDescriptors()),
 		webauthn.WithExtensions(webauthn.WithExtensionCredProps()),
 	)
@@ -174,8 +168,9 @@ func PasskeyRegisterVerify(w http.ResponseWriter, r *http.Request, ctx *config.A
 	limitRequestBody(w, r, maxFormBodyBytes)
 	credential, err := rp.FinishRegistration(user, *session, r)
 	if err != nil {
-		recordAuthAudit(ctx, r, viewer.PersonID, string(auth.MethodPasskey), "passkey_registration_failed", nil)
-		writePasskeyError(w, http.StatusUnauthorized, "That passkey registration could not be verified.")
+		reason, message := passkeyRegistrationFailure(err)
+		recordAuthAudit(ctx, r, viewer.PersonID, string(auth.MethodPasskey), "passkey_registration_failed", map[string]any{"reason": reason})
+		writePasskeyError(w, http.StatusUnauthorized, message)
 		return
 	}
 	stored, err := getters.CreatePersonPasskeyCredential(ctx, viewer.PersonID, name, credential)
@@ -193,6 +188,32 @@ func PasskeyRegisterVerify(w http.ResponseWriter, r *http.Request, ctx *config.A
 		"Passkey added", markdownEmailText(stored.DisplayName)+" was added as a sign-in passkey.", linkedAt)
 	recordAuthAudit(ctx, r, viewer.PersonID, string(auth.MethodPasskey), "passkey_credential_linked", map[string]any{"credential_id": stored.ID})
 	writePasskeyJSON(w, map[string]string{"redirect": "/dashboard/settings?flash=Passkey+added."})
+}
+
+func passkeyAuthenticatorSelection() protocol.AuthenticatorSelection {
+	requireResident := true
+	return protocol.AuthenticatorSelection{
+		RequireResidentKey: &requireResident,
+		ResidentKey:        protocol.ResidentKeyRequirementRequired,
+		UserVerification:   protocol.VerificationRequired,
+	}
+}
+
+func passkeyRegistrationFailure(err error) (reason, message string) {
+	// Classify the verifier's actual failure. Do not infer it from unverified
+	// client flags or expose raw errors, challenges, or credential data.
+	reason = "verification_failed"
+	message = "That passkey registration could not be verified. Please try again."
+	var failure *protocol.Error
+	if errors.As(err, &failure) {
+		reason = failure.Type
+		// The pinned WebAuthn library uses this detail for the required UV check.
+		if failure.Type == protocol.ErrVerification.Type && failure.DevInfo == "User verification required but flag not set by authenticator" {
+			reason = "user_verification_required"
+			message = "Your passkey provider did not confirm a PIN or biometric check. For a security key, make sure its FIDO2 PIN is set, then retry and complete the PIN prompt. Touching the key alone is not enough. If you already entered the PIN, try an up-to-date browser."
+		}
+	}
+	return reason, message
 }
 
 func PasskeyUnlink(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

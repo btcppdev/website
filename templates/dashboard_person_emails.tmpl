@@ -108,7 +108,7 @@
           <div class="person-email-row settings-method-row{{ if not .Passkeys }} is-pending{{ end }}">
             <div>
               <strong>Passkey</strong>{{ if not .Passkeys }}<span class="is-pending">NOT ADDED</span>{{ end }}
-              <small data-passkey-status>Use this device, a synced passkey, or a hardware security key.</small>
+              <small data-passkey-status>Use this device, a synced passkey, or a hardware security key. A PIN or biometric check is required.</small>
               <label class="mt-3">PASSKEY NAME
                 <input type="text" data-passkey-name maxlength="80" placeholder="My laptop" autocomplete="off">
               </label>
