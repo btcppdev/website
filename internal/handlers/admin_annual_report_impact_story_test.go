@@ -159,12 +159,12 @@ func TestAnnualReportImpactRender(t *testing.T) {
 		t.Fatal(err)
 	}
 	main := html.UnescapeString(out.String()[strings.Index(out.String(), "<main>"):])
-	for _, want := range []string{"Gatherings, year over year.", "people registered for 2+ gatherings", "You do a great job to make all of us meet.", "A dashboard comparing mining pools", "Thank you,<br><em>NYDIG.</em>", "For backing the people building Bitcoin."} {
+	for _, want := range []string{"people registered for 2+ gatherings", "You do a great job to make all of us meet.", "A dashboard comparing mining pools", "Thank you,<br><em>NYDIG.</em>", "For backing the people building Bitcoin."} {
 		if !strings.Contains(main, want) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	for _, bad := range []string{"[Add ", "How support was used", "A participant’s voice", "ZgotmplZ", `class="paper-source"`, "Cumulative at event close", "After the event", "Source ↗", "Bring builders together.", "Keep building.", "Thank you, NYDIG, for backing"} {
+	for _, bad := range []string{"Gatherings, year over year.", "[Add ", "How support was used", "A participant’s voice", "ZgotmplZ", `class="paper-source"`, "Cumulative at event close", "After the event", "Source ↗", "Bring builders together.", "Keep building.", "Thank you, NYDIG, for backing"} {
 		if strings.Contains(main, bad) {
 			t.Errorf("unfilled evidence or invalid output: %s", bad)
 		}

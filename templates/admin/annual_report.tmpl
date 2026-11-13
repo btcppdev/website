@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{.Year}} · {{.Recipient}} · Annual sponsor report</title><link rel="stylesheet" href="/static/css/sponsor-report.css?v=recipient-logo1"><link rel="stylesheet" href="/static/css/sponsor-report-paper.css?v=20261023-demand"><link rel="stylesheet" href="/static/css/sponsor-report-annual.css?v=20261113-floripa-prize-estimate"><script src="/static/js/sponsor-report.js?v=20261111-auto-sources" defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{.Year}} · {{.Recipient}} · Annual sponsor report</title><link rel="stylesheet" href="/static/css/sponsor-report.css?v=recipient-logo1"><link rel="stylesheet" href="/static/css/sponsor-report-paper.css?v=20261023-demand"><link rel="stylesheet" href="/static/css/sponsor-report-annual.css?v=20261113-letter-author"><script src="/static/js/sponsor-report.js?v=20261113-print-preflight" defer></script><script src="/static/js/annual-report-print.js?v=20261113-print-preflight" defer></script></head>
 <body data-layout="paper" data-readonly="{{.Preview}}" class="annual-report">
 {{if .Preview}}<div class="synthetic-banner">LOCAL LAYOUT DEMO · Illustrative event metrics, not actual annual results</div>{{end}}
-<nav class="report-tools"><a href="/admin/reports">← Event reports</a><form method="get" action="/admin/reports/annual"><label>Year<input type="number" name="year" value="{{.Year}}" min="2020" max="2100"></label><label>Prepared for<select name="recipient"><option {{if eq .Recipient "NYDIG"}}selected{{end}}>NYDIG</option><option {{if eq .Recipient "HRF"}}selected{{end}}>HRF</option></select></label><button>Open annual draft</button></form>{{if not .Frozen}}<button type="button" id="report-edit">Edit report</button>{{end}}<button type="button" id="report-print">Print / Save as PDF</button></nav>
+<nav class="report-tools"><a href="/admin/reports">← Event reports</a><form method="get" action="/admin/reports/annual"><label>Year<input type="number" name="year" value="{{.Year}}" min="2020" max="2100"></label><label>Prepared for<select name="recipient"><option {{if eq .Recipient "NYDIG"}}selected{{end}}>NYDIG</option><option {{if eq .Recipient "HRF"}}selected{{end}}>HRF</option></select></label><button>Open annual draft</button></form>{{if not .Frozen}}<button type="button" id="report-edit">Edit report</button>{{end}}<button type="button" id="report-print">Print / Save as PDF</button></nav><p id="report-print-status" class="report-print-status" role="status" aria-live="polite" hidden></p>
 {{if .Message}}<p class="notice" role="status">{{.Message}}</p>{{end}}
 {{if .Frozen}}<p class="notice">Frozen edition · {{.Frozen}}. Text and figures are preserved. <a href="{{.URL}}">Return to the live draft →</a></p>{{else}}
 <aside class="notice annual-collection" aria-label="Report data collection"><strong>Event data is included automatically.</strong> Recordings and matched X posts refresh when this live draft opens. Exclude incorrect items in Edit report; your saved exclusions carry forward. <button type="button" id="annual-refresh-all" {{if .Preview}}disabled{{end}}>Refresh now</button><div id="annual-refresh-status" role="status" aria-live="polite">{{if .Preview}}Automatic collection is disabled in this preview.{{else}}Checking source data…{{end}}</div><noscript>Enable JavaScript to refresh external analytics automatically. Database figures and previously collected sources are already included.</noscript></aside>
@@ -32,8 +32,7 @@
 <section class="paper-sheet brief-opening">
 <header class="paper-running"><span>bitcoin++ / {{.Year}}</span><span>Prepared for {{.Recipient}} · {{.ReportFolio 2}}</span></header>
 <h1>A note<br><em>from nifty.</em></h1>
-{{with .GatheringComparison}}{{template "annual_year_comparison" .}}{{end}}
-<div class="annual-letter" data-section="note"><div class="story-text report-markdown">{{(.BriefSection "note").Markdown}}</div></div>
+<div class="annual-letter" data-section="note"><div class="story-text report-markdown">{{(.BriefSection "note").Markdown}}</div><div class="annual-letter-author"><strong>Lisa Neigut</strong><span>Founder, bitcoin++</span></div></div>
 {{template "annual_footer" $.Year}}
 </section>
 
@@ -85,17 +84,18 @@
 <div class="annual-building-growth">{{range .BuildingGrowth}}{{template "annual_growth_chart" .}}{{end}}</div>
 </div><div class="annual-funding-events">{{range .Included}}{{if and .HackKnown (or (gt .Sats 0) .HackathonRetrospective)}}<article>{{if .Event.LeadImage}}<img src="{{.Event.LeadImage}}" alt="{{.Event.Location}} event artwork">{{end}}<div><h3>{{.Event.Location}}</h3>{{if gt .Sats 0}}<p class="annual-funding-award"><strong>{{.SatsDisplay}}</strong> {{if and (eq $.Recipient "NYDIG") .OfferedBased}}in prizes{{else}}{{.PrizeUnit}}{{end}}</p>{{else if .HackathonRetrospective}}<p class="annual-funding-award"><strong>{{.HackathonRetrospective.Bugs}}</strong> bugs found</p>{{end}}<div class="annual-funding-card-footer"><div><p class="annual-funding-projects"><strong>{{.Projects}}</strong> projects</p>{{if .HackathonRetrospective}}<p class="annual-funding-retrospective">{{.ParticipantsDisplay}} participants · {{.HackathonRetrospective.Hours}} hours</p>{{end}}<a href="{{.HackathonURL}}">{{if .HackathonRetrospective}}Recap{{else}}Explore{{end}} ↗</a></div>{{with .Globe}}<figure class="annual-funding-globe"><img src="{{.Image}}" width="320" height="320" alt="Globe highlighting {{.Country}}, with the event city marked"></figure>{{end}}</div></div></article>{{end}}{{end}}</div>
 {{with .BriefSection "support"}}{{if .Text}}<div class="annual-support-detail" data-section="support"><div class="story-text report-markdown">{{.Markdown}}</div></div>{{end}}{{end}}
-{{with .BriefSection "building"}}{{if .Text}}<div class="annual-funding-intro annual-section-copy" data-section="building"><div class="story-text report-markdown">{{.Markdown}}</div></div>{{end}}{{end}}
-{{with .BriefSection "resource_use"}}{{if .Text}}<div class="annual-resource-use"><h3>How support was used</h3><div data-section="resource_use"><div class="story-text report-markdown">{{.Markdown}}</div></div></div>{{end}}{{end}}
 {{template "annual_footer" $.Year}}
 </section>
 
-{{range .ProjectHighlightPages}}<section class="paper-sheet impact-winners">
+{{range $index, $page := .ProjectHighlightPages}}<section class="paper-sheet impact-winners">
 <div class="paper-running"><span></span><span>{{.Folio}}</span></div>
 <h2>First place.<br><em>Meet the builders.</em></h2>
-<div class="impact-winner-gallery{{if gt (len .Projects) 3}} impact-winner-gallery--grid{{end}}">{{range .Projects}}<article>
+<div class="impact-winner-gallery{{if eq (len .Projects) 3}} impact-winner-gallery--rows{{else if gt (len .Projects) 1}} impact-winner-gallery--grid{{end}}">{{range .Projects}}<article>
 <div class="annual-winner-event"><strong>{{.Event}}</strong><span>{{.Project.PlaceLabel}}</span></div>
 <div class="impact-winner-visuals">{{template "report_winner_team" .Project}}{{if .Project.Image}}<figure><img src="{{.Project.Image}}" alt="{{.Project.Title}} project artwork"></figure>{{else if and .Project.SourceURL .EventImage}}<figure class="annual-winner-event-art"><img src="{{.EventImage}}" alt="{{.Event}} event artwork"></figure>{{end}}</div><div class="annual-winner-copy"><h3>{{.Project.Title}}</h3>{{with .Project.PrizeFigure}}<p class="report-prize-amount"><strong>{{.Value}}</strong> {{.Label}}</p>{{end}}{{with .Story.Built}}<p class="annual-project-story">{{.}}</p>{{end}}<div class="annual-card-links"><a href="{{.URL}}">{{.LinkLabel}} ↗</a>{{if .Project.GitHub}}<a href="{{.Project.GitHub}}">Code ↗</a>{{end}}</div></div></article>{{else}}<p>First-place projects will appear as overall hackathon results are finalized.</p>{{end}}</div>
+{{if eq $index 0}}{{with $.BriefSection "building"}}{{if .Text}}<div class="annual-builder-story annual-section-copy" data-section="building"><div class="story-text report-markdown">{{.Markdown}}</div></div>{{end}}{{end}}
+{{with $.BriefSection "resource_use"}}{{if .Text}}<div class="annual-resource-use"><h3>How support was used</h3><div data-section="resource_use"><div class="story-text report-markdown">{{.Markdown}}</div></div></div>{{end}}{{end}}
+{{end}}
 {{template "annual_footer" $.Year}}
 </section>{{end}}
 

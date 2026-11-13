@@ -469,7 +469,7 @@
 .impact-winner-gallery>article:has(>.impact-winner-visuals) { grid-template-columns:220px 1fr; }
 .impact-winner-visuals .report-winner-team { margin:0 0 12px; }
 .impact-winner-visuals .report-winner-team figure { width:102px; }
-.impact-winner-visuals .report-winner-team img,.impact-winner-visuals .report-team-initials { width:96px; height:96px; border-radius:10px; }
+.impact-winner-visuals .report-winner-team img,.impact-winner-visuals .report-team-initials { width:96px; height:96px; border-radius:50%; }
 .impact-winner-visuals:has(.report-winner-team)>figure>img { height:70px; object-fit:contain; }
 .impact-winner-gallery--grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
 .impact-winner-gallery--grid>article:has(>.impact-winner-visuals) { display:flex; flex-direction:column; gap:10px; padding:16px 0; min-width:0; }
@@ -526,7 +526,10 @@
 .annual-letter { width:100%; max-width:600px; margin:12px 0 0; }
 .annual-letter .story-text p { margin-bottom:22px; }
 .annual-letter .story-text p:first-child { font-weight:600; }
-.annual-letter .story-text p:last-child { font-size:30px; font-style:italic; color:#67517c; margin-top:26px; }
+.annual-letter .story-text p:last-child { font-size:30px; font-style:italic; color:#67517c; margin-top:26px; margin-bottom:6px; }
+.annual-letter-author { font:16px/1.45 Archivo,Arial,sans-serif; }
+.annual-letter-author>strong { display:block; font-weight:600; }
+.annual-letter-author>span { display:block; color:#67517c; }
 .annual-year-comparison { width:100%; box-sizing:border-box; grid-template-columns:1fr 1.3fr; gap:32px; margin:0 auto 24px; padding:24px; border:0; background:#e6dcef; }
 .annual-impact .annual-year-comparison h3 { text-align:left; font-size:24px; text-wrap:wrap; margin:0; }
 .annual-year-bars { gap:18px; }
@@ -770,7 +773,10 @@
 
 /* Keep saved narratives within the A4 layout, with a dedicated follow-up page. */
 .annual-follow-up-copy { margin:0 0 24px; }
+.annual-builder-story { border-top:2px solid #c8b3f5; padding-top:20px; }
+.report-print-status { max-width:1100px; margin:12px auto; padding:14px 20px; background:#fff4cf; color:#242124; font:16px/1.5 Archivo,sans-serif; }
 @media print {
+ .report-print-status { display:none; }
  .annual-impact .paper-sheet { min-height:296mm; break-inside:avoid-page; }
  .annual-impact .paper-running { margin-bottom:5mm; }
  .annual-impact .paper-folio { flex-shrink:0; break-inside:avoid; }
@@ -780,7 +786,7 @@
  .annual-impact .story-text p { orphans:3; widows:3; }
  .annual-letter { max-width:none; margin-top:2mm; }
  .annual-letter .story-text p { font-size:15px; line-height:1.45; margin-bottom:3mm; }
- .annual-letter .story-text p:last-child { font-size:24px; margin-top:3mm; }
+ .annual-letter .story-text p:last-child { font-size:24px; margin-top:3mm; margin-bottom:1.5mm; }
  .annual-year-comparison { padding:4mm; margin-bottom:3mm; }
  .annual-impact .annual-year-comparison h3 { font-size:19px; }
  .annual-year-bars { gap:3mm; }
@@ -851,4 +857,35 @@
 }
 @media screen and (max-width:700px) {
  .annual-funding-events:has(>article:nth-child(5)) { grid-template-columns:1fr; }
+}
+
+/* Three winners read as a sequence, with equal room for every event. */
+.impact-winner-gallery--rows { display:grid; grid-template-columns:1fr; gap:26px; }
+.impact-winner-gallery--rows>article:has(>.impact-winner-visuals) { display:grid; grid-template-columns:210px minmax(0,1fr); grid-template-rows:auto 1fr; gap:14px 28px; align-items:start; padding:0 0 26px; border-bottom:1px solid #c8b3f5; }
+.impact-winner-gallery--rows>article:last-child { border-bottom:0; padding-bottom:0; }
+.impact-winner-gallery--rows .annual-winner-event { grid-column:1; grid-row:1; display:block; padding:0; background:none; }
+.impact-winner-gallery--rows .annual-winner-event strong { font-size:20px; }
+.impact-winner-gallery--rows .annual-winner-event span { display:block; margin-top:5px; }
+.impact-winner-gallery--rows .impact-winner-visuals { grid-column:1; grid-row:2; min-width:0; }
+.impact-winner-gallery--rows .impact-winner-visuals:has(.report-winner-team)>figure { display:none; }
+.impact-winner-gallery--rows .annual-winner-copy { grid-column:2; grid-row:1 / span 2; }
+.impact-winner-gallery--rows .report-winner-team { margin:0; gap:10px; }
+.impact-winner-gallery--rows .report-winner-team figure { width:94px; }
+.impact-winner-gallery--rows .report-winner-team img,.impact-winner-gallery--rows .report-team-initials { width:88px; height:88px; }
+.annual-impact .impact-winner-gallery--rows h3 { font-size:27px; line-height:1.15; margin:0 0 10px; text-wrap:wrap; }
+.impact-winner-gallery--rows .report-prize-amount { margin:0 0 14px; }
+.impact-winner-gallery--rows .annual-card-links { margin-top:0; }
+@media print {
+ .impact-winner-gallery--rows { gap:6mm; }
+ .impact-winner-gallery--rows>article:has(>.impact-winner-visuals) { grid-template-columns:53mm minmax(0,1fr); gap:3mm 7mm; padding-bottom:6mm; }
+ .impact-winner-gallery--rows>article:last-child { padding-bottom:0; }
+ .impact-winner-gallery--rows .annual-winner-event strong { font-size:19px; }
+ .impact-winner-gallery--rows .report-winner-team figure { width:24mm; }
+ .impact-winner-gallery--rows .report-winner-team img,.impact-winner-gallery--rows .report-team-initials { width:22mm; height:22mm; }
+ .annual-impact .impact-winner-gallery--rows h3 { font-size:25px; }
+ .impact-winner-gallery--rows .report-prize-amount strong { font-size:30px; }
+ .impact-winner-gallery--rows .annual-project-story { font-size:14px; }
+}
+@media screen and (max-width:650px) {
+ .impact-winner-gallery--rows>article:has(>.impact-winner-visuals) { display:flex; flex-direction:column; gap:16px; }
 }

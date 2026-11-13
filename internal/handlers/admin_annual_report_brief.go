@@ -41,7 +41,11 @@ type annualProjectHighlightPage struct {
 func (p annualReportPage) ProjectHighlightPages() []annualProjectHighlightPage {
 	pages := []annualProjectHighlightPage{{}}
 	for _, project := range p.BriefProjects() {
-		if len(pages[len(pages)-1].Projects) == 4 {
+		capacity := 4
+		if len(pages) == 1 {
+			capacity = p.firstWinnerPageCapacity()
+		}
+		if len(pages[len(pages)-1].Projects) == capacity {
 			pages = append(pages, annualProjectHighlightPage{})
 		}
 		pages[len(pages)-1].Projects = append(pages[len(pages)-1].Projects, project)
@@ -50,6 +54,15 @@ func (p annualReportPage) ProjectHighlightPages() []annualProjectHighlightPage {
 		pages[i].Folio = fmt.Sprintf("%02d / %02d", 7+(len(p.Included())+2)/3+i, p.ReportPageCount())
 	}
 	return pages
+}
+
+// Keep the funding overview visual. The builder story belongs with the
+// projects, with a single row of winners leaving room for the saved narrative.
+func (p annualReportPage) firstWinnerPageCapacity() int {
+	if strings.TrimSpace(p.BriefSection("building").Text) != "" || strings.TrimSpace(p.BriefSection("resource_use").Text) != "" {
+		return 2
+	}
+	return 4
 }
 func (p annualReportPage) BriefMedia() []reportMedia {
 	media := p.AllMedia()
@@ -83,7 +96,7 @@ func (p annualReportPage) BriefHackMetrics() []reportMetric {
 }
 
 // Leave editorial prompts in the editor, not the sponsor document. Actual prose
-// is never truncated; longer custom copy can flow onto another printed page.
+// is never truncated; the PDF layout check flags copy that needs more room.
 func (p annualReportPage) BriefSection(key string) reportSection {
 	s := p.Section(key)
 	var paragraphs []string

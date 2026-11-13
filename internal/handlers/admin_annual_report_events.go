@@ -229,8 +229,8 @@ func (p annualReportPage) ReportFolio(base int) string {
 }
 
 func (p annualReportPage) extraWinnerPages() int {
-	if winners := len(p.BriefProjects()); winners > 0 {
-		return (winners - 1) / 4
+	if remaining := len(p.BriefProjects()) - p.firstWinnerPageCapacity(); remaining > 0 {
+		return (remaining + 3) / 4
 	}
 	return 0
 }

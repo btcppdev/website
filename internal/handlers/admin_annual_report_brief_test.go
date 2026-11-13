@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"strings"
 	"testing"
@@ -98,6 +99,72 @@ func TestAnnualReportBriefPreservesEditorialCopy(t *testing.T) {
 	}
 	if !strings.Contains(p.Section("test").Text, "[Add a quote.]") {
 		t.Fatal("editor source was changed")
+	}
+}
+
+func TestAnnualReportBuilderStoryPagination(t *testing.T) {
+	for _, story := range []bool{false, true} {
+		for count := 0; count <= 11; count++ {
+			p := annualReportPage{Events: []annualEvent{{Included: true, HackCoverage: "records"}}}
+			capacity := 4
+			if story {
+				capacity = 2
+				p.Sections = []reportSection{{Key: "building", Text: "Keep the full builder story."}}
+			}
+			for i := 0; i < count; i++ {
+				p.Events[0].WinningProjects = append(p.Events[0].WinningProjects, reportWinner{ID: fmt.Sprint(i), Rank: 1})
+			}
+			wantPages := 1
+			if count > capacity {
+				wantPages += (count - capacity + 3) / 4
+			}
+			pages := p.ProjectHighlightPages()
+			if len(pages) != wantPages || p.ReportPageCount() != 8+wantPages {
+				t.Fatalf("story=%v winners=%d: pages=%d total=%d", story, count, len(pages), p.ReportPageCount())
+			}
+			var got []string
+			for i, page := range pages {
+				if i == 0 && len(page.Projects) > capacity || len(page.Projects) > 4 {
+					t.Fatal("too many projects on a winner page")
+				}
+				if page.Folio != fmt.Sprintf("%02d / %02d", 8+i, 8+wantPages) {
+					t.Fatalf("incorrect folio %s", page.Folio)
+				}
+				for _, project := range page.Projects {
+					got = append(got, project.Project.ID)
+				}
+			}
+			if len(got) != count {
+				t.Fatal("pagination lost winners")
+			}
+			for i, id := range got {
+				if id != fmt.Sprint(i) {
+					t.Fatal("pagination reordered or duplicated winners")
+				}
+			}
+		}
+	}
+}
+
+func TestAnnualReportBuilderStoryRendersWithWinners(t *testing.T) {
+	p := annualFixture()
+	p.Sections = []reportSection{{Key: "building", Text: "The full builder story."}, {Key: "resource_use", Text: "The full resource breakdown."}}
+	tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl", "../../templates/admin/reports.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, p); err != nil {
+		t.Fatal(err)
+	}
+	main := strings.Split(out.String(), "<main>")[1]
+	funding := strings.Split(strings.Split(main, `id="annual-hackathons"`)[1], "</section>")[0]
+	winners := strings.Split(strings.Split(main, `class="paper-sheet impact-winners"`)[1], "</section>")[0]
+	for _, key := range []string{"building", "resource_use"} {
+		marker := `data-section="` + key + `"`
+		if strings.Contains(funding, marker) || !strings.Contains(winners, marker) || strings.Count(main, marker) != 1 {
+			t.Fatalf("%s must appear once, beside the winners", key)
+		}
 	}
 }
 

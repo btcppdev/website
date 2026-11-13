@@ -1,6 +1,7 @@
 "use strict";
 const printButton = document.getElementById("report-print");
-if (printButton) printButton.addEventListener("click", () => window.print());
+// Annual reports have fixed A4 pages and validate their layout before printing.
+if (printButton && !document.body.classList.contains("annual-report")) printButton.addEventListener("click", () => window.print());
 const editButton = document.getElementById("report-edit");
 if (editButton) editButton.addEventListener("click", () => {
   const editor = document.querySelector(".report-editor");
@@ -189,14 +190,18 @@ if (reportForm) {
       input.dispatchEvent(new Event("input", {bubbles:true}));
     });
   }
-  printButton?.addEventListener("click", event => {
+  const requireCurrentNarrative = event => {
     if (pending.size) {
       event.stopImmediatePropagation();
       event.preventDefault();
       saveStatus.textContent = "Wait for the narrative previews to update before exporting.";
       saveStatus.scrollIntoView({block:"center"});
     }
-  }, true);
+  };
+  printButton?.addEventListener("click", requireCurrentNarrative, true);
+  // The annual asset/layout check is asynchronous: an edit can begin after
+  // the initial click and still be pending when the snapshot is ready.
+  document.addEventListener("report-before-print", requireCurrentNarrative);
 }
 
 // Attribution is saved server-side; filters never alter or drop form controls.
