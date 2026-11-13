@@ -348,6 +348,9 @@ func TestAnnualReportPreview(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 	mux.HandleFunc("/admin/reports/preview", renderReportMarkdownPreview)
+	if os.Getenv("ANNUAL_REPORT_SOFTWARE_PREVIEW") == "1" {
+		mountAnnualSoftwarePreview(t, mux)
+	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" && r.URL.Path != "/admin/reports/annual" {
 			http.NotFound(w, r)

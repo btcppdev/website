@@ -45,6 +45,7 @@ For portrait layout checks, optionally set `ANNUAL_REPORT_PEOPLE_PREVIEW` to a l
 
 The organizer-confirmed 2026 community quote is attributed to Godefroid Chapelle (Gotcha), and the closing quote to Rachel Rybarczyk. Live drafts load their name, avatar, organization, and X handle from their fixed person IDs. An empty profile organization falls back to recorded speaker affiliations. Deleted profiles are omitted. Attributions are attached to the confirmed wording, so replacing a quote does not credit the replacement to the original author. New frozen editions retain the attribution fields; older frozen editions are unchanged. For local layout checks, `ANNUAL_REPORT_QUOTE_PREVIEW` accepts a JSON map of quote section keys to `annualQuoteAuthor` records, including the confirmed `Quote` text.
 
+The standalone software-page concept lives in `docs/annual-software-preview/`. Start the same harness with `ANNUAL_REPORT_SOFTWARE_PREVIEW=1` and open `http://127.0.0.1:8140/software-preview/`. Its speaker-management and scheduler captures use the actual templates with sample records at `/software-ui/people` and `/software-ui/schedule`. To regenerate the streaming capture, set `ANNUAL_REPORT_STREAMER_TEMPLATES` to streamctl's `internal/handlers/templates` directory and visit `/software-ui/streaming`. These routes are read-only, opt-in local fixtures; the concept is not added to published or frozen reports.
 
 ## Event location globes
 
