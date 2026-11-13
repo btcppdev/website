@@ -73,6 +73,17 @@ func TestAnnualReportFirstPlaceProjectsAndPagination(t *testing.T) {
 	if pages[0].Folio != "09 / 11" || pages[1].Folio != "10 / 11" || p.ReportFolio(8) != "11 / 11" || p.EventHighlightPages()[0].Folio != "03 / 11" {
 		t.Fatalf("incorrect winner/closing pagination: %+v, closing %s", pages, p.ReportFolio(8))
 	}
+	p.Sections = []reportSection{{Key: "lessons", Text: "[Add one lesson.]"}}
+	if p.HasFollowUp() || p.ReportPageCount() != 11 {
+		t.Fatal("an editorial prompt must not create a follow-up page")
+	}
+	p.Sections = append(p.Sections, reportSection{Key: "next", Text: "Keep this full plan for next year."})
+	if !p.HasFollowUp() || p.FollowUpFolio() != "11 / 12" || p.ReportFolio(8) != "12 / 12" || p.ProjectHighlightPages()[1].Folio != "10 / 12" || p.EventHighlightPages()[0].Folio != "03 / 12" {
+		t.Fatal("follow-up page must update all folios without replacing winner pages")
+	}
+	if p.BriefSection("next").Text != "Keep this full plan for next year." {
+		t.Fatal("pagination changed saved narrative")
+	}
 }
 
 func TestAnnualReportBriefPreservesEditorialCopy(t *testing.T) {

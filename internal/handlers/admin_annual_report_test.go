@@ -325,6 +325,16 @@ func TestAnnualReportPreview(t *testing.T) {
 	if os.Getenv("ANNUAL_REPORT_PREVIEW") != "1" {
 		t.Skip("local visual preview")
 	}
+	var copyFixtures map[string]string
+	if filename := os.Getenv("ANNUAL_REPORT_COPY_PREVIEW"); filename != "" {
+		raw, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &copyFixtures); err != nil {
+			t.Fatal(err)
+		}
+	}
 	var portraitFixtures map[string]annualEvent
 	if filename := os.Getenv("ANNUAL_REPORT_PEOPLE_PREVIEW"); filename != "" {
 		raw, err := os.ReadFile(filename)
@@ -397,6 +407,14 @@ func TestAnnualReportPreview(t *testing.T) {
 			}
 		}
 		p.QuoteAuthors = quoteFixtures
+		for key, value := range copyFixtures {
+			p.Saved[key] = value
+			for i := range p.Sections {
+				if p.Sections[i].Key == key {
+					p.Sections[i].Text = value
+				}
+			}
+		}
 		tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl", "../../templates/admin/reports.tmpl")
 		if err != nil {
 			http.Error(w, err.Error(), 500)

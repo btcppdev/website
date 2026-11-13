@@ -204,6 +204,9 @@ func (p annualReportPage) ReportFolio(base int) string {
 	}
 	if base >= 8 {
 		page += p.extraWinnerPages()
+		if p.HasFollowUp() {
+			page++
+		}
 	}
 	return fmt.Sprintf("%02d / %02d", page, p.ReportPageCount())
 }
@@ -216,7 +219,19 @@ func (p annualReportPage) extraWinnerPages() int {
 }
 
 func (p annualReportPage) ReportPageCount() int {
-	return 8 + (len(p.Included())+2)/3 + p.extraWinnerPages()
+	count := 8 + (len(p.Included())+2)/3 + p.extraWinnerPages()
+	if p.HasFollowUp() {
+		count++
+	}
+	return count
+}
+
+func (p annualReportPage) HasFollowUp() bool {
+	return strings.TrimSpace(p.BriefSection("lessons").Text) != "" || strings.TrimSpace(p.BriefSection("next").Text) != ""
+}
+
+func (p annualReportPage) FollowUpFolio() string {
+	return fmt.Sprintf("%02d / %02d", p.ReportPageCount()-1, p.ReportPageCount())
 }
 func (h annualEventHighlight) Edition() string {
 	title := h.Event.Title
