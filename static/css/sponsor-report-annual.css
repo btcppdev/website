@@ -374,6 +374,54 @@
 .annual-recipient-logo { display:block; width:220px; height:68px; max-width:100%; object-fit:contain; object-position:left center; }
 @media print { .annual-recipient-logo { width:52mm; height:16mm; } }
 
+/* Cumulative totals advance at event close; every chart starts at zero. */
+.annual-growth { margin:0; min-width:0; break-inside:avoid; --growth-color:#68448f; }
+.annual-growth figcaption strong { display:block; font:650 52px/1 Archivo,sans-serif; letter-spacing:-2px; }
+.annual-growth figcaption span { display:block; margin-top:7px; font-size:16px; }
+.annual-growth figcaption small { display:block; margin-top:9px; color:#67517c; font-size:10px; letter-spacing:.02em; }
+.annual-growth svg { display:block; width:100%; height:auto; margin-top:12px; overflow:visible; }
+.annual-growth-grid { fill:none; stroke:#c6b8d1; stroke-width:1; stroke-dasharray:3 5; }
+.annual-growth-area { fill:var(--growth-color); fill-opacity:.13; }
+.annual-growth-line { fill:none; stroke:var(--growth-color); stroke-width:3; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.annual-growth-point { fill:var(--growth-color); stroke:#f5f1f8; stroke-width:1.5; }
+.annual-growth-axis { fill:#67517c; font:12px Archivo,sans-serif; }
+.annual-growth--prizes { --growth-color:#67408b; }
+.annual-growth--projects { --growth-color:#997100; }
+.annual-growth--participants { --growth-color:#a13a73; }
+.annual-community-growth { display:grid; grid-template-columns:1.8fr 1fr; align-items:center; gap:35px; margin:24px 0 18px; }
+.annual-community-growth .report-topline-circle { width:100%; max-width:230px; min-width:0; margin:0 auto; }
+.annual-funding-overview { grid-template-columns:1.3fr 1fr 1fr; align-items:stretch; gap:20px; }
+.annual-building-growth { display:contents; }
+.annual-funding-overview .annual-growth { display:flex; flex-direction:column; }
+.annual-funding-overview .annual-growth figcaption { padding-bottom:12px; }
+.annual-funding-overview .annual-growth figcaption strong { font-size:42px; letter-spacing:-1.5px; }
+.annual-funding-overview .annual-growth figcaption span { min-height:32px; font-size:14px; }
+.annual-funding-overview .annual-growth figcaption small { font-size:9px; margin-top:6px; }
+.annual-funding-overview .annual-growth svg { margin-top:auto; }
+.annual-funding-overview .annual-growth-axis { font-size:20px; }
+.annual-funding-events:has(>article:nth-child(4)) { grid-template-columns:repeat(4,minmax(0,1fr)); }
+@media screen and (max-width:650px) {
+ .annual-community-growth { grid-template-columns:1fr; gap:24px; }
+ .annual-funding-overview { grid-template-columns:1fr; }
+ .annual-building-growth { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+ .annual-building-growth .annual-growth figcaption strong { font-size:34px; }
+ .annual-building-growth .annual-growth svg { min-height:80px; }
+ .annual-building-growth .annual-growth figcaption span { font-size:12px; }
+ .annual-building-growth .annual-growth figcaption small { font-size:9px; }
+ .annual-funding-events:has(>article:nth-child(4)) { grid-template-columns:1fr; }
+}
+@media print {
+ .annual-community-growth { gap:6mm; margin:5mm 0 4mm; }
+ .annual-community-growth .report-topline-circle { max-width:52mm; }
+ .annual-growth figcaption strong { font-size:44px; }
+ .annual-growth figcaption span { font-size:14px; }
+ .annual-growth figcaption small { font-size:9px; margin-top:2mm; }
+ .annual-funding-overview { gap:4mm; }
+ .annual-funding-overview .annual-growth figcaption strong { font-size:36px; }
+ .annual-funding-overview .annual-growth figcaption span { font-size:12px; min-height:28px; }
+ .annual-funding-overview .annual-growth figcaption small { font-size:8px; }
+}
+
 /* Put the people behind the year's programs and projects in the foreground. */
 .annual-people-gallery { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:18px 12px; margin:22px 0 25px; }
 .annual-people-gallery figure,.annual-recap-people figure { margin:0; min-width:0; break-inside:avoid; }
