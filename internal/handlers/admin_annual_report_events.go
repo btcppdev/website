@@ -24,6 +24,10 @@ type annualEventGlobe struct {
 	Country, Image string
 }
 
+func (e annualEvent) Globe() *annualEventGlobe {
+	return (annualEventHighlight{Event: e.Event}).Globe()
+}
+
 // These assets locate the event, never the participants. Unmapped events omit
 // the globe instead of guessing a country from a free-form location string.
 func (h annualEventHighlight) Globe() *annualEventGlobe {

@@ -345,7 +345,7 @@
 .annual-funding-events article { background:#fffaf0; border-bottom:5px solid #c8b3f5; break-inside:avoid; }
 .annual-funding-events article:nth-child(3n+2) { border-color:#f7b500; }
 .annual-funding-events article:nth-child(3n) { border-color:#f6b9dc; }
-.annual-funding-events img { display:block; width:100%; height:110px; object-fit:cover; }
+.annual-funding-events>article>img { display:block; width:100%; height:110px; object-fit:cover; }
 .annual-funding-events article>div { padding:15px; }
 .annual-impact .annual-funding-events h3 { font-size:23px; margin:0 0 12px; }
 .annual-funding-award { font-size:11px; margin:0 0 12px; }
@@ -364,7 +364,7 @@
  .annual-funding-overview { gap:5mm; padding:4mm; margin-bottom:5mm; }
  .annual-funding-overview .impact-funding-chart svg { height:70mm; }
  .annual-funding-events { gap:4mm; margin-bottom:5mm; }
- .annual-funding-events img { height:38mm; }
+ .annual-funding-events>article>img { height:38mm; }
  .annual-funding-events article>div { padding:3mm; }
  .annual-impact .annual-funding-events h3 { font-size:21px; }
  .annual-funding-award strong { font-size:30px; }
@@ -632,6 +632,10 @@
 .annual-funding-award strong { font-size:34px; white-space:nowrap; }
 .annual-funding-award,.annual-funding-projects { font-size:14px; }
 .annual-funding-events a { font-size:13px; }
+.annual-funding-card-footer { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.annual-funding-card-footer>div { min-width:0; }
+.annual-funding-globe { flex:0 0 64px; width:64px; margin:0; align-self:flex-end; }
+.annual-funding-globe img { display:block; width:100%; height:auto; opacity:.8; }
 .annual-support-detail { padding:22px 0; margin:24px 0 0; border-top:2px solid #c8b3f5; text-align:left; }
 .annual-impact .annual-support-detail .story-text p { font-size:19px; line-height:1.5; margin:0; text-wrap:wrap; }
 
@@ -708,6 +712,7 @@
  .annual-funding-overview .annual-growth-axis { font-size:14px; }
  .annual-funding-events,.annual-funding-events:has(>article:nth-child(4)) { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
  .annual-funding-events article>div { padding:12px 6px; }
+ .annual-funding-globe { flex-basis:56px; width:56px; }
  .annual-impact .annual-funding-events h3 { font-size:22px; }
  .annual-funding-award strong { font-size:28px; letter-spacing:-1px; }
  .annual-support-detail { padding:20px 0; }
