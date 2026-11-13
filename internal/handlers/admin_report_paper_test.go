@@ -28,8 +28,8 @@ func TestReportPaperUsesPublicEvidenceWithoutInventedMetrics(t *testing.T) {
 			t.Errorf("public report contains %q", forbidden)
 		}
 	}
-	if got := strings.Count(html, `class="paper-sheet`); got != 12 {
-		t.Fatalf("paper sections=%d, want 12 (including reviewed recordings)", got)
+	if got := strings.Count(html, `class="paper-sheet`); got != 13 {
+		t.Fatalf("paper sections=%d, want 13 (including dedicated panels and reviewed recordings)", got)
 	}
 	chart := p.PublishedPrizeChart()
 	if chart == nil || chart.DonutTotal() != 5000000 {

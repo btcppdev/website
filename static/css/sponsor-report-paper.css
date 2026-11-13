@@ -140,7 +140,7 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
 .report-tools { font:12px Archivo,Arial,sans-serif }
 .report-editor { max-width:1000px }
 .notice { max-width:850px; font:12px/1.6 Archivo,Arial,sans-serif; border-left:3px solid #9977bd }
-@media(max-width:700px) {
+@media screen and (max-width:700px) {
  .speaker-mosaic { grid-template-columns:repeat(3,minmax(0,1fr)) }
  .program-days { grid-template-columns:1fr }
  .program-slot a,.program-slot strong { font-size:13px }
@@ -178,7 +178,7 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
 @media print {
  body[data-layout=paper] { page:paper-editorial; background:#f3f0e9 }
  body[data-layout=paper] main { max-width:none; margin:0; width:210mm }
- .paper-sheet { box-shadow:none; width:210mm; min-height:297mm; margin:0; padding:12mm 14mm 9mm; break-after:page; break-inside:auto }
+ .paper-sheet { box-shadow:none; width:210mm; min-height:296mm; margin:0; padding:12mm 14mm 9mm; break-after:page; break-inside:auto }
  .paper-sheet:last-child { break-after:auto }
  .paper-cover { padding-top:10mm }
  .paper-cover-art { margin-left:-14mm; margin-right:-14mm }
@@ -275,6 +275,28 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
 .report-other-winners article>p { text-align:right; flex-shrink:0; }
 .report-other-winners strong { display:block; font-size:17px; }
 .report-other-winners span { display:block; font-size:8px; }
+/* Keep repeated rosters and charts within their own editorial sheets. */
+.paper-awards .report-other-winners { gap:16px 24px; margin-top:24px; }
+.paper-awards .report-other-winners h4 { font-size:18px; }
+.paper-awards .report-other-winners p { font-size:12px; line-height:1.5; }
+.paper-teamwork .paper-setting img { height:250px; }
+@media print {
+ body:not(.annual-report)[data-layout=paper] .paper-sheet .story-text { break-before:auto; break-after:auto; break-inside:auto; }
+ body:not(.annual-report) .paper-sheet > * { flex-shrink:0; }
+ body:not(.annual-report) .paper-running { margin-bottom:6mm; padding-bottom:4mm; }
+ body:not(.annual-report) .paper-folio { padding-top:5mm; break-inside:avoid; }
+ .paper-geography .speaker-globes { height:52mm; margin:5mm 0; }
+ .paper-geography .speaker-location-list { gap:3mm; margin-top:4mm; }
+ .paper-geography .speaker-location-list p { font-size:10px; line-height:1.4; margin-bottom:2mm; }
+ .paper-geography .speaker-location-list small { font-size:7px; }
+ .paper-participation .paper-chart { margin-top:5mm; }
+ .paper-participation .paper-chart-split { grid-template-columns:40mm 1fr; }
+ .paper-participation .paper-chart-split > svg { width:40mm; height:40mm; }
+ .paper-panels .paper-discussions article { padding:5mm 0; }
+ .paper-builds .report-podium-card .report-podium-description { font-size:11px; line-height:1.45; }
+ .paper-teamwork .paper-setting img { height:65mm; }
+ .paper-awards .report-other-winners article { padding:4mm 0; }
+}
 @media print {
  .paper-builds h2 { font-size:34px; margin-bottom:12px; }
  .paper-builds .paper-deck { font-size:11px; line-height:1.4; }

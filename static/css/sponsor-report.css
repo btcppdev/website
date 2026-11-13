@@ -375,4 +375,35 @@ body:has(.synthetic-banner) .report-editor{display:block}
 .report-recipient-logo[hidden] { display:none; }
 @media print { .report-recipient-logo { width:42mm; height:16mm; } }
 
+/* Landscape export has 623px inside the frame. Leave room for the page
+   number and keep longer session titles and portrait captions together. */
+@media print {
+ body[data-layout=slides] .report-page { min-height:622px; padding-top:62px; padding-bottom:30px; }
+ body[data-layout=slides] .story h2 { font-size:36px; margin-bottom:14px; }
+ body[data-layout=slides] .story .report-markdown p { margin:0 0 12px; }
+ body[data-layout=slides] .chart-page[data-chart=views] h2 { max-width:none; }
+ body[data-layout=slides] .chart-page:is([data-chart=views],[data-chart=prizes]) .chart-note { font-size:10px; margin-bottom:10px; }
+ body[data-layout=slides] .chart-page:is([data-chart=views],[data-chart=prizes]) .report-chart { margin-top:10px; }
+ body[data-layout=slides] .chart-page:is([data-chart=views],[data-chart=prizes]) .chart-row { margin-bottom:10px; }
+ body[data-layout=slides] .chart-page:is([data-chart=views],[data-chart=prizes]) .chart-label { margin-bottom:5px; }
+ body[data-layout=slides] .chart-page:is([data-chart=views],[data-chart=prizes]) .chart-label :is(a,span) { font-size:17px; }
+ body[data-layout=slides] .chart-page:is([data-chart=views],[data-chart=prizes]) .chart-row svg { height:12px; }
+ body[data-layout=slides] .judge-grid { margin:10px 0; gap:12px 20px; }
+ body[data-layout=slides] .people-grid .person-card img,
+ body[data-layout=slides] .people-grid .portrait-missing { width:110px; height:110px; max-width:100%; }
+ body[data-layout=slides] .judge-grid .person-card img,
+ body[data-layout=slides] .judge-grid .portrait-missing { width:76px; height:76px; }
+ body[data-layout=slides] .winner-grid { gap:20px; }
+ body[data-layout=slides] .winner-card > img { height:65px; }
+ body[data-layout=slides] .winner-card h3 { font-size:22px; margin:6px 0; }
+ body[data-layout=slides] .winner-card > p { line-height:1.4; margin:5px 0; }
+ body[data-layout=slides] .winner-card .report-winner-team { gap:8px; margin:8px 0; }
+ body[data-layout=slides] .winner-card .report-winner-team figure { width:64px; text-align:left; }
+ body[data-layout=slides] .winner-card .report-winner-team img,
+ body[data-layout=slides] .winner-card .report-team-initials { width:52px; height:52px; margin:0 0 5px; }
+ body[data-layout=slides] .winner-card .report-winner-team figcaption { font-size:10px; }
+ body[data-layout=slides] .methodology h2 { font-size:36px; }
+ body[data-layout=slides] .methodology .closing { font-size:18px; margin-bottom:0; }
+}
+
 [data-report-recipient-fallback][hidden] { display:none; }
