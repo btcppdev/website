@@ -99,7 +99,6 @@
 .brief-closing .annual-globe { max-height:275px; }
 .brief-places { display:flex; gap:10px 20px; flex-wrap:wrap; margin:0 0 30px; }
 .brief-places a { color:inherit; font-size:12px; }
-.annual-brief .brief-thanks { font:500 28px/1.25 Archivo,sans-serif; color:#67517c; margin:10px 0 28px; }
 @media screen and (max-width:650px) {
  .annual-brief .paper-sheet { min-height:0; }
  .annual-brief h1 { font-size:43px; }
@@ -395,7 +394,6 @@
 .annual-project-story { margin:6px 0; }
 .annual-project-story>strong { font-size:11px; color:#67517c; margin-right:4px; }
 .impact-winner-gallery--grid .annual-project-story { font-size:11px; line-height:1.4; margin:6px 0; }
-.brief-closing-copy--single { grid-template-columns:1fr; max-width:590px; }
 @media screen and (max-width:650px) {
  .annual-year-comparison { grid-template-columns:1fr; gap:16px; }
  .annual-repeat { max-width:250px; margin:18px 0 0; }
@@ -656,12 +654,16 @@
 .impact-winner-gallery .annual-project-story { font-size:14px; line-height:1.5; margin:0 0 12px; }
 .impact-winner-gallery .annual-card-links a { font-size:13px; }
 
-.annual-impact .closing-art { margin-top:18px; margin-bottom:40px; }
-.brief-closing-copy { text-align:left; }
-.brief-closing-copy--single { display:block; max-width:none; margin:0 0 32px; }
-.brief-closing-copy--single [data-section=next]>.story-text { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
-.annual-impact .brief-closing-copy .story-text p { font-size:20px; line-height:1.4; text-wrap:wrap; }
-.annual-impact .brief-thanks { max-width:610px; margin:18px 0 32px; text-align:left; font-size:32px; text-wrap:wrap; }
+/* A single thank-you leads the closing page; the participant's voice follows. */
+.annual-impact .brief-closing>.annual-closing-title { font-size:76px; line-height:1.02; letter-spacing:-3px; margin:12px 0 22px; }
+.annual-impact .annual-closing-deck { max-width:510px; font-size:22px; line-height:1.4; margin:0; }
+.annual-impact .closing-art { height:220px; margin-top:38px; margin-bottom:44px; }
+.brief-closing .annual-testimonial { display:block; border:0; padding:0; margin:0 0 28px; }
+.annual-impact .brief-closing .annual-participant-quote .story-text p { max-width:600px; font-size:34px; line-height:1.25; }
+.brief-closing .annual-quote-author { max-width:430px; margin:24px 0 0; }
+.brief-closing .annual-quote-author img { width:72px; height:72px; flex-basis:72px; }
+.brief-closing-copy { grid-template-columns:1fr; max-width:600px; gap:20px; margin:12px 0 28px; text-align:left; }
+.annual-impact .brief-closing-copy .story-text p { font-size:16px; line-height:1.5; }
 
 @media screen and (max-width:650px) {
  .annual-impact .paper-sheet>h2 { font-size:34px; }
@@ -712,8 +714,10 @@
  .annual-impact .annual-support-detail .story-text p { font-size:17px; }
  .impact-winner-gallery--grid { grid-template-columns:1fr; }
  .impact-winner-gallery--grid h3 { min-height:0; }
- .brief-closing-copy--single [data-section=next]>.story-text { grid-template-columns:1fr; gap:12px; }
- .annual-impact .brief-thanks { font-size:27px; }
+ .annual-impact .brief-closing>.annual-closing-title { font-size:56px; letter-spacing:-2px; }
+ .annual-impact .annual-closing-deck { font-size:19px; }
+ .annual-impact .closing-art { height:160px; margin-top:28px; margin-bottom:32px; }
+ .annual-impact .brief-closing .annual-participant-quote .story-text p { font-size:28px; }
 }
 @media print {
  .annual-impact .paper-sheet>h2,.annual-impact .brief-opening>h1 { margin-bottom:7mm; }
@@ -786,6 +790,7 @@
  .impact-winner-gallery--grid h3 { font-size:24px; }
  .impact-winner-gallery .annual-project-story { font-size:13px; }
  .impact-winner-gallery .report-prize-amount strong { font-size:32px; }
- .annual-impact .closing-art { margin-top:7mm; margin-bottom:10mm; }
- .annual-impact .brief-closing-copy .story-text p { font-size:21px; }
+ .annual-impact .brief-closing>.annual-closing-title { font-size:72px; margin:3mm 0 5mm; }
+ .annual-impact .closing-art { height:54mm; margin-top:8mm; margin-bottom:10mm; }
+ .annual-impact .brief-closing .annual-participant-quote .story-text p { font-size:32px; }
 }

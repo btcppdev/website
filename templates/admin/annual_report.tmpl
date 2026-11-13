@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{.Year}} · {{.Recipient}} · Annual sponsor report</title><link rel="stylesheet" href="/static/css/sponsor-report.css?v=recipient-logo1"><link rel="stylesheet" href="/static/css/sponsor-report-paper.css?v=20261023-demand"><link rel="stylesheet" href="/static/css/sponsor-report-annual.css?v=20261113-left-aligned-winners"><script src="/static/js/sponsor-report.js?v=20261111-auto-sources" defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{.Year}} · {{.Recipient}} · Annual sponsor report</title><link rel="stylesheet" href="/static/css/sponsor-report.css?v=recipient-logo1"><link rel="stylesheet" href="/static/css/sponsor-report-paper.css?v=20261023-demand"><link rel="stylesheet" href="/static/css/sponsor-report-annual.css?v=20261113-closing-hierarchy"><script src="/static/js/sponsor-report.js?v=20261111-auto-sources" defer></script></head>
 <body data-layout="paper" data-readonly="{{.Preview}}" class="annual-report">
 {{if .Preview}}<div class="synthetic-banner">LOCAL LAYOUT DEMO · Illustrative event metrics, not actual annual results</div>{{end}}
 <nav class="report-tools"><a href="/admin/reports">← Event reports</a><form method="get" action="/admin/reports/annual"><label>Year<input type="number" name="year" value="{{.Year}}" min="2020" max="2100"></label><label>Prepared for<select name="recipient"><option {{if eq .Recipient "NYDIG"}}selected{{end}}>NYDIG</option><option {{if eq .Recipient "HRF"}}selected{{end}}>HRF</option></select></label><button>Open annual draft</button></form>{{if not .Frozen}}<button type="button" id="report-edit">Edit report</button>{{end}}<button type="button" id="report-print">Print / Save as PDF</button></nav>
@@ -99,13 +99,13 @@
 {{template "annual_footer" $.Year}}
 </section>{{end}}
 
-<section class="paper-sheet brief-closing">
+<section class="paper-sheet brief-closing" id="annual-closing">
 <div class="paper-running"><span></span><span>{{.ReportFolio 8}}</span></div>
-<h2>Keep building.<br><em>With your support.</em></h2>
+<h2 class="annual-closing-title">Thank you,<br><em>{{.Recipient}}.</em></h2>
+<p class="annual-closing-deck">For backing the people building Bitcoin.</p>
 {{if .Forthcoming}}<div class="annual-forthcoming">{{range .UpcomingHighlights}}<article>{{if .Event.LeadImage}}<img src="{{.Event.LeadImage}}" alt="{{.Event.Location}} event landing artwork">{{end}}<div><h3>{{.Event.Location}}</h3><p class="report-card-detail">{{.Status}} · {{.Event.Period}}</p><p>{{.Event.Title}}</p><a href="https://btcpp.dev/{{.Event.Tag}}">Explore the event ↗</a></div></article>{{end}}</div>{{else}}<div class="impact-opening-art closing-art" aria-hidden="true"><i></i><i></i><i></i></div>{{end}}
-{{$lessons := .BriefSection "lessons"}}<div class="brief-closing-copy{{if not $lessons.Text}} brief-closing-copy--single{{end}}">{{if $lessons.Text}}<div><h3>What we learned</h3><div data-section="lessons"><div class="story-text report-markdown">{{$lessons.Markdown}}</div></div></div>{{end}}<div data-section="next"><div class="story-text report-markdown">{{(.BriefSection "next").Markdown}}</div></div></div>
 {{template "annual_participant_quote" (.ParticipantQuote "closing_quote")}}
-<p class="brief-thanks">Thank you, {{.Recipient}}, for backing the people building Bitcoin.</p>
+{{$lessons := .BriefSection "lessons"}}{{$next := .BriefSection "next"}}{{if or $lessons.Text $next.Text}}<div class="brief-closing-copy">{{if $lessons.Text}}<div><h3>What we learned</h3><div data-section="lessons"><div class="story-text report-markdown">{{$lessons.Markdown}}</div></div></div>{{end}}{{if $next.Text}}<div data-section="next"><div class="story-text report-markdown">{{$next.Markdown}}</div></div>{{end}}</div>{{end}}
 {{template "annual_footer" $.Year}}
 </section>
 </div></main></body></html>

@@ -92,7 +92,7 @@ func annualSections(year int, recipient string) []reportSection {
 		"program":   "",
 		"reach":     "",
 		"lessons":   "[Add one concrete lesson from this year: what was difficult, what changed, and how that will improve the next gathering.]",
-		"next":      "**Bring builders together.**\n\n**Keep technical learning accessible.**\n\n**Support the work beyond the demo.**",
+		"next":      "",
 	}
 	if year == 2026 {
 		quote = "“You do a great job to make all of us meet.\n\nThank you so much. ☺️”"
@@ -129,6 +129,9 @@ func (p *annualReportPage) loadNarrativeSections() {
 	}
 	for i, section := range p.Sections {
 		if value, ok := p.Saved[section.Key]; ok {
+			if section.Key == "next" && value == "**Bring builders together.**\n\n**Keep technical learning accessible.**\n\n**Support the work beyond the demo.**" {
+				continue
+			}
 			if original, exists := old[section.Key]; exists && value != "" && value == original {
 				continue
 			}
