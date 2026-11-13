@@ -125,7 +125,7 @@ func (p annualReportPage) EventHighlightPages() []annualEventHighlightPage {
 		pages[len(pages)-1].Highlights = append(pages[len(pages)-1].Highlights, p.eventHighlight(e, ""))
 	}
 	for i := range pages {
-		pages[i].Folio = fmt.Sprintf("%02d / %02d", 3+i, 8+len(pages))
+		pages[i].Folio = fmt.Sprintf("%02d / %02d", 3+i, p.ReportPageCount())
 	}
 	return pages
 }
@@ -142,7 +142,21 @@ func (p annualReportPage) ReportFolio(base int) string {
 	if base > 2 {
 		page += n
 	}
-	return fmt.Sprintf("%02d / %02d", page, 8+n)
+	if base >= 8 {
+		page += p.extraWinnerPages()
+	}
+	return fmt.Sprintf("%02d / %02d", page, p.ReportPageCount())
+}
+
+func (p annualReportPage) extraWinnerPages() int {
+	if winners := len(p.BriefProjects()); winners > 0 {
+		return (winners - 1) / 4
+	}
+	return 0
+}
+
+func (p annualReportPage) ReportPageCount() int {
+	return 8 + (len(p.Included())+2)/3 + p.extraWinnerPages()
 }
 func (h annualEventHighlight) Edition() string {
 	title := h.Event.Title

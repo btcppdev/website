@@ -390,7 +390,19 @@
 .impact-winner-visuals .report-winner-team figure { width:102px; }
 .impact-winner-visuals .report-winner-team img,.impact-winner-visuals .report-team-initials { width:96px; height:96px; border-radius:10px; }
 .impact-winner-visuals:has(.report-winner-team)>figure>img { height:70px; object-fit:contain; }
+.impact-winner-gallery--grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+.impact-winner-gallery--grid>article:has(>.impact-winner-visuals) { display:flex; flex-direction:column; gap:10px; padding:16px 0; min-width:0; }
+.impact-winner-gallery--grid .report-winner-team { justify-content:flex-start; margin:0; gap:8px; }
+.impact-winner-gallery--grid .report-winner-team figure { width:96px; }
+.impact-winner-gallery--grid .report-winner-team img,.impact-winner-gallery--grid .report-team-initials { width:90px; height:90px; }
+.impact-winner-gallery--grid .impact-winner-visuals:has(.report-winner-team)>figure { display:none; }
+.impact-winner-gallery--grid h3 { font-size:25px; }
+.impact-winner-gallery--grid .report-card-detail { font-size:12px; }
+.impact-winner-gallery--grid p { font-size:12px; line-height:1.45; }
+.impact-winner-gallery--grid .report-prize-amount { margin:8px 0; }
+.impact-winner-gallery--grid .report-prize-amount strong { font-size:29px; }
 @media screen and (max-width:650px) {
+ .impact-winner-gallery--grid { grid-template-columns:1fr; }
  .annual-people-gallery { grid-template-columns:repeat(3,minmax(0,1fr)); }
  .annual-recap-visuals:has(.annual-recap-people)>img { height:110px; }
  .annual-recap-people { gap:4px; }
@@ -410,4 +422,10 @@
  .impact-winner-visuals .report-winner-team figure { width:80px; }
  .impact-winner-visuals .report-winner-team img,.impact-winner-visuals .report-team-initials { width:76px; height:76px; }
  .impact-winner-visuals:has(.report-winner-team)>figure>img { height:18mm; }
+ .impact-winner-gallery--grid { gap:5mm; }
+ .impact-winner-gallery--grid>article:has(>.impact-winner-visuals) { padding:3mm 0; gap:2mm; }
+ .impact-winner-gallery--grid .report-winner-team figure { width:84px; }
+ .impact-winner-gallery--grid .report-winner-team img,.impact-winner-gallery--grid .report-team-initials { width:78px; height:78px; }
+ .impact-winner-gallery--grid h3 { font-size:22px; }
+ .impact-winner-gallery--grid p { font-size:11px; }
 }

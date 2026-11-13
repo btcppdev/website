@@ -1,38 +1,53 @@
 package handlers
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type annualProjectHighlight struct {
 	Event, Tag string
 	Project    reportWinner
 }
 
-// A short cross-event selection, rather than every prize from every event.
+// Include every finalized overall first-place project, including ties. Sponsor
+// challenge winners do not become overall winners because of a prize title.
 func (p annualReportPage) BriefProjects() []annualProjectHighlight {
 	var result []annualProjectHighlight
 	seen := map[string]bool{}
-	for round := 0; len(result) < 3; round++ {
-		added := false
-		for _, e := range p.Included() {
-			if !e.HackKnown() || round >= len(e.WinningProjects) {
-				continue
-			}
-			w := e.WinningProjects[round]
-			if seen[w.ID] {
-				continue
-			}
-			seen[w.ID] = true
-			result = append(result, annualProjectHighlight{Event: e.Event.Location, Tag: e.Event.Tag, Project: w})
-			added = true
-			if len(result) == 3 {
-				break
-			}
+	for _, e := range p.Included() {
+		if !e.HackKnown() {
+			continue
 		}
-		if !added {
-			break
+		for _, w := range e.WinningProjects {
+			key := e.Event.Tag + ":" + w.ID
+			if w.PlaceRank() != 1 || seen[key] {
+				continue
+			}
+			seen[key] = true
+			result = append(result, annualProjectHighlight{Event: e.Event.Location, Tag: e.Event.Tag, Project: w})
 		}
 	}
 	return result
+}
+
+type annualProjectHighlightPage struct {
+	Folio    string
+	Projects []annualProjectHighlight
+}
+
+func (p annualReportPage) ProjectHighlightPages() []annualProjectHighlightPage {
+	pages := []annualProjectHighlightPage{{}}
+	for _, project := range p.BriefProjects() {
+		if len(pages[len(pages)-1].Projects) == 4 {
+			pages = append(pages, annualProjectHighlightPage{})
+		}
+		pages[len(pages)-1].Projects = append(pages[len(pages)-1].Projects, project)
+	}
+	for i := range pages {
+		pages[i].Folio = fmt.Sprintf("%02d / %02d", 7+(len(p.Included())+2)/3+i, p.ReportPageCount())
+	}
+	return pages
 }
 func (p annualReportPage) BriefMedia() []reportMedia {
 	media := p.AllMedia()
