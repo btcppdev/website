@@ -827,7 +827,9 @@
  .annual-event-recaps--single .annual-recap-visuals>img { height:78mm; }
  .annual-event-recaps--single .annual-recap-people img { max-width:24mm; }
  .annual-community-growth { gap:5mm; }
- .annual-community-growth .annual-growth svg { max-height:36mm; }
+ .annual-community-growth .annual-growth svg { max-height:32mm; }
+ .annual-community-growth .report-topline-circle { max-width:42mm; border-width:12px; padding:10px; }
+ .annual-community-growth .report-topline-circle strong { font-size:48px; }
  .annual-people-gallery { gap:3mm; margin:2mm 0 3mm; }
  .annual-people-gallery img { width:18mm; height:18mm; }
  .annual-people-gallery figcaption { margin-top:1.5mm; }
