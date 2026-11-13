@@ -90,6 +90,7 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 	if err := loadEventReportTx(ctx, app, tx, page); err != nil {
 		return err
 	}
+	page.applyHackathonRetrospective()
 	return tx.Commit(ctx)
 }
 

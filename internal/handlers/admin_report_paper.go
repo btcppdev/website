@@ -37,7 +37,11 @@ func (p sponsorReportPage) HeadlineEvidence() []reportEvidence {
 		}
 	} else {
 		result[2].Value = strconv.FormatInt(p.Teams, 10)
-		result[3].Value = strconv.FormatInt(p.Participants, 10)
+		result[3].Value = p.ParticipantsDisplay()
+	}
+	if p.HackathonRetrospective != nil {
+		result[2].Value = strconv.FormatInt(p.Teams, 10)
+		result[3].Value = p.ParticipantsDisplay()
 	}
 	return result
 }

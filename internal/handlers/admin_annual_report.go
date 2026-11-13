@@ -18,6 +18,8 @@ import (
 )
 
 type annualEvent struct {
+	HackathonRetrospective                                                      *reportHackathonRetrospective
+	ParticipantsEstimated                                                       bool
 	SpeakerPortraits                                                            []reportPerson
 	SourcePosts                                                                 []reportPost
 	SourceMedia                                                                 []reportMedia
@@ -39,7 +41,7 @@ type annualEvent struct {
 func (e annualEvent) Sessions() int64     { return e.Talks + e.Workshops + e.Panels }
 func (e annualEvent) SatsDisplay() string { return compactReportSats(e.Sats) }
 func (e annualEvent) HackKnown() bool {
-	return e.HackCoverage == "records" || e.HackCoverage == "automatic"
+	return e.HackCoverage == "records" || e.HackCoverage == "automatic" || e.HackCoverage == "retrospective"
 }
 
 type annualEditionLink struct{ URL, Date string }
@@ -407,7 +409,7 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 			if _, err := uuid.Parse(strings.TrimPrefix(key, "hack_")); err != nil {
 				return fmt.Errorf("invalid event coverage")
 			}
-			if values[0] != "unknown" && values[0] != "none" && values[0] != "records" && values[0] != "incomplete" {
+			if values[0] != "unknown" && values[0] != "none" && values[0] != "records" && values[0] != "incomplete" && values[0] != "retrospective" && values[0] != "excluded" {
 				return fmt.Errorf("invalid hackathon coverage")
 			}
 			saved[key] = values[0]

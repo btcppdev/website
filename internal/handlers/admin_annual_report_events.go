@@ -83,6 +83,9 @@ func annualEventStats(e annualEvent) []annualEventStat {
 		}
 		stats = append(stats, prizes)
 	}
+	if e.HackKnown() && e.HackathonRetrospective != nil {
+		stats = append(stats, annualEventStat{Kind: "bugs", Value: fmt.Sprint(e.HackathonRetrospective.Bugs), Label: "bugs found", Detail: "Reported in the Insider hackathon retrospective"})
+	}
 	return stats
 }
 
@@ -115,7 +118,7 @@ func legacyAnnualEventHighlightCopy(year int, e reportEvent) string {
 func annualEventHighlightCopy(year int, e reportEvent) string {
 	if year == 2026 {
 		copy := map[string]string{
-			"floripa26": "An exploits edition exploring Bitcoin’s vulnerabilities through technical sessions and a hackathon.",
+			"floripa26": "In 22 hours, approximately 60 participants submitted 21 projects and found 10 bugs in open-source Bitcoin software. Overall winner MineExploit found three bugs in Stratum V2 repositories.",
 			"vegas":     "The villains edition brought an attacker’s perspective to Bitcoin’s security and design assumptions.",
 			"vienna":    "Our first economics edition brought developers and economists together to examine incentives and protocol design.",
 			"nairobi":   "Our first gathering in Africa paired open-source learning with a hackathon. Winner WestToEast explored Lightning payments between West African currencies and Kenyan shillings.",
@@ -137,7 +140,8 @@ func (p annualReportPage) eventHighlight(e annualEvent, status string) annualEve
 		copy = e.Event.Title + " will bring the bitcoin++ community together in " + e.Event.Location + ". Explore the upcoming event and its program."
 	}
 	if text, ok := p.Saved[key]; ok {
-		if p.Frozen != "" || text != legacyAnnualEventHighlightCopy(p.Year, e.Event) {
+		oldFloripa := e.Event.Tag == "floripa26" && text == "An exploits edition exploring Bitcoin’s vulnerabilities through technical sessions and a hackathon."
+		if p.Frozen != "" || (text != legacyAnnualEventHighlightCopy(p.Year, e.Event) && !oldFloripa) {
 			copy = text
 		}
 	}
@@ -158,7 +162,10 @@ func (p annualReportPage) eventHighlight(e annualEvent, status string) annualEve
 	} else if e.HackKnown() && len(e.WinningProjects) > 0 {
 		w := e.WinningProjects[0]
 		h.Feature = "Meet the builders"
-		h.FeatureURL = "https://btcpp.dev/" + e.Event.Tag + "/hackathon/projects/" + w.PublicID()
+		h.FeatureURL = w.ReportURL(e.Event.Tag)
+	}
+	if e.HackKnown() && e.HackathonRetrospective != nil {
+		h.Feature, h.FeatureURL = "Read the hackathon retrospective", e.HackathonURL()
 	}
 	return h
 }

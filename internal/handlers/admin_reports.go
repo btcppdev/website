@@ -35,6 +35,7 @@ type reportSession struct {
 	Views                                                                    *int64
 }
 type reportWinner struct {
+	SourceURL                                                    string
 	Rank                                                         int
 	Portraits                                                    []reportPerson
 	ID, Title, Description, Awards, Members, Image, GitHub, Demo string
@@ -48,6 +49,7 @@ type reportDay struct {
 }
 type reportMetric struct{ Label, Value, Note string }
 type sponsorReportPage struct {
+	HackathonRetrospective                                                                 *reportHackathonRetrospective
 	Sponsors                                                                               []reportSponsor
 	DemoApplications                                                                       bool
 	ProposalStatuses                                                                       []reportBar
@@ -93,6 +95,9 @@ func eventReportSections(event reportEvent) []reportSection {
 		sections[3].Text = "Nairobi’s three overall winners explored cross-border payments, a first step into open-source contribution, and permissionless ridesharing. These prototypes show the range of problems builders brought to the event; their longer-term impact will depend on continued development and use.\n\nResults source: https://btcpp.dev/nairobi/hackathon"
 		sections[4].Text = "The public hackathon page lists the judges pictured below. Their names and affiliations are reproduced from the event’s profiles; individual contributions and approved quotes can be added in the editor.\n\nJudge roster: https://btcpp.dev/nairobi/hackathon"
 		sections[5].Text = "Nairobi brought the open-source conversation to Africa, with a program spanning protocol work, contributor communities, and practical applications. The winning projects give sponsors concrete work to explore beyond the event.\n\nOur proposed follow-up: ask teams what they shipped next, identify where contributors need mentorship, and make recordings and workshop materials easier to find. These are priorities for the next chapter, not outcomes we have measured yet.\n\nThank you to our speakers, judges, volunteers, and partners for helping make this gathering possible."
+	}
+	if event.Tag == "floripa26" {
+		sections[3].Text = retrospectiveHackathonCopy()
 	}
 	sections = append(sections,
 		reportSection{"speakers_intro", "Speaker mosaic introduction", "The published program’s speakers, panelists and workshop presenters. Names and affiliations as listed; this roster is not a check-in record."},
@@ -453,6 +458,9 @@ func hydrateEventReport(page *sponsorReportPage) {
 	}
 	for i := range page.Sections {
 		if value, ok := page.Saved[page.Sections[i].Key]; ok {
+			if page.HackathonRetrospective != nil && page.Sections[i].Key == "hackathon" && strings.HasPrefix(value, "[Introduce the hackathon:") {
+				continue
+			}
 			page.Sections[i].Text = value
 		}
 	}
@@ -534,4 +542,5 @@ func hydrateEventReport(page *sponsorReportPage) {
 			return compactReportSats(page.Sats)
 		}(), "Configured sat prizes assigned to finalized winning projects; not a settlement total."},
 	}
+	page.applyRetrospectiveMetrics()
 }

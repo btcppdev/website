@@ -100,10 +100,18 @@ func TestReportRender(t *testing.T) {
 			if r.URL.Path == "/print-demo" {
 				current = reportPrintFixture(t)
 			}
-			current.Sponsors = sponsorPreview
-			if err := loadAttendance(&current); err != nil {
-				http.Error(w, "Local attendance preview unavailable", 500)
-				return
+			if r.URL.Path == "/retrospective-preview" {
+				current = sponsorReportPage{Preview: true, Event: reportEvent{Tag: "floripa26", Title: "Exploits edition", Location: "Florianópolis, Brazil", Period: "26–28 February 2026", LeadImage: "/static/img/floripa26/leading.png"}, Saved: map[string]string{}}
+				current.Sections = eventReportSections(current.Event)
+				current.applyHackathonRetrospective()
+				hydrateEventReport(&current)
+			}
+			if current.Event.Tag == "nairobi" {
+				current.Sponsors = sponsorPreview
+				if err := loadAttendance(&current); err != nil {
+					http.Error(w, "Local attendance preview unavailable", 500)
+					return
+				}
 			}
 			currentTemplate, err := template.ParseFiles("../../templates/admin/reports.tmpl")
 			if err != nil {

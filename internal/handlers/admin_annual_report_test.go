@@ -407,6 +407,20 @@ func TestAnnualReportPreview(t *testing.T) {
 			}
 		}
 		p.QuoteAuthors = quoteFixtures
+		if r.URL.Query().Get("retrospective-preview") == "1" {
+			locations := map[string]string{"floripa26": "Florianópolis, Brazil", "vegas": "Hoover Dam, USA", "vienna": "Vienna, Austria", "nairobi": "Nairobi, Kenya", "toronto": "Toronto, Canada", "berlin26": "Berlin, Germany", "seoul": "Seoul, South Korea"}
+			for i := range p.Events {
+				p.Events[i].Event.Location = locations[p.Events[i].Event.Tag]
+				if p.Events[i].Event.Tag == "seoul" {
+					p.Events[i].Sats = 5000000 // Illustrative fifth card for print layout checks.
+				}
+				if p.Events[i].Event.Tag == "floripa26" {
+					p.Events[i].Sats = 0
+					p.Events[i].HackCoverage = "incomplete"
+					p.Events[i].applyHackathonRetrospective(p.Year)
+				}
+			}
+		}
 		for key, value := range copyFixtures {
 			p.Saved[key] = value
 			for i := range p.Sections {

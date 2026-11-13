@@ -9,6 +9,7 @@ import (
 
 type annualGrowthPoint struct {
 	Event, Date string
+	Estimated   bool
 	Value       int64
 	X, Y        float64
 }
@@ -20,13 +21,21 @@ type annualGrowthTick struct {
 
 type annualGrowthChart struct {
 	Kind, Label, Unit string
+	Estimated         bool
 	Year              int
 	Total             int64
 	Points            []annualGrowthPoint
 	Ticks             []annualGrowthTick
 }
 
-func (c annualGrowthChart) Display() string { return compactReportSats(c.Total) }
+func (c annualGrowthChart) Display() string { return approximateReportCount(c.Total, c.Estimated) }
+func (p annualGrowthPoint) Display() string {
+	value := fmt.Sprint(p.Value)
+	if p.Estimated {
+		return "~" + value
+	}
+	return value
+}
 
 func (c annualGrowthChart) Line() string {
 	parts := []string{"40,164"}
@@ -80,6 +89,7 @@ func (p annualReportPage) BuildingGrowth() []annualGrowthChart {
 			for _, e := range p.Included() {
 				if n, known := value(e); known {
 					chart.Total += n
+					chart.Estimated = chart.Estimated || (kind == "participants" && e.ParticipantsEstimated)
 				}
 			}
 		}
@@ -95,9 +105,10 @@ func (p annualReportPage) BuildingGrowth() []annualGrowthChart {
 // Each series uses the same event inclusion and hackathon coverage as its total.
 func (p annualReportPage) eventGrowth(kind, label, unit string, value func(annualEvent) (int64, bool)) *annualGrowthChart {
 	type datedValue struct {
-		date  time.Time
-		event string
-		value int64
+		date      time.Time
+		event     string
+		value     int64
+		estimated bool
 	}
 	var values []datedValue
 	for _, e := range p.Included() {
@@ -112,7 +123,7 @@ func (p annualReportPage) eventGrowth(kind, label, unit string, value func(annua
 		if err != nil || date.Year() != p.Year {
 			return nil
 		}
-		values = append(values, datedValue{date: date, event: e.Event.Location, value: n})
+		values = append(values, datedValue{date: date, event: e.Event.Location, value: n, estimated: kind == "participants" && e.ParticipantsEstimated})
 	}
 	if len(values) < 2 {
 		return nil
@@ -129,15 +140,17 @@ func (p annualReportPage) eventGrowth(kind, label, unit string, value func(annua
 	chart := &annualGrowthChart{Kind: kind, Label: label, Unit: unit, Year: p.Year}
 	for _, point := range values {
 		chart.Total += point.value
+		chart.Estimated = chart.Estimated || point.estimated
 		// Events ending on the same day are one cumulative observation.
 		date := point.date.Format(time.DateOnly)
 		if last := len(chart.Points) - 1; last >= 0 && chart.Points[last].Date == date {
 			chart.Points[last].Value = chart.Total
+			chart.Points[last].Estimated = chart.Estimated
 			chart.Points[last].Event += " · " + point.event
 			continue
 		}
 		x := 40 + 400*point.date.Sub(start).Seconds()/end.Sub(start).Seconds()
-		chart.Points = append(chart.Points, annualGrowthPoint{Event: point.event, Date: date, Value: chart.Total, X: x})
+		chart.Points = append(chart.Points, annualGrowthPoint{Event: point.event, Date: date, Value: chart.Total, X: x, Estimated: chart.Estimated})
 	}
 	if len(chart.Points) < 2 || chart.Total <= 0 {
 		return nil

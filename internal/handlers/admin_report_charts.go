@@ -137,6 +137,9 @@ func (p sponsorReportPage) Charts() []reportChart {
 	}
 	var charts []reportChart
 	for _, chart := range []reportChart{program, popular, prizes, attendance, teams, histogram} {
+		if p.HackathonRetrospective != nil && (chart.Kind == "teams" || chart.Kind == "team-sizes" || (chart.Kind == "prizes" && p.Sats == 0)) {
+			continue // The retrospective does not give these distributions.
+		}
 		for _, row := range chart.Rows {
 			if row.Value > chart.Maximum {
 				chart.Maximum = row.Value

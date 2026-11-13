@@ -353,6 +353,7 @@
 .annual-funding-projects { font-size:11px; }
 .annual-funding-projects strong { font-size:17px; }
 .annual-funding-events a { display:block; font-size:10px; margin-top:12px; }
+.annual-funding-retrospective { font-size:11px; line-height:1.4; margin:5px 0; }
 @media screen and (max-width:650px) {
  .annual-funding-overview { grid-template-columns:1fr; }
  .impact-funding .annual-funding-overview .brief-build-stats { grid-template-columns:1fr 1fr; }
@@ -858,4 +859,26 @@
  .annual-impact .annual-support-detail .story-text p { font-size:16px; }
  .annual-follow-up-copy { margin-bottom:5mm; }
  .annual-impact .annual-follow-up .story-text p { font-size:15px; line-height:1.5; margin-bottom:3mm; }
+}
+
+/* A sourced historical hackathon can have projects and outcomes without a
+   published prize amount. Keep five cards on one row in the printed overview. */
+.annual-funding-events:has(>article:nth-child(5)) { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.impact-winner-visuals .annual-winner-event-art { margin:0; width:100%; }
+.impact-winner-visuals .annual-winner-event-art img { width:100%; height:140px; object-fit:cover; }
+@media print {
+ .annual-funding-events:has(>article:nth-child(5)) { grid-template-columns:repeat(5,minmax(0,1fr)); gap:2mm; }
+ .annual-impact .annual-funding-events:has(>article:nth-child(5)) h3 { font-size:17px; min-height:2.35em; }
+ .annual-funding-events:has(>article:nth-child(5))>article>img { height:16mm; }
+ .annual-funding-events:has(>article:nth-child(5)) article>div { padding:2mm; }
+ .annual-impact .annual-funding-retrospective { font-size:12px; line-height:1.4; margin:1mm 0; }
+ .annual-funding-events:has(>article:nth-child(5)) .annual-funding-award { margin-bottom:2mm; }
+ .annual-funding-events:has(>article:nth-child(5)) a { margin-top:2mm; }
+ .annual-funding-events:has(>article:nth-child(5)) .annual-funding-card-footer { display:block; position:relative; }
+ .annual-funding-events:has(>article:nth-child(5)) .annual-funding-globe { position:absolute; right:0; bottom:0; width:9mm; }
+ .annual-funding-events:has(>article:nth-child(5)) :is(a,.annual-funding-retrospective) { max-width:calc(100% - 10mm); }
+ .impact-winner-visuals .annual-winner-event-art img { height:30mm; }
+}
+@media screen and (max-width:700px) {
+ .annual-funding-events:has(>article:nth-child(5)) { grid-template-columns:1fr; }
 }

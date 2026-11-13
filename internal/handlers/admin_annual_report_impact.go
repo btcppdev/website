@@ -40,12 +40,14 @@ func (e annualEvent) DataStatus() string {
 		return "Excluded from this draft. Select this event or use Restore all completed events."
 	}
 	status := "Registrations and program loaded from the database. "
-	if e.HackKnown() {
+	if e.HackathonRetrospective != nil && e.HackKnown() {
+		status += "Hackathon totals and named winning projects come from the published Insider retrospective. Participant count is approximate; prize amounts and a complete winner roster are not supplied by that source. "
+	} else if e.HackKnown() {
 		status += "Available hackathon records included automatically. "
 		if e.Sats == 0 {
 			status += "No qualifying sat prize amounts recorded; funding chart has no amount for this event. "
 		}
-	} else if e.HackCoverage == "incomplete" {
+	} else if e.HackCoverage == "incomplete" || e.HackCoverage == "excluded" {
 		status += "Incomplete historical hackathon records: excluded from project, participant, winner and prize totals. Other event statistics remain included. "
 	} else if e.HackCoverage == "none" {
 		status += "No hackathon. "

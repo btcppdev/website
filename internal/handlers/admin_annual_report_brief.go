@@ -7,6 +7,7 @@ import (
 
 type annualProjectHighlight struct {
 	Event, Tag string
+	EventImage string
 	Project    reportWinner
 	Story      annualProjectStory
 }
@@ -26,7 +27,7 @@ func (p annualReportPage) BriefProjects() []annualProjectHighlight {
 				continue
 			}
 			seen[key] = true
-			result = append(result, annualProjectHighlight{Event: e.Event.Location, Tag: e.Event.Tag, Project: w, Story: p.projectStory(w)})
+			result = append(result, annualProjectHighlight{Event: e.Event.Location, Tag: e.Event.Tag, EventImage: e.Event.LeadImage, Project: w, Story: p.projectStory(w)})
 		}
 	}
 	return result
@@ -59,10 +60,12 @@ func (p annualReportPage) BriefMedia() []reportMedia {
 }
 func (p annualReportPage) BriefHackMetrics() []reportMetric {
 	var projects, participations, sats int64
+	var estimated bool
 	for _, e := range p.Included() {
 		if e.HackKnown() {
 			projects += e.Projects
 			participations += e.Participants
+			estimated = estimated || e.ParticipantsEstimated
 			sats += e.Sats
 		}
 	}
@@ -71,7 +74,7 @@ func (p annualReportPage) BriefHackMetrics() []reportMetric {
 		result = append(result, reportMetric{Label: "submitted projects", Value: compactReportSats(projects)})
 	}
 	if participations > 0 {
-		result = append(result, reportMetric{Label: "hackathon participations", Value: compactReportSats(participations)})
+		result = append(result, reportMetric{Label: "hackathon participations", Value: approximateReportCount(participations, estimated)})
 	}
 	if sats > 0 {
 		result = append(result, reportMetric{Label: p.PrizeUnit(), Value: compactReportSats(sats)})
