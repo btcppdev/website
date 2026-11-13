@@ -97,6 +97,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 			e.Speakers = int64(data.SpeakerCount())
 			for _, s := range data.Speakers {
 				speakers[s.ID] = true
+				e.SpeakerPortraits = append(e.SpeakerPortraits, reportPerson{ID: s.ID, Name: s.Name, Photo: s.Photo})
 			}
 			if chart := data.ProgramSummary(); chart != nil {
 				e.Talks = chart.Rows[0].Value

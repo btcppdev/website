@@ -259,6 +259,9 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	if len(p.Included()) != 2 || len(p.Upcoming()) != 1 || p.ProgramChart().DonutTotal() != 2 {
 		t.Fatal("future event or duplicate recording inflated totals")
 	}
+	if len(p.Events[0].SpeakerPortraits) != 1 || p.Events[0].SpeakerPortraits[0].ID == "" {
+		t.Fatal("annual report discarded program speaker portraits")
+	}
 	if len(p.Events[0].Reach) != 1 {
 		t.Fatal("Nairobi default evidence was not carried through")
 	}
@@ -306,6 +309,16 @@ func TestAnnualReportPreview(t *testing.T) {
 	if os.Getenv("ANNUAL_REPORT_PREVIEW") != "1" {
 		t.Skip("local visual preview")
 	}
+	var portraitFixtures map[string]annualEvent
+	if filename := os.Getenv("ANNUAL_REPORT_PEOPLE_PREVIEW"); filename != "" {
+		raw, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &portraitFixtures); err != nil {
+			t.Fatal(err)
+		}
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 	mux.HandleFunc("/admin/reports/preview", renderReportMarkdownPreview)
@@ -335,6 +348,14 @@ func TestAnnualReportPreview(t *testing.T) {
 		if r.URL.Query().Get("recipient") == "HRF" {
 			p.Recipient = "HRF"
 			p.Sections = annualSections(p.Year, p.Recipient)
+		}
+		for i := range p.Events {
+			if fixture, ok := portraitFixtures[p.Events[i].Event.Tag]; ok {
+				p.Events[i].SpeakerPortraits = fixture.SpeakerPortraits
+				p.Events[i].WinningProjects = fixture.WinningProjects
+				p.Events[i].Winners = int64(len(fixture.WinningProjects))
+				p.Events[i].detectHackathonRecords()
+			}
 		}
 		tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl", "../../templates/admin/reports.tmpl")
 		if err != nil {

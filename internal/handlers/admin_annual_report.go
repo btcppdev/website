@@ -18,6 +18,7 @@ import (
 )
 
 type annualEvent struct {
+	SpeakerPortraits                                                            []reportPerson
 	SourcePosts                                                                 []reportPost
 	SourceMedia                                                                 []reportMedia
 	OfferedBased                                                                bool

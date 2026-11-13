@@ -10,6 +10,7 @@ type annualEventHighlight struct {
 	Copy                        reportSection
 	Status, Feature, FeatureURL string
 	Stats                       []annualEventStat
+	Speakers                    []reportPerson
 }
 
 // These badges are counters, not percentage gauges. Missing coverage is not zero.
@@ -89,6 +90,7 @@ func (p annualReportPage) eventHighlight(e annualEvent, status string) annualEve
 		return h
 	}
 	h.Stats = annualEventStats(e)
+	h.Speakers = annualSpeakerPortraits(e, 3)
 	media := uniqueReportMedia(e.Media)
 	if len(media) > 0 {
 		h.Feature = "Watch: " + media[0].Title
