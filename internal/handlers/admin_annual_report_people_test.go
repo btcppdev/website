@@ -81,6 +81,49 @@ func TestAnnualReportCommunityPeopleBalancesEvents(t *testing.T) {
 	}
 }
 
+func TestAnnualReportCommunitySpeakersPreferPanelParticipants(t *testing.T) {
+	person := func(id string, panel bool) reportPerson {
+		return reportPerson{ID: id, Name: id, Photo: "https://example.test/" + id + ".jpg", PanelParticipant: panel}
+	}
+	p := annualReportPage{Events: []annualEvent{
+		{Included: true, Event: reportEvent{Location: "First"}, HackCoverage: "records",
+			SpeakerPortraits: []reportPerson{person("A-talk", false), {Name: "Missing panel photo", PanelParticipant: true}, person("Z-panel", true)},
+			WinningProjects:  []reportWinner{{Portraits: []reportPerson{person("Builder", false)}}}},
+		{Included: true, Event: reportEvent{Location: "Second"},
+			SpeakerPortraits: []reportPerson{person("A-other-talk", false), person("Z-other-panel", true)}},
+		{Included: true, Event: reportEvent{Location: "No panel photos"},
+			SpeakerPortraits: []reportPerson{person("Fallback speaker", false), {Name: "Placeholder", Photo: "https://example.test/default.avif", PanelParticipant: true}}},
+	}}
+	check := func(page annualReportPage) {
+		t.Helper()
+		firstSpeaker := map[string]string{}
+		builders := 0
+		for _, highlight := range page.CommunityPeople() {
+			if highlight.Role == "Hackathon builder" {
+				builders++
+			} else if firstSpeaker[highlight.Event] == "" {
+				firstSpeaker[highlight.Event] = highlight.Person.Name
+			}
+		}
+		if firstSpeaker["First"] != "Z-panel" || firstSpeaker["Second"] != "Z-other-panel" || firstSpeaker["No panel photos"] != "Fallback speaker" || builders != 1 {
+			t.Fatalf("panel priority, photo fallback, or builder mix lost: %+v, builders %d", firstSpeaker, builders)
+		}
+	}
+	check(p)
+	if p.Events[0].SpeakerPortraits[0].Name != "A-talk" || annualSpeakerPortraits(p.Events[0], 1)[0].Name != "A-talk" {
+		t.Fatal("community selection changed the source or recap ordering")
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var frozen annualReportPage
+	if err = json.Unmarshal(raw, &frozen); err != nil {
+		t.Fatal(err)
+	}
+	check(frozen)
+}
+
 func TestAnnualReportPeopleRender(t *testing.T) {
 	p := annualFixture()
 	p.Events[0].SpeakerPortraits = []reportPerson{{ID: "speaker", Name: "Speaker <one>", Photo: "https://example.test/speaker.jpg"}}

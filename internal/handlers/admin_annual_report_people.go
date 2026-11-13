@@ -50,6 +50,17 @@ func annualSpeakerPortraits(e annualEvent, limit int) []reportPerson {
 }
 
 func annualEventPeople(e annualEvent) []annualPersonHighlight {
+	// Prioritize this event's panel participants for the community gallery.
+	// Build a separate slice so recap ordering and frozen source data stay intact.
+	prioritized := make([]reportPerson, 0, len(e.SpeakerPortraits))
+	for _, panel := range []bool{true, false} {
+		for _, person := range e.SpeakerPortraits {
+			if person.PanelParticipant == panel {
+				prioritized = append(prioritized, person)
+			}
+		}
+	}
+	e.SpeakerPortraits = prioritized
 	speakers := annualSpeakerPortraits(e, len(e.SpeakerPortraits))
 	var builders []reportPerson
 	seenBuilders := map[string]bool{}

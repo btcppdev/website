@@ -26,6 +26,7 @@ type reportEvent struct {
 type reportPerson struct {
 	ID, Name, Photo, Company, Role, Note, ComingFrom string
 	Highlight                                        bool
+	PanelParticipant                                 bool
 }
 type reportSession struct {
 	ID, Title, Kind, Speakers, YouTube, X, Note, WatchURL, Venue, SocialCard string

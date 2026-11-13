@@ -62,7 +62,7 @@ const eventReportSessionsSQL = `SELECT t.id::text,p.title,lower(p.talk_type),t.s
  WHERE t.conference_id=$1 AND t.archived_at IS NULL AND p.status IN ('Accepted','Scheduled') AND lower(p.talk_type) IN ('talk','keynote','panel','workshop')
  ORDER BY t.scheduled_start NULLS LAST,p.title,t.id`
 const eventReportSpeakersSQL = `SELECT person.id::text,person.name,person.norm_photo_path,person.company,
- coalesce(string_agg(DISTINCT nullif(trim(sc.coming_from),''),' / ' ORDER BY nullif(trim(sc.coming_from),'')) FILTER (WHERE lower(trim(sc.coming_from)) NOT IN ('unknown','n/a','not provided')),'')
+ coalesce(string_agg(DISTINCT nullif(trim(sc.coming_from),''),' / ' ORDER BY nullif(trim(sc.coming_from),'')) FILTER (WHERE lower(trim(sc.coming_from)) NOT IN ('unknown','n/a','not provided')),''),bool_or(lower(p.talk_type)='panel')
  FROM conf_talks t JOIN proposals p ON p.id=t.proposal_id JOIN proposals_speaker_confs ps ON ps.proposal_id=p.id JOIN speaker_confs sc ON sc.id=ps.speaker_conf_id JOIN people person ON person.id=sc.speaker_id
  WHERE t.conference_id=$1 AND t.archived_at IS NULL AND p.status IN ('Accepted','Scheduled') AND lower(p.talk_type) IN ('talk','keynote','panel','workshop') GROUP BY person.id,person.name,person.norm_photo_path,person.company ORDER BY person.name,person.id::text`
 const eventReportJudgesSQL = `WITH assignments AS (
@@ -148,7 +148,7 @@ func loadEventReportTx(ctx context.Context, app *config.AppContext, tx pgx.Tx, p
 	}
 	page.Speakers, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportPerson, error) {
 		var p reportPerson
-		err := row.Scan(&p.ID, &p.Name, &p.Photo, &p.Company, &p.ComingFrom)
+		err := row.Scan(&p.ID, &p.Name, &p.Photo, &p.Company, &p.ComingFrom, &p.PanelParticipant)
 		p.Photo = SpeakerPhotoURL(app, p.Photo)
 		return p, err
 	})

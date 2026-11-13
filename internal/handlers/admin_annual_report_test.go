@@ -242,7 +242,7 @@ CREATE TEMP TABLE conferences(id text,tag text,description text,location text,ti
 CREATE TEMP TABLE sponsor_report_drafts(scope text PRIMARY KEY,content jsonb NOT NULL,revision bigint NOT NULL DEFAULT 1,updated_at timestamptz NOT NULL DEFAULT now());
 INSERT INTO conferences VALUES ('event','nairobi','Open Source','Nairobi','Africa/Nairobi','','2026-06-17','2026-06-19','published'),('elsewhere','toronto','Toronto','Toronto','UTC','','2026-08-01','2026-08-03','published'),('future','seoul','Seoul','Seoul','UTC','','2026-11-01','2026-11-03','published');
 INSERT INTO registrations VALUES ('elsewhere',false,now(),'person1','one@example.test',NULL),('elsewhere',false,now(),NULL,'alias@example.test',NULL);
-INSERT INTO proposals VALUES ('toronto-talk','elsewhere','Another talk','workshop','Accepted');
+INSERT INTO proposals VALUES ('toronto-talk','elsewhere','Another talk','panel','Accepted');
 INSERT INTO conf_talks(id,conference_id,proposal_id) VALUES ('toronto-session','elsewhere','toronto-talk');
 INSERT INTO proposals_speaker_confs VALUES ('toronto-talk','speakerconf');
 INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),('session1','https://youtube.com/watch?v=two','');`)
@@ -261,6 +261,9 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	}
 	if len(p.Events[0].SpeakerPortraits) != 1 || p.Events[0].SpeakerPortraits[0].ID == "" {
 		t.Fatal("annual report discarded program speaker portraits")
+	}
+	if p.Events[0].SpeakerPortraits[0].PanelParticipant || len(p.Events[1].SpeakerPortraits) != 1 || !p.Events[1].SpeakerPortraits[0].PanelParticipant {
+		t.Fatal("panel participation must follow each event's program, not the speaker's identity")
 	}
 	if len(p.Events[0].Reach) != 1 {
 		t.Fatal("Nairobi default evidence was not carried through")
