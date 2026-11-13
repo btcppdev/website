@@ -191,6 +191,13 @@ func (p annualReportPage) EventHighlightPages() []annualEventHighlightPage {
 		}
 		pages[len(pages)-1].Highlights = append(pages[len(pages)-1].Highlights, p.eventHighlight(e, ""))
 	}
+	// Balance the final two pages rather than giving one event a whole spread.
+	if n := len(pages); n > 1 && len(pages[n-1].Highlights) == 1 {
+		previous := &pages[n-2]
+		last := len(previous.Highlights) - 1
+		pages[n-1].Highlights = append([]annualEventHighlight{previous.Highlights[last]}, pages[n-1].Highlights...)
+		previous.Highlights = previous.Highlights[:last]
+	}
 	for i := range pages {
 		pages[i].Folio = fmt.Sprintf("%02d / %02d", 3+i, p.ReportPageCount())
 	}

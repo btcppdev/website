@@ -38,6 +38,24 @@ func TestAnnualReportEventHighlights(t *testing.T) {
 	if len(p.EventHighlightPages()[1].Highlights) != 2 {
 		t.Fatal("excluded event still featured")
 	}
+	for i := range p.Events {
+		p.Events[i].Included = true
+	}
+	pages = p.EventHighlightPages()
+	if len(pages) != 3 || len(pages[0].Highlights) != 3 || len(pages[1].Highlights) != 2 || len(pages[2].Highlights) != 2 {
+		t.Fatal("seven events should be balanced across three pages")
+	}
+	var tags []string
+	for _, page := range pages {
+		for _, h := range page.Highlights {
+			tags = append(tags, h.Event.Tag)
+		}
+	}
+	for i, event := range p.Included() {
+		if tags[i] != event.Event.Tag {
+			t.Fatal("balancing lost or reordered an event")
+		}
+	}
 	p.Events = nil
 	if len(p.EventHighlightPages()) != 0 || p.ReportFolio(8) != "08 / 08" {
 		t.Fatal("empty roster creates extra pages")

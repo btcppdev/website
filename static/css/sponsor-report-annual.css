@@ -16,7 +16,7 @@
 .annual-timeline a { grid-column:2; font-size:12px }
 .annual-bar-row { margin:20px 0; break-inside:avoid }
 .annual-bar-row>div:first-child { display:flex; justify-content:space-between; gap:10px; font-size:12px; margin-bottom:6px }
-.annual-bar-track,.annual-stack { height:18px; background:#e5dfe9; display:flex }
+.annual-bar-track,.annual-stack { height:18px; display:flex }
 .annual-bar-track i { background:#85669f; display:block; height:100% }
 .annual-stack i { height:100%; display:block }
 .annual-donut { width:200px; max-width:100%; display:block; margin:20px auto }
@@ -133,7 +133,6 @@
 .impact-opening-art i:nth-child(3) { border-color:#e5bed7; margin-left:-35px; }
 .impact-community .report-topline-grid { margin:10px 0 15px; gap:35px; }
 .impact-community .report-topline-grid article { max-width:245px; min-width:180px; }
-.impact-community .report-topline-circle { border-width:15px; }
 .impact-community .annual-globe { max-height:245px; margin:12px 0; }
 .impact-places { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 22px; align-items:center; }
 .impact-places strong { font-size:22px; margin-right:10px; }
@@ -286,7 +285,7 @@
  .impact-program .impact-program-bars .annual-stack { height:14px; }
 }
 
-.annual-recap-list { display:grid; gap:24px; flex:1; grid-template-rows:repeat(3,minmax(0,1fr)); }
+.annual-recap-list { display:grid; gap:24px; flex:0 0 auto; }
 .annual-event-recap { display:grid; grid-template-columns:190px 1fr; gap:28px; align-items:center; padding:18px 0; border-bottom:1px solid #c9b8d8; break-inside:avoid; }
 .annual-event-recap:last-child { border-bottom:0; }
 .annual-recap-visuals>img { width:100%; height:220px; object-fit:cover; }
@@ -306,25 +305,18 @@
  .annual-recap-date,.annual-recap-link { font-size:10px; }
 }
 
-/* Reusable, three-counter event signature: circular badges, not progress rings. */
+/* Padded stat cards keep long numbers and their labels together. */
 .annual-recap-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:12px 0 0; padding:0; }
-.annual-recap-stat { display:flex; align-items:center; gap:7px; min-width:0; }
-.annual-recap-stat dd { display:flex; flex:0 0 49px; height:49px; align-items:center; justify-content:center; border:2px solid #29232e; border-radius:50%; margin:0; font-size:16px; font-weight:700; letter-spacing:-.6px; background:#d6c3ef; }
-.annual-recap-stat--compact dd { font-size:12px; letter-spacing:-.3px; white-space:nowrap; }
-.annual-recap-stat--views dd { background:#f5c400; }
-.annual-recap-stat--prizes dd { background:#29232e; color:#fff4cf; }
-.annual-recap-stat dt { font-size:10px; line-height:1.2; max-width:70px; }
+.annual-recap-stat { display:flex; flex-direction:column; align-items:flex-start; gap:7px; min-width:0; padding:10px 12px; background:#d6c3ef; }
+.annual-recap-stat dd { margin:0; font-size:24px; line-height:1.1; font-weight:700; letter-spacing:-.6px; white-space:nowrap; }
+.annual-recap-stat--views { background:#f5c400; }
+.annual-recap-stat--prizes { background:#29232e; color:#fff4cf; }
+.annual-recap-stat dt { font-size:10px; line-height:1.2; max-width:none; }
 .annual-event-recap .annual-recap-link { margin-top:7px; }
-@media(max-width:650px) {
- .annual-recap-stat { flex-direction:column; align-items:flex-start; }
- .annual-recap-stat dd { flex-basis:auto; width:43px; height:43px; font-size:14px; }
- .annual-recap-stat--compact dd { font-size:10.5px; }
-}
 @media print {
  .annual-recap-stats { margin-top:2mm; gap:2mm; }
- .annual-recap-stat { gap:1.5mm; }
- .annual-recap-stat dd { flex-basis:11mm; height:11mm; font-size:13px; border-width:1.5px; }
- .annual-recap-stat--compact dd { font-size:10px; }
+ .annual-recap-stat { gap:1mm; padding:2mm 2.5mm; }
+ .annual-recap-stat dd { font-size:20px; }
  .annual-recap-stat dt { font-size:9px; }
  .annual-recap-date { margin-bottom:2mm; }
  .annual-event-recap .annual-recap-link { margin-top:1.5mm; }
@@ -426,7 +418,9 @@
 .annual-growth--projects { --growth-color:#997100; }
 .annual-growth--participants { --growth-color:#a13a73; }
 .annual-community-growth { display:grid; grid-template-columns:1.8fr 1fr; align-items:center; gap:35px; margin:24px 0 18px; }
-.annual-community-growth .report-topline-circle { width:100%; max-width:230px; min-width:0; margin:0; }
+.annual-stat-card { display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:22px 24px; background:#d6c3ef; min-width:0; }
+.annual-stat-card strong { font:650 56px/1.1 Archivo,sans-serif; letter-spacing:-2px; }
+.annual-stat-card span { font-size:16px; }
 .annual-funding-overview { grid-template-columns:1.3fr 1fr 1fr; align-items:stretch; gap:20px; }
 .annual-building-growth { display:contents; }
 .annual-funding-overview .annual-growth { display:flex; flex-direction:column; }
@@ -452,7 +446,6 @@
  .impact-community:has(.annual-participant-quote) .annual-community-growth { margin:0 0 2mm; }
  .impact-community:has(.annual-participant-quote) .annual-people-gallery { margin:2mm 0 3mm; }
  .impact-community:has(.annual-participant-quote) .impact-places { margin-bottom:12px; }
- .annual-community-growth .report-topline-circle { max-width:52mm; }
  .annual-growth figcaption strong { font-size:44px; }
  .annual-growth figcaption span { font-size:14px; }
  .annual-growth figcaption small { font-size:9px; margin-top:2mm; }
@@ -465,7 +458,7 @@
 /* Put the people behind the year's programs and projects in the foreground. */
 .annual-people-gallery { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:18px 12px; margin:22px 0 25px; }
 .annual-people-gallery figure,.annual-recap-people figure { margin:0; min-width:0; break-inside:avoid; }
-.annual-people-gallery img { display:block; width:100%; aspect-ratio:1; object-fit:cover; object-position:center; border-radius:8px; background:#e6dcef; }
+.annual-people-gallery img { display:block; width:100%; aspect-ratio:1; object-fit:cover; object-position:center; border-radius:50%; background:#e6dcef; }
 .annual-people-gallery figcaption { margin-top:7px; line-height:1.3; }
 .annual-people-gallery strong { display:block; font-size:12px; font-weight:650; margin-bottom:4px; }
 .annual-people-gallery span { display:block; font-size:10px; color:#67517c; }
@@ -556,23 +549,9 @@
 .annual-impact .annual-recap-date { font-size:12px; margin-bottom:12px; color:#67517c; }
 .annual-recap-stats { grid-template-columns:repeat(3,minmax(0,1fr)); margin:12px 0 16px; gap:12px; }
 .annual-recap-stat { flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:7px; text-align:left; }
-.annual-recap-stat dd { flex:0 0 auto; width:58px; height:58px; font-size:21px; }
-.annual-recap-stat--compact dd { font-size:15px; }
-.annual-recap-stat dt { font-size:11px; line-height:1.3; max-width:130px; text-wrap:wrap; }
+.annual-recap-stat dt { font-size:11px; line-height:1.3; max-width:none; text-wrap:wrap; }
 .annual-impact .annual-event-recap .story-text p { font-size:14px; line-height:1.5; margin-bottom:10px; }
 .annual-event-recap .annual-recap-link { font-size:12px; }
-.annual-event-recaps--single .annual-recap-list { display:block; flex:0 0 auto; margin:auto 0; }
-.annual-event-recaps--single .annual-event-recap { grid-template-columns:1fr; grid-template-areas:"heading" "visuals" "copy"; gap:24px; padding:0; }
-.annual-event-recaps--single .annual-recap-globe { flex-basis:168px; }
-.annual-event-recaps--single .annual-recap-visuals { display:grid; grid-template-columns:1fr; gap:22px; }
-.annual-event-recaps--single .annual-recap-visuals>img { height:310px; }
-.annual-event-recaps--single .annual-recap-people { width:100%; max-width:440px; margin:0; gap:24px; }
-.annual-event-recaps--single .annual-recap-people img { width:88px; margin:0; }
-.annual-event-recaps--single .annual-recap-people figcaption { font-size:12px; }
-.annual-event-recaps--single .annual-recap-copy { max-width:600px; margin:0; text-align:left; }
-.annual-impact .annual-event-recaps--single h2 { font-size:62px; }
-.annual-impact .annual-event-recaps--single .story-text p { font-size:18px; }
-.annual-event-recaps--single .annual-recap-stat dt { max-width:none; }
 
 .annual-growth figcaption { text-align:left; }
 .annual-growth figcaption span { text-wrap:wrap; }
@@ -605,9 +584,11 @@
 .annual-program-counter strong { display:block; font:650 70px/1 Archivo,sans-serif; letter-spacing:-2px; color:#67517c; }
 .annual-program-counter span { display:block; font-size:16px; margin-top:10px; }
 .annual-impact .annual-chart-heading { font-size:23px; text-align:left; margin:18px 0 22px; }
-.impact-program-bars .annual-bar-row { margin:18px 0; }
-.impact-program-bars .annual-bar-row>div:first-child { font-size:14px; margin-bottom:8px; }
-.impact-program-bars .annual-stack { height:20px; }
+.impact-program-bars .annual-bar-row { display:grid; grid-template-columns:160px minmax(0,1fr) 32px; align-items:center; gap:14px; margin:18px 0; }
+.impact-program-bars .annual-bar-row>div:first-child { display:contents; font-size:14px; }
+.impact-program-bars .annual-bar-row span { grid-column:1; grid-row:1; }
+.impact-program-bars .annual-bar-row strong { grid-column:3; grid-row:1; text-align:right; }
+.impact-program-bars .annual-stack { grid-column:2; grid-row:1; height:20px; }
 
 .impact-reach-heroes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin:12px 0 36px; }
 .impact-reach-heroes article { text-align:left; min-width:0; padding:32px 16px; }
@@ -682,16 +663,10 @@
  .annual-recap-people img { width:40px; }
  .annual-recap-people figcaption { font-size:10px; text-align:left; }
  .annual-recap-copy { text-align:left; }
- .annual-event-recaps--single .annual-recap-globe { flex-basis:110px; }
- .annual-event-recaps--single .annual-recap-visuals { grid-template-columns:1fr; gap:20px; }
- .annual-event-recaps--single .annual-recap-visuals>img { height:230px; }
- .annual-event-recaps--single .annual-recap-people { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
- .annual-event-recaps--single .annual-recap-people figure { display:block; }
- .annual-event-recaps--single .annual-recap-people img { width:64px; max-width:100%; }
- .annual-event-recaps--single .annual-recap-people figcaption { font-size:10px; text-align:left; }
- .annual-impact .annual-event-recaps--single h2 { font-size:36px; }
+ .annual-recap-stats { grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); }
  .annual-community-growth { grid-template-columns:1fr; }
  .annual-repeat { margin-bottom:8px; }
+ .impact-program-bars .annual-bar-row { grid-template-columns:110px minmax(0,1fr) 26px; gap:8px; }
  .annual-people-gallery span { font-size:10px; }
  .impact-places { gap:12px; }
  .annual-impact .annual-participant-quote .story-text p { font-size:20px; }
@@ -741,18 +716,9 @@
  .annual-impact .annual-recap-edition { font-size:13px; }
  .annual-impact .annual-recap-date { font-size:11px; margin-bottom:2mm; }
  .annual-recap-stats { margin:3mm 0; gap:2mm; }
- .annual-recap-stat dd { width:14mm; height:14mm; font-size:19px; }
- .annual-recap-stat--compact dd { font-size:14px; }
  .annual-recap-stat dt { font-size:10px; }
  .annual-impact .annual-event-recap .story-text p { font-size:13px; margin-bottom:2mm; }
  .annual-event-recap .annual-recap-link { font-size:11px; }
- .annual-event-recaps--single .annual-event-recap { gap:5mm; }
- .annual-event-recaps--single .annual-recap-globe { flex-basis:40mm; }
- .annual-event-recaps--single .annual-recap-visuals { gap:5mm; }
- .annual-event-recaps--single .annual-recap-visuals>img { height:78mm; }
- .annual-event-recaps--single .annual-recap-people figcaption { font-size:11px; }
- .annual-impact .annual-event-recaps--single h2 { font-size:58px; }
- .annual-impact .annual-event-recaps--single .story-text p { font-size:17px; }
  .annual-community-growth { margin:0 0 3mm; gap:8mm; }
  .annual-repeat span { font-size:11px; }
  .annual-people-gallery { gap:3mm; }
@@ -807,6 +773,8 @@
  .annual-impact .paper-sheet { min-height:296mm; break-inside:avoid-page; }
  .annual-impact .paper-running { margin-bottom:5mm; }
  .annual-impact .paper-folio { flex-shrink:0; break-inside:avoid; }
+ .annual-impact .paper-sheet > * { flex-shrink:0; }
+ body.annual-report[data-layout=paper] .paper-sheet .story-text { break-before:auto; break-after:auto; break-inside:auto; }
  .annual-impact .annual-section-copy { margin:3mm 0; }
  .annual-impact .story-text p { orphans:3; widows:3; }
  .annual-letter { max-width:none; margin-top:2mm; }
@@ -822,22 +790,22 @@
  .annual-recap-people img { max-width:13mm; }
  .annual-impact .annual-event-recap h2 { font-size:25px; }
  .annual-recap-stats { margin:2mm 0; }
- .annual-recap-stat dd { width:12mm; height:12mm; font-size:17px; }
- .annual-recap-stat--compact dd { font-size:13px; }
- .annual-event-recaps--single .annual-event-recap { grid-template-columns:1fr; }
- .annual-event-recaps--single .annual-recap-visuals>img { height:78mm; }
- .annual-event-recaps--single .annual-recap-people img { max-width:24mm; }
  .annual-community-growth { gap:5mm; }
- .annual-community-growth .annual-growth svg { max-height:32mm; }
- .annual-community-growth .report-topline-circle { max-width:42mm; border-width:12px; padding:10px; }
- .annual-community-growth .report-topline-circle strong { font-size:48px; }
+ .annual-stat-card { padding:4mm 5mm; }
+ .annual-stat-card strong { font-size:48px; }
+ .annual-stat-card span { font-size:14px; }
+ .annual-impact .impact-community>h2 { margin-bottom:5mm; }
+ .annual-community-growth .annual-growth figcaption strong { font-size:44px; }
+ .annual-community-growth .annual-growth svg { max-height:24mm; margin-top:6px; }
  .annual-people-gallery { gap:3mm; margin:2mm 0 3mm; }
+ .impact-community:has(.annual-participant-quote) .annual-people-gallery { margin:1mm 0 2mm; }
  .annual-people-gallery img { width:18mm; height:18mm; }
  .annual-people-gallery figcaption { margin-top:1.5mm; }
  .impact-program .impact-program-donut .annual-donut { width:50mm; margin-bottom:3mm; }
  .impact-program-donut .annual-legend li { margin:2mm 0; }
  .annual-program-counter strong { font-size:54px; }
- .impact-program-bars .annual-bar-row { margin:2.5mm 0; }
+ .impact-program-bars .annual-bar-row { grid-template-columns:40mm minmax(0,1fr) 8mm; gap:3mm; min-height:6mm; margin:2.5mm 0; }
+ .impact-program-bars .annual-bar-row>div:first-child { font-size:13px; }
  .impact-program-bars .annual-stack { height:4mm; }
  .impact-reach-heroes:has(>article:nth-child(3)) { grid-template-columns:repeat(3,minmax(0,1fr)); }
  .impact-reach-heroes { gap:4mm; margin:2mm 0 5mm; }

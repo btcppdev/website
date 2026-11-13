@@ -413,6 +413,7 @@ func TestAnnualReportPreview(t *testing.T) {
 				p.Events[i].Event.Location = locations[p.Events[i].Event.Tag]
 				if p.Events[i].Event.Tag == "seoul" {
 					p.Events[i].Sats = 5000000 // Illustrative fifth card for print layout checks.
+					p.Events[i].Talks, p.Events[i].Workshops, p.Events[i].Panels = 23, 3, 1
 				}
 				if p.Events[i].Event.Tag == "floripa26" {
 					p.Events[i].Sats = 0
