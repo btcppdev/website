@@ -3,7 +3,14 @@ package handlers
 import (
 	"fmt"
 	"strings"
+
+	"btcpp-web/internal/types"
 )
+
+func (e annualEvent) BadgeEmoji() string {
+	conf := types.Conf{Tag: e.Event.Tag, Location: e.Event.Location}
+	return conf.BadgeEmoji()
+}
 
 type annualEventHighlight struct {
 	Event                       reportEvent
@@ -11,6 +18,35 @@ type annualEventHighlight struct {
 	Status, Feature, FeatureURL string
 	Stats                       []annualEventStat
 	Speakers                    []reportPerson
+}
+
+type annualEventGlobe struct {
+	Country, Image string
+}
+
+// These assets locate the event, never the participants. Unmapped events omit
+// the globe instead of guessing a country from a free-form location string.
+func (h annualEventHighlight) Globe() *annualEventGlobe {
+	var country, slug string
+	switch h.Event.Tag {
+	case "floripa", "floripa26":
+		country, slug = "Brazil", "brazil"
+	case "vegas":
+		country, slug = "United States", "united-states"
+	case "vienna":
+		country, slug = "Austria", "austria"
+	case "nairobi":
+		country, slug = "Kenya", "kenya"
+	case "toronto":
+		country, slug = "Canada", "canada"
+	case "berlin", "berlin23", "berlin24", "berlin25", "berlin26":
+		country, slug = "Germany", "germany"
+	case "seoul":
+		country, slug = "South Korea", "south-korea"
+	default:
+		return nil
+	}
+	return &annualEventGlobe{Country: country, Image: "/static/img/report-locations/" + slug + ".svg"}
 }
 
 // These badges are counters, not percentage gauges. Missing coverage is not zero.
@@ -51,7 +87,7 @@ type annualEventHighlightPage struct {
 	Highlights []annualEventHighlight
 }
 
-func annualEventHighlightCopy(year int, e reportEvent) string {
+func legacyAnnualEventHighlightCopy(year int, e reportEvent) string {
 	if year == 2026 {
 		switch e.Tag {
 		case "floripa26":
@@ -72,14 +108,34 @@ func annualEventHighlightCopy(year int, e reportEvent) string {
 	}
 	return e.Title + " brought the bitcoin++ community together in " + e.Location + ". Explore the program for the talks, workshops, and conversations that shaped this edition."
 }
+func annualEventHighlightCopy(year int, e reportEvent) string {
+	if year == 2026 {
+		copy := map[string]string{
+			"floripa26": "An exploits edition exploring Bitcoin’s vulnerabilities through technical sessions and a hackathon.",
+			"vegas":     "The villains edition brought an attacker’s perspective to Bitcoin’s security and design assumptions.",
+			"vienna":    "Our first economics edition brought developers and economists together to examine incentives and protocol design.",
+			"nairobi":   "Our first gathering in Africa paired open-source learning with a hackathon. Winner WestToEast explored Lightning payments between West African currencies and Kenyan shillings.",
+			"toronto":   "A consensus edition exploring how Bitcoin’s rules evolve. Winner template-watcher made mining-pool behavior visible through a Bitcoin-node-powered dashboard.",
+			"berlin26":  "Merchant payments and ecash took center stage. Winner cashu player prototyped pay-as-you-listen podcast payments through a single channel.",
+			"seoul":     "Privacy ideas became working prototypes. Winning team BlackIce demonstrated a Signet Silent Payment using two hardware devices.",
+		}
+		if text := copy[e.Tag]; text != "" {
+			return text
+		}
+	}
+	return legacyAnnualEventHighlightCopy(year, e)
+}
+
 func (p annualReportPage) eventHighlight(e annualEvent, status string) annualEventHighlight {
 	key := "event_highlight_" + e.Event.ID
 	copy := annualEventHighlightCopy(p.Year, e.Event)
-	if status != "" && !(p.Year == 2026 && e.Event.Tag == "seoul") {
+	if status != "" {
 		copy = e.Event.Title + " will bring the bitcoin++ community together in " + e.Event.Location + ". Explore the upcoming event and its program."
 	}
 	if text, ok := p.Saved[key]; ok {
-		copy = text
+		if p.Frozen != "" || text != legacyAnnualEventHighlightCopy(p.Year, e.Event) {
+			copy = text
+		}
 	}
 	h := annualEventHighlight{Event: e.Event, Status: status, Copy: reportSection{Key: key, Title: e.Event.Location + " highlight", Text: copy}}
 	h.Feature = "Explore the program"
@@ -93,11 +149,11 @@ func (p annualReportPage) eventHighlight(e annualEvent, status string) annualEve
 	h.Speakers = annualSpeakerPortraits(e, 3)
 	media := uniqueReportMedia(e.Media)
 	if len(media) > 0 {
-		h.Feature = "Watch: " + media[0].Title
+		h.Feature = "Watch the recording"
 		h.FeatureURL = media[0].URL
 	} else if e.HackKnown() && len(e.WinningProjects) > 0 {
 		w := e.WinningProjects[0]
-		h.Feature = "Meet the builders: " + w.Title
+		h.Feature = "Meet the builders"
 		h.FeatureURL = "https://btcpp.dev/" + e.Event.Tag + "/hackathon/projects/" + w.PublicID()
 	}
 	return h

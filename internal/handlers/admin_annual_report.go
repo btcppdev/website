@@ -44,6 +44,9 @@ func (e annualEvent) HackKnown() bool {
 
 type annualEditionLink struct{ URL, Date string }
 type annualReportPage struct {
+	QuoteAuthors        map[string]annualQuoteAuthor
+	GatheringComparison *annualYearComparison
+	PartnerEvents       []annualPartnerEvent
 	// Nil retains event-only reach for editions frozen before account-wide reach.
 	AnnualPostLibrary                                                       *reportPostLibrary
 	OfferedBased                                                            bool
@@ -62,7 +65,7 @@ type annualReportPage struct {
 	Preview                                                                 bool
 }
 
-func annualSections(year int, recipient string) []reportSection {
+func legacyAnnualSections(year int, recipient string) []reportSection {
 	note := fmt.Sprintf("To our friends at %s,\n\nThank you for helping bring the Bitcoin development community together. Three things stand out for me this year: taking bitcoin++ to Africa, shipping our hackathon platform with help from our summer intern Jake from Tulsa, and the amazing conversations we helped spark at events around the globe.\n\nOur first economics edition was a particular highlight: making room for developers and the people who say ‘developers don’t understand economics’ to talk to one another. Those conversations are part of why we do this.\n\nThis report brings together the gatherings, people and projects behind %d so far. It also gives us a place to be candid about what we’ve learned as we expand.\n\nThank you for being part of it.\n\nnifty", recipient, year)
 	if year != 2026 {
 		note = fmt.Sprintf("To our friends at %s,\n\n[Add your opening letter for %d.]\n\nnifty", recipient, year)
@@ -283,12 +286,7 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 	if s := p.Saved["cutoff"]; s != "" {
 		p.Cutoff = s
 	}
-	p.Sections = annualSections(year, recipient)
-	for i, s := range p.Sections {
-		if v, ok := p.Saved[s.Key]; ok {
-			p.Sections[i].Text = v
-		}
-	}
+	p.loadNarrativeSections()
 	if err = loadAnnualReport(ctx, app, &p); err != nil {
 		app.Err.Printf("annual report: %v", err)
 		http.Error(w, "Unable to load annual event data", 503)
@@ -355,6 +353,12 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 		saved["selection_saved"] = "no"
 	}
 	for _, s := range annualSections(p.Year, p.Recipient) {
+		if !f.Has(s.Key) {
+			if value, ok := p.Saved[s.Key]; ok {
+				saved[s.Key] = value
+			}
+			continue
+		}
 		v := strings.TrimSpace(f.Get(s.Key))
 		if len(v) > 12000 {
 			return fmt.Errorf("%s exceeds 12,000 bytes", s.Title)
@@ -369,11 +373,27 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 	}
 	// Retain recaps when saving an older form that did not render these fields.
 	for key, value := range p.Saved {
-		if strings.HasPrefix(key, "event_highlight_") {
+		_, projectStory := annualProjectStoryKey(key)
+		if strings.HasPrefix(key, "event_highlight_") || projectStory {
 			saved[key] = value
 		}
 	}
 	for key, values := range f {
+		if id, ok := annualProjectStoryKey(key); ok {
+			if _, err := uuid.Parse(id); err != nil {
+				return fmt.Errorf("invalid project story")
+			}
+			if len(values) != 1 || len(values[0]) > 1200 {
+				return fmt.Errorf("project story fields must be at most 1,200 bytes")
+			}
+			if strings.HasPrefix(key, "project_source_") && strings.TrimSpace(values[0]) != "" {
+				u, err := url.Parse(strings.TrimSpace(values[0]))
+				if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
+					return fmt.Errorf("project sources must be public http or https URLs")
+				}
+			}
+			saved[key] = strings.TrimSpace(values[0])
+		}
 		if strings.HasPrefix(key, "event_highlight_") {
 			if _, err := uuid.Parse(strings.TrimPrefix(key, "event_highlight_")); err != nil {
 				return fmt.Errorf("invalid event highlight")
@@ -410,6 +430,11 @@ func saveAnnualReport(ctx context.Context, app *config.AppContext, p annualRepor
 	}
 	for _, h := range p.EventHighlightEditors() {
 		saved[h.Copy.Key] = h.Copy.Text
+	}
+	for _, project := range p.BriefProjects() {
+		for _, field := range project.StoryFields() {
+			saved[field.Key] = field.Text
+		}
 	}
 	p.Saved = saved
 	tx, err := app.DB.Begin(ctx)

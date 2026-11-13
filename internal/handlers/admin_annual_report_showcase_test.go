@@ -32,7 +32,7 @@ func TestAnnualReportUpcomingShowcase(t *testing.T) {
 	if err = tmpl.Execute(&out, p); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"/static/img/seoul/leading.png", "Upcoming", "Still ahead in 2026", "https://btcpp.dev/seoul"} {
+	for _, want := range []string{"/static/img/seoul/leading.png", "Upcoming", "https://btcpp.dev/seoul"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatal("missing showcase", want)
 		}

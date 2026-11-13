@@ -94,7 +94,7 @@ func TestReportSponsorEventScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(ctx, `INSERT INTO organizations VALUES('one','One','https://example.test/one.svg',''),('two','Two','','https://example.test/two.svg');
- INSERT INTO sponsorships VALUES('s1','one',NULL),('s2','one',NULL),('s3','two',NULL),('archived','two',now());
+ INSERT INTO sponsorships(id,organization_id,archived_at) VALUES('s1','one',NULL),('s2','one',NULL),('s3','two',NULL),('archived','two',now());
  INSERT INTO sponsorships_conferences VALUES('s1','event'),('s2','event'),('s3','other-event'),('archived','event');`); err != nil {
 		t.Fatal(err)
 	}

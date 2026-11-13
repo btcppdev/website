@@ -338,7 +338,7 @@ func TestReportFormCSRFPostgres(t *testing.T) {
 
 const reportFixtureSQL = `
 CREATE TEMP TABLE organizations(id text,name text,logo_light_url text,logo_dark_url text);
-CREATE TEMP TABLE sponsorships(id text,organization_id text,archived_at timestamptz);
+CREATE TEMP TABLE sponsorships(id text,organization_id text,archived_at timestamptz,status text NOT NULL DEFAULT '',level text NOT NULL DEFAULT '');
 CREATE TEMP TABLE sponsorships_conferences(sponsorship_id text,conference_id text);
 CREATE TEMP TABLE registrations(conference_id text,revoked boolean,checked_in_at timestamptz,person_id text,email text,revoked_before_account_deletion boolean);
 CREATE TEMP TABLE person_emails(person_id text,email text UNIQUE);
@@ -349,12 +349,12 @@ CREATE TEMP TABLE awards(id text,competition_id text,award_type text,sponsored_b
 CREATE TEMP TABLE prizes(id text PRIMARY KEY,award_id text,prize_type text,value_text text);
 CREATE TEMP TABLE project_awards(project_id text,award_id text);
 CREATE TEMP TABLE award_distributions(competition_id text,project_id text,amount_sats bigint,distribution_type text,status text);
-CREATE TEMP TABLE people(id text PRIMARY KEY,name text,norm_photo_path text,company text);
+CREATE TEMP TABLE people(id text PRIMARY KEY,name text,norm_photo_path text,company text,twitter_handle text NOT NULL DEFAULT '',is_deleted_account boolean NOT NULL DEFAULT false);
 CREATE TEMP TABLE proposals(id text,conference_id text,title text,talk_type text,status text);
 CREATE TEMP TABLE conf_talks(id text,conference_id text,proposal_id text,scheduled_start timestamptz,scheduled_end timestamptz,archived_at timestamptz,venue text NOT NULL DEFAULT '',social_card_path text NOT NULL DEFAULT '');
 CREATE TEMP TABLE recordings(conf_talk_id text,youtube_url text,x_url text);
 CREATE TEMP TABLE proposals_speaker_confs(proposal_id text,speaker_conf_id text);
-CREATE TEMP TABLE speaker_confs(id text,speaker_id text,coming_from text NOT NULL DEFAULT '');
+CREATE TEMP TABLE speaker_confs(id text,speaker_id text,coming_from text NOT NULL DEFAULT '',company text NOT NULL DEFAULT '');
 CREATE TEMP TABLE competition_judges(competition_id text,person_id text,public_label_override text,judge_type text);
 CREATE TEMP TABLE award_judges(award_id text,person_id text);
 CREATE TEMP TABLE volunteers(id text,person_id text);

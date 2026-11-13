@@ -40,7 +40,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 	if err != nil {
 		return err
 	}
-	var roster []reportEvent
+	var roster, previous []reportEvent
 	for rows.Next() {
 		var e reportEvent
 		if err = rows.Scan(&e.ID, &e.Tag, &e.Title, &e.Location, &e.Timezone, &e.DateDesc, &e.Start, &e.End); err != nil {
@@ -50,6 +50,9 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 			e.Period = reportEventPeriod(e)
 			e.LeadImage = confImagePath(e.Tag, "leading")
 			roster = append(roster, e)
+		}
+		if e.Start != nil && e.Start.In(reportEventLocation(e)).Year() == p.Year-1 {
+			previous = append(previous, e)
 		}
 	}
 	if err == nil {
@@ -170,11 +173,43 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 		if err = tx.QueryRow(ctx, annualRegistrationsSQL, ids).Scan(&p.UniqueRegistrants, &p.RepeatRegistrants); err != nil {
 			return err
 		}
+		rows, err := tx.Query(ctx, `SELECT sc.conference_id::text,bool_or(lower(trim(s.level))='headline')
+ FROM organizations o JOIN sponsorships s ON s.organization_id=o.id
+ JOIN sponsorships_conferences sc ON sc.sponsorship_id=s.id
+ WHERE lower(trim(o.name))=$1 AND s.archived_at IS NULL
+ AND lower(trim(s.status)) IN ('paid','committed') AND sc.conference_id::text=ANY($2::text[])
+ GROUP BY sc.conference_id`, strings.ToLower(p.Recipient), ids)
+		if err != nil {
+			return err
+		}
+		type partnerRow struct {
+			ID       string
+			Headline bool
+		}
+		partners, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (partnerRow, error) {
+			var partner partnerRow
+			err := row.Scan(&partner.ID, &partner.Headline)
+			return partner, err
+		})
+		if err != nil {
+			return err
+		}
+		for _, event := range p.Included() {
+			for _, partner := range partners {
+				if partner.ID == event.Event.ID {
+					p.PartnerEvents = append(p.PartnerEvents, annualPartnerEvent{Event: event.Event, Headline: partner.Headline})
+				}
+			}
+		}
 	}
 	if len(hackIDs) > 0 {
 		if err = tx.QueryRow(ctx, `SELECT count(DISTINCT m.person_id) FROM project_members m JOIN projects p ON p.id=m.project_id JOIN competitions c ON c.id=p.competition_id WHERE c.conference_id::text=ANY($1::text[]) AND p.status IN ('submitted','advanced')`, hackIDs).Scan(&p.UniqueParticipants); err != nil {
 			return err
 		}
+	}
+	p.GatheringComparison = annualGatheringComparison(*p, previous)
+	if err := loadAnnualQuoteAuthors(ctx, app, tx, p); err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }

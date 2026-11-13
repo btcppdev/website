@@ -8,6 +8,7 @@ import (
 type annualProjectHighlight struct {
 	Event, Tag string
 	Project    reportWinner
+	Story      annualProjectStory
 }
 
 // Include every finalized overall first-place project, including ties. Sponsor
@@ -25,7 +26,7 @@ func (p annualReportPage) BriefProjects() []annualProjectHighlight {
 				continue
 			}
 			seen[key] = true
-			result = append(result, annualProjectHighlight{Event: e.Event.Location, Tag: e.Event.Tag, Project: w})
+			result = append(result, annualProjectHighlight{Event: e.Event.Location, Tag: e.Event.Tag, Project: w, Story: p.projectStory(w)})
 		}
 	}
 	return result

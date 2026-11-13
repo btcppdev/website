@@ -241,6 +241,10 @@ func TestAnnualReportPostgres(t *testing.T) {
 CREATE TEMP TABLE conferences(id text,tag text,description text,location text,timezone text,date_desc text,start_date timestamptz,end_date timestamptz,publication_status text);
 CREATE TEMP TABLE sponsor_report_drafts(scope text PRIMARY KEY,content jsonb NOT NULL,revision bigint NOT NULL DEFAULT 1,updated_at timestamptz NOT NULL DEFAULT now());
 INSERT INTO conferences VALUES ('event','nairobi','Open Source','Nairobi','Africa/Nairobi','','2026-06-17','2026-06-19','published'),('elsewhere','toronto','Toronto','Toronto','UTC','','2026-08-01','2026-08-03','published'),('future','seoul','Seoul','Seoul','UTC','','2026-11-01','2026-11-03','published');
+INSERT INTO conferences VALUES ('prior','atx25','Austin','Austin','UTC','','2025-05-07','2025-05-09','published'),('later-prior','taipei','Taipei','Taipei','UTC','','2025-12-15','2025-12-17','published'),('draft-prior','draft','Draft','Draft','UTC','','2025-01-01','2025-01-02','draft');
+INSERT INTO organizations VALUES ('nydig','NYDIG','',''),('hrf','HRF','','');
+INSERT INTO sponsorships VALUES ('paid','nydig',NULL,'Paid','Headline'),('duplicate','nydig',NULL,'Committed','Headline'),('draft','nydig',NULL,'Draft','Headline'),('archived','nydig',now(),'Paid','Headline'),('other','hrf',NULL,'Paid','Headline');
+INSERT INTO sponsorships_conferences VALUES ('paid','event'),('duplicate','event'),('draft','elsewhere'),('archived','elsewhere'),('other','elsewhere');
 INSERT INTO registrations VALUES ('elsewhere',false,now(),'person1','one@example.test',NULL),('elsewhere',false,now(),NULL,'alias@example.test',NULL);
 INSERT INTO proposals VALUES ('toronto-talk','elsewhere','Another talk','panel','Accepted');
 INSERT INTO conf_talks(id,conference_id,proposal_id) VALUES ('toronto-session','elsewhere','toronto-talk');
@@ -264,6 +268,12 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	}
 	if p.Events[0].SpeakerPortraits[0].PanelParticipant || len(p.Events[1].SpeakerPortraits) != 1 || !p.Events[1].SpeakerPortraits[0].PanelParticipant {
 		t.Fatal("panel participation must follow each event's program, not the speaker's identity")
+	}
+	if len(p.PartnerEvents) != 1 || p.PartnerEvents[0].Event.ID != "event" || !p.PartnerEvents[0].Headline {
+		t.Fatalf("partner attribution counted drafts, archives, duplicates, or another sponsor: %+v", p.PartnerEvents)
+	}
+	if p.GatheringComparison == nil || p.GatheringComparison.Previous != 1 || p.GatheringComparison.Current != 2 {
+		t.Fatalf("historical comparison ignored publication or date scope: %+v", p.GatheringComparison)
 	}
 	if len(p.Events[0].Reach) != 1 {
 		t.Fatal("Nairobi default evidence was not carried through")
@@ -295,6 +305,9 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	if frozen.UniqueRegistrants != 4 || frozen.Saved["note"] != "Original letter" || frozen.CSRF != "" {
 		t.Fatal("frozen edition changed or stored a CSRF token")
 	}
+	if frozen.GatheringComparison == nil || len(frozen.PartnerEvents) != 1 || frozen.Saved["project_built_project1"] != "Useful build" {
+		t.Fatal("frozen impact evidence or project story lost")
+	}
 	p.Recipient = "HRF"
 	p.Revision = 0
 	p.Saved = map[string]string{"note": "HRF letter"}
@@ -322,10 +335,24 @@ func TestAnnualReportPreview(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	var quoteFixtures map[string]annualQuoteAuthor
+	if filename := os.Getenv("ANNUAL_REPORT_QUOTE_PREVIEW"); filename != "" {
+		raw, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &quoteFixtures); err != nil {
+			t.Fatal(err)
+		}
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 	mux.HandleFunc("/admin/reports/preview", renderReportMarkdownPreview)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && r.URL.Path != "/admin/reports/annual" {
+			http.NotFound(w, r)
+			return
+		}
 		if r.Method != "GET" {
 			http.Error(w, "Preview only", 405)
 			return
@@ -348,6 +375,12 @@ func TestAnnualReportPreview(t *testing.T) {
 				e.Included, e.Eligible = true, true
 			}
 		}
+		if r.URL.Query().Get("recap-regression") == "1" {
+			p.GatheringComparison = &annualYearComparison{PreviousYear: 2025, Year: 2026, Previous: 5, Current: len(p.Included()), Through: "12 November"}
+			for _, event := range p.Included() {
+				p.PartnerEvents = append(p.PartnerEvents, annualPartnerEvent{Event: event.Event, Headline: true})
+			}
+		}
 		if r.URL.Query().Get("recipient") == "HRF" {
 			p.Recipient = "HRF"
 			p.Sections = annualSections(p.Year, p.Recipient)
@@ -360,6 +393,7 @@ func TestAnnualReportPreview(t *testing.T) {
 				p.Events[i].detectHackathonRecords()
 			}
 		}
+		p.QuoteAuthors = quoteFixtures
 		tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl", "../../templates/admin/reports.tmpl")
 		if err != nil {
 			http.Error(w, err.Error(), 500)
