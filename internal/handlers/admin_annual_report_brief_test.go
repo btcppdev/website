@@ -68,7 +68,7 @@ func TestAnnualReportFirstPlaceProjectsAndPagination(t *testing.T) {
 		}
 	}
 	pages := p.ProjectHighlightPages()
-	if len(pages) != 2 || len(pages[0].Projects) != 4 || len(pages[1].Projects) != 1 {
+	if len(pages) != 2 || len(pages[0].Projects) != 2 || len(pages[1].Projects) != 3 {
 		t.Fatalf("winners were dropped or not paginated: %+v", pages)
 	}
 	if pages[0].Folio != "09 / 11" || pages[1].Folio != "10 / 11" || p.ReportFolio(8) != "11 / 11" || p.EventHighlightPages()[0].Folio != "03 / 11" {
@@ -119,6 +119,9 @@ func TestAnnualReportBuilderStoryPagination(t *testing.T) {
 				wantPages += (count - capacity + 3) / 4
 			}
 			pages := p.ProjectHighlightPages()
+			if last := len(pages) - 1; last > 0 && len(pages[last].Projects) == 1 && len(pages[last-1].Projects) == 4 {
+				t.Fatal("a lone winner was left after a crowded four-project page")
+			}
 			if len(pages) != wantPages || p.ReportPageCount() != 8+wantPages {
 				t.Fatalf("story=%v winners=%d: pages=%d total=%d", story, count, len(pages), p.ReportPageCount())
 			}

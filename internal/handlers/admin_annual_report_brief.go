@@ -50,6 +50,13 @@ func (p annualReportPage) ProjectHighlightPages() []annualProjectHighlightPage {
 		}
 		pages[len(pages)-1].Projects = append(pages[len(pages)-1].Projects, project)
 	}
+	// Avoid a full four-card page followed by a single isolated winner. Keep
+	// the same page count and event order, with a two-card page and three rows.
+	if last := len(pages) - 1; last > 0 && len(pages[last].Projects) == 1 && len(pages[last-1].Projects) == 4 {
+		previous := pages[last-1].Projects
+		pages[last].Projects = append(append([]annualProjectHighlight(nil), previous[2:]...), pages[last].Projects...)
+		pages[last-1].Projects = previous[:2]
+	}
 	for i := range pages {
 		pages[i].Folio = fmt.Sprintf("%02d / %02d", 7+(len(p.Included())+2)/3+i, p.ReportPageCount())
 	}
