@@ -47,9 +47,11 @@ func (e annualEvent) HackKnown() bool {
 
 type annualEditionLink struct{ URL, Date string }
 type annualReportPage struct {
-	QuoteAuthors        map[string]annualQuoteAuthor
-	GatheringComparison *annualYearComparison
-	PartnerEvents       []annualPartnerEvent
+	RecipientKey, RecipientOrganizationID, RecipientLogoURL string
+	Recipients                                              []annualReportRecipient `json:"-"`
+	QuoteAuthors                                            map[string]annualQuoteAuthor
+	GatheringComparison                                     *annualYearComparison
+	PartnerEvents                                           []annualPartnerEvent
 	// Nil retains event-only reach for editions frozen before account-wide reach.
 	AnnualPostLibrary                                                       *reportPostLibrary
 	OfferedBased                                                            bool
@@ -118,10 +120,14 @@ func (p annualReportPage) Platforms() []reportReachPlatform {
 	return (sponsorReportPage{Saved: p.Saved}).ReachPlatforms()
 }
 func (p annualReportPage) URL() string {
-	return fmt.Sprintf("/admin/reports/annual?year=%d&recipient=%s", p.Year, url.QueryEscape(p.Recipient))
+	return fmt.Sprintf("/admin/reports/annual?year=%d&recipient=%s", p.Year, url.QueryEscape(p.RecipientValue()))
 }
 func (p annualReportPage) Scope() string {
-	return fmt.Sprintf("annual-v1/%d/%s", p.Year, strings.ToLower(p.Recipient))
+	key := p.RecipientValue()
+	if _, err := uuid.Parse(key); err == nil {
+		return fmt.Sprintf("annual-v1/%d/org/%s", p.Year, key)
+	}
+	return fmt.Sprintf("annual-v1/%d/%s", p.Year, strings.ToLower(key))
 }
 func (p annualReportPage) ParticipationChart() reportChart { return p.chart("attendance") }
 func (p annualReportPage) ProjectChart() reportChart       { return p.chart("projects") }
@@ -214,15 +220,17 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 		}
 		year = n
 	}
-	recipient := strings.ToUpper(r.URL.Query().Get("recipient"))
-	if recipient == "" {
-		recipient = "NYDIG"
-	}
-	if recipient != "NYDIG" && recipient != "HRF" {
-		http.Error(w, "Choose NYDIG or HRF", 400)
+	recipient, err := annualRecipientKey(r.URL.Query().Get("recipient"))
+	if err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
-	p := annualReportPage{Year: year, Recipient: recipient, Saved: map[string]string{}, Generated: now.Format(time.RFC3339), Cutoff: fmt.Sprintf("%d-12-31", year)}
+	recipients, err := loadAnnualReportRecipients(ctx, app)
+	if err != nil {
+		http.Error(w, "Unable to load report recipients", 503)
+		return
+	}
+	p := annualReportPage{Year: year, RecipientKey: recipient, Recipients: recipients, Saved: map[string]string{}, Generated: now.Format(time.RFC3339), Cutoff: fmt.Sprintf("%d-12-31", year)}
 	if year == now.Year() {
 		p.Cutoff = now.Format("2006-01-02")
 	}
@@ -244,8 +252,12 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 		renderAnnualReport(w, app, p)
 		return
 	}
+	if !p.selectRecipient(recipient) {
+		http.Error(w, "Choose an organization from the recipient list", 400)
+		return
+	}
 	var content []byte
-	err := app.DB.QueryRow(ctx, `SELECT content,revision,updated_at FROM sponsor_report_drafts WHERE scope=$1`, p.Scope()).Scan(&content, &p.Revision, &p.DraftUpdatedAt)
+	err = app.DB.QueryRow(ctx, `SELECT content,revision,updated_at FROM sponsor_report_drafts WHERE scope=$1`, p.Scope()).Scan(&content, &p.Revision, &p.DraftUpdatedAt)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, "Unable to load annual draft", 503)
 		return

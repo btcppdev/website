@@ -104,6 +104,9 @@ func annualSections(year int, recipient string) []reportSection {
 			support = "NYDIG’s headline sponsorship funded hackathons, crew travel, catering, event space, and professional video recordings."
 		}
 		copy["note"] = fmt.Sprintf("To our friends at %s,\n\n%s\n\nThree highlights from 2026: bringing bitcoin++ to Africa, shipping our hackathon platform with help from our summer intern Jake from Tulsa, and hosting our first economics edition. Bringing developers into the same room as the people who say ‘developers don’t understand economics’ was a particular highlight.\n\nThank you for making room for this work. We would love to build on it with you in %d.\n\nnifty", recipient, opening, year+1)
+		if recipient != "NYDIG" && recipient != "HRF" {
+			copy["note"] = fmt.Sprintf("To our friends at %s,\n\nThis report brings together the people, projects, and gatherings that shaped Bitcoin development in 2026. We’re glad to share the year’s work with you.\n\nThree highlights from 2026: bringing bitcoin++ to Africa, shipping our hackathon platform, and hosting our first economics edition.\n\nThank you for taking the time to explore this work. We look forward to what developers build in %d.\n\nnifty", recipient, year+1)
+		}
 	}
 	for i := range sections {
 		if value, ok := copy[sections[i].Key]; ok {

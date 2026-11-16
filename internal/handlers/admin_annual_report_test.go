@@ -167,6 +167,7 @@ func TestAnnualReportCSRFAndFrozenHTTP(t *testing.T) {
 	db := reportTestDB(t)
 	ctx := context.Background()
 	if _, err := db.Exec(ctx, `CREATE TEMP TABLE conferences(id text,tag text,description text,location text,timezone text,date_desc text,start_date timestamptz,end_date timestamptz,publication_status text);
+CREATE TEMP TABLE organizations(id text,name text,logo_light_url text,logo_dark_url text);
 CREATE TEMP TABLE sponsor_report_drafts(scope text PRIMARY KEY,content jsonb NOT NULL,revision bigint NOT NULL DEFAULT 1,updated_at timestamptz NOT NULL DEFAULT now());`); err != nil {
 		t.Fatal(err)
 	}
@@ -371,6 +372,17 @@ func TestAnnualReportPreview(t *testing.T) {
 			return
 		}
 		p := annualFixture()
+		p.Recipients = []annualReportRecipient{
+			{Key: "NYDIG", Name: "NYDIG"}, {Key: "HRF", Name: "HRF"},
+			{Key: "da000000-0000-4000-8000-000000000003", ID: "da000000-0000-4000-8000-000000000003", Name: "Btrust", Logo: "/static/img/sponsors/btrust-dark.svg"},
+			{Key: "da000000-0000-4000-8000-000000000006", ID: "da000000-0000-4000-8000-000000000006", Name: "Example Research Collective"},
+		}
+		key, err := annualRecipientKey(r.URL.Query().Get("recipient"))
+		if err != nil || !p.selectRecipient(key) {
+			http.Error(w, "Choose a preview organization", 400)
+			return
+		}
+		p.loadNarrativeSections()
 		if r.URL.Query().Get("recap-regression") == "1" {
 			library := defaultReportPosts(p.Year)
 			p.AnnualPostLibrary = &library
@@ -390,13 +402,11 @@ func TestAnnualReportPreview(t *testing.T) {
 		}
 		if r.URL.Query().Get("recap-regression") == "1" {
 			p.GatheringComparison = &annualYearComparison{PreviousYear: 2025, Year: 2026, Previous: 5, Current: len(p.Included()), Through: "12 November"}
-			for _, event := range p.Included() {
-				p.PartnerEvents = append(p.PartnerEvents, annualPartnerEvent{Event: event.Event, Headline: true})
+			if p.RecipientValue() == "NYDIG" {
+				for _, event := range p.Included() {
+					p.PartnerEvents = append(p.PartnerEvents, annualPartnerEvent{Event: event.Event, Headline: true})
+				}
 			}
-		}
-		if r.URL.Query().Get("recipient") == "HRF" {
-			p.Recipient = "HRF"
-			p.Sections = annualSections(p.Year, p.Recipient)
 		}
 		for i := range p.Events {
 			if fixture, ok := portraitFixtures[p.Events[i].Event.Tag]; ok {
@@ -423,6 +433,9 @@ func TestAnnualReportPreview(t *testing.T) {
 			}
 		}
 		for key, value := range copyFixtures {
+			if p.RecipientValue() != "NYDIG" {
+				continue
+			}
 			p.Saved[key] = value
 			for i := range p.Sections {
 				if p.Sections[i].Key == key {

@@ -177,9 +177,9 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 		rows, err := tx.Query(ctx, `SELECT sc.conference_id::text,bool_or(lower(trim(s.level))='headline')
  FROM organizations o JOIN sponsorships s ON s.organization_id=o.id
  JOIN sponsorships_conferences sc ON sc.sponsorship_id=s.id
- WHERE lower(trim(o.name))=$1 AND s.archived_at IS NULL
+ WHERE (($3<>'' AND o.id::text=$3) OR ($3='' AND lower(trim(o.name))=$1)) AND s.archived_at IS NULL
  AND lower(trim(s.status)) IN ('paid','committed') AND sc.conference_id::text=ANY($2::text[])
- GROUP BY sc.conference_id`, strings.ToLower(p.Recipient), ids)
+ GROUP BY sc.conference_id`, strings.ToLower(p.Recipient), ids, p.RecipientOrganizationID)
 		if err != nil {
 			return err
 		}
