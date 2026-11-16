@@ -39,7 +39,7 @@ func TestAnnualReportGrowthUsesCompletedEventTotals(t *testing.T) {
 		t.Fatalf("incorrect axes: %+v, line %s", c.Points, c.Line())
 	}
 	prizes := p.PrizeGrowth()
-	if prizes == nil || prizes.Total != 3000000 || prizes.Label != "in prizes" || prizes.Unit != "sats" {
+	if prizes == nil || prizes.Total != 3000000 || prizes.Label != "sats in prizes" || prizes.Unit != "sats" {
 		t.Fatalf("prize chart must use selected known offers: %+v", prizes)
 	}
 	building := p.BuildingGrowth()

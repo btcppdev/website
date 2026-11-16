@@ -63,7 +63,7 @@ func (p annualReportPage) RegistrationGrowth() *annualGrowthChart {
 func (p annualReportPage) PrizeGrowth() *annualGrowthChart {
 	label := p.PrizeUnit()
 	if p.OfferedBased && p.Recipient == "NYDIG" {
-		label = "in prizes"
+		label = "sats in prizes"
 	}
 	return p.eventGrowth("prizes", label, "sats", func(e annualEvent) (int64, bool) { return e.Sats, e.HackKnown() })
 }
