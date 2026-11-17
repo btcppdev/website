@@ -579,14 +579,16 @@ func RequireOptional(r *http.Request, ctx *config.AppContext) *Identity {
 }
 
 // SafeNext returns next if it's a relative path rooted at "/" and not
-// a protocol-relative URL ("//evil.example.com"). Anything else
+// a protocol-relative URL ("//evil.example.com"). Backslashes, tabs, and
+// newlines are rejected because browsers can normalize them. Anything else
 // collapses to fallback.
 func SafeNext(next, fallback string) string {
 	next = strings.TrimSpace(next)
 	if next == "" {
 		return fallback
 	}
-	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") {
+	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") ||
+		strings.ContainsAny(next, "\\\t\n\r") {
 		return fallback
 	}
 	return next
