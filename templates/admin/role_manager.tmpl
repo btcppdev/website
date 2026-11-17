@@ -1,28 +1,49 @@
 {{ define "admin_role_manager" }}
 <section id="role-manager" class="dashboard-workspace-panel admin-role-manager">
-<header><h2>People &amp; permissions</h2><p>Find a person to inspect their current roles, then choose which permissions to add or remove.</p></header>
+<header><h2>People &amp; permissions</h2><p>Find a person, choose their access, then save your changes.</p></header>
 <form method="POST" action="/admin/roles" data-role-form data-can-assign-accounts="{{ .CanAssignAccountsAdmin }}">
 <input type="hidden" name="csrf" value="{{ .RoleCSRF }}">
 <input type="hidden" name="speakerID" data-role-person>
 <input type="hidden" name="roles" data-role-values>
 <label for="role-person-search">Find a person</label>
-<input id="role-person-search" type="search" autocomplete="off" placeholder="Search by name or email" aria-describedby="role-search-status">
+<input id="role-person-search" type="search" autocomplete="off" placeholder="Search by name or email" aria-describedby="role-search-status" aria-controls="role-person-results">
 <p id="role-search-status" role="status">Select a person to view their roles.</p>
-<ul data-role-hits hidden aria-label="People matching your search"></ul>
+<ul id="role-person-results" data-role-hits hidden aria-label="People matching your search"></ul>
 <section data-role-editor hidden>
-<h3 data-role-person-name></h3>
-<p>Current assignments <span data-role-count></span></p>
+<header class="admin-role-person"><h3 data-role-person-name></h3><p data-role-person-email></p></header>
+<fieldset class="admin-role-fields" data-role-fields disabled><legend class="admin-role-sr-only">Edit permissions for the selected person</legend>
+<div class="admin-role-layout">
+<section class="admin-role-assignments" aria-labelledby="role-selected-heading">
+<h4 id="role-selected-heading">Selected roles <span data-role-count class="admin-role-count"></span></h4>
 <div data-role-current></div>
-<div class="admin-role-picker">
-<label for="role-choice">Add a permission</label>
-<select id="role-choice" aria-describedby="role-choice-help"><option value="">Choose a role…</option>
-{{ range .RoleOptions }}<option value="{{ .Value }}" data-description="{{ .Description }}"{{ if and .Restricted (not $.CanAssignAccountsAdmin) }} disabled{{ end }}>{{ .Label }}</option>{{ end }}
-</select>
-<p id="role-choice-help">Roles describe both what a person can do and where that access applies.</p>
-<button type="button" data-role-add disabled>Add role</button>
+</section>
+<section class="admin-role-picker" aria-labelledby="role-picker-heading">
+<h4 id="role-picker-heading">Choose permissions</h4>
+<label class="admin-role-sr-only" for="role-filter">Search permissions</label>
+<input id="role-filter" type="search" autocomplete="off" placeholder="Search roles, services or events…" aria-controls="role-catalog" aria-describedby="role-results-status">
+<div class="admin-role-filters" role="group" aria-label="Permission categories">
+<button type="button" data-role-filter="all" aria-pressed="true">All</button>
+<button type="button" data-role-filter="services" aria-pressed="false">Services</button>
+<button type="button" data-role-filter="global" aria-pressed="false">All events</button>
+<button type="button" data-role-filter="events" aria-pressed="false">By event</button>
 </div>
-<div data-role-changes aria-live="polite"></div>
+<p id="role-results-status" role="status"></p>
+<div id="role-catalog" class="admin-role-catalog">
+{{ range .RoleOptions }}
+<label class="admin-role-option" data-role-option data-role-group="{{ .Group }}">
+<input type="checkbox" value="{{ .Value }}" data-role-check data-label="{{ .Label }}" aria-label="{{ .Label }}" aria-describedby="role-description-{{ .Value }}"{{ if and .Restricted (not $.CanAssignAccountsAdmin) }} data-restricted="true" disabled{{ end }}>
+<span><strong>{{ .Label }}</strong><small id="role-description-{{ .Value }}">{{ .Description }}</small><code>{{ .Value }}</code></span>
+</label>
+{{ end }}
+</div>
+<p data-role-empty hidden>No matching permissions. Try a different search or category.</p>
+</section>
+</div>
+<footer class="admin-role-footer">
+<div data-role-changes role="status"></div>
 <div class="admin-role-actions"><button type="button" data-role-reset disabled>Discard changes</button><button type="submit" data-role-save disabled>Save role changes</button></div>
+</footer>
+</fieldset>
 </section>
 </form>
 <noscript>Enable JavaScript to search people and manage their roles.</noscript>

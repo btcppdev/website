@@ -14,7 +14,7 @@ func TestAdminRoleOptions(t *testing.T) {
 	options := adminRoleOptions([]*types.Conf{{Tag: "berlin26"}})
 	seen := map[string]bool{}
 	for _, option := range options {
-		if seen[option.Value] || option.Label == "" || option.Description == "" {
+		if seen[option.Value] || option.Label == "" || option.Description == "" || option.Group == "" {
 			t.Fatal("incomplete or duplicate role option", option)
 		}
 		seen[option.Value] = true
@@ -22,10 +22,13 @@ func TestAdminRoleOptions(t *testing.T) {
 			t.Fatal("accounts grant restriction missing")
 		}
 	}
-	for _, tag := range []string{"alerts-admin", "merch-admin", "global-admin", "accts-admin", "berlin26-admin", "berlin26-staff", "berlin26-volcoord", "berlin26-hackathon"} {
+	for _, tag := range []string{"insider-reporter", "insider-contributor", "insider-editor", "alerts-admin", "merch-admin", "global-admin", "accts-admin", "berlin26-admin", "berlin26-staff", "berlin26-volcoord", "berlin26-hackathon"} {
 		if !seen[tag] {
 			t.Fatal("missing option", tag)
 		}
+	}
+	if seen["insider-writer"] {
+		t.Fatal("renamed writer role remains in picker")
 	}
 }
 
@@ -39,7 +42,7 @@ func TestRoleManagerPreview(t *testing.T) {
 	handler.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 	handler.HandleFunc("/preview/roles", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/static/css/admin-roles.css"><script src="/static/js/admin-roles.js" defer></script><style>body{margin:0;background:#f6f3ee;color:#171717;font-family:Arial,sans-serif}main{max-width:900px;margin:24px auto;padding:16px}*{box-sizing:border-box}</style></head><body><main><p>bitcoin++ / Admin preview · synthetic users, changes are not saved</p>`))
+		w.Write([]byte(`<!doctype html><html lang="en"><head><title>Bitcoin++ role picker preview</title><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/static/css/mini.css"><link rel="stylesheet" href="/static/css/site-chrome.css"><link rel="stylesheet" href="/static/css/custom.css"><link rel="stylesheet" href="/static/css/admin-roles.css"><script src="/static/js/admin-roles.js" defer></script><style>body{margin:0;background:#f6f3ee;color:#171717;font-family:Arial,sans-serif}main{max-width:900px;margin:24px auto;padding:16px}*{box-sizing:border-box}</style></head><body class="btcpp-dashboard-page btcpp-admin-page"><main><p>bitcoin++ / Admin preview · synthetic users, changes are not saved</p>`))
 		if err := tmpl.ExecuteTemplate(w, "admin_role_manager", page); err != nil {
 			t.Error(err)
 		}
@@ -63,7 +66,7 @@ func TestRoleManagerPreview(t *testing.T) {
 	})
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest("GET", "/preview/roles", nil))
-	if recorder.Code != 200 || !strings.Contains(recorder.Body.String(), "Merch administrator") || !strings.Contains(recorder.Body.String(), `data-description="Access accounts.btcpp.dev. Only nifty@btcpp.dev can grant this role." disabled`) {
+	if recorder.Code != 200 || !strings.Contains(recorder.Body.String(), "Insider editor") || !strings.Contains(recorder.Body.String(), `aria-describedby="role-description-accts-admin" data-restricted="true" disabled`) {
 		t.Fatal("role picker rendering or restricted role failed", recorder.Body.String())
 	}
 	if os.Getenv("ROLE_MANAGER_PREVIEW") == "1" {
