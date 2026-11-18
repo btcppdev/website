@@ -233,7 +233,7 @@ func TestLoadTemplates(t *testing.T) {
 		}
 	}
 	var apiDocs bytes.Buffer
-	if err := inlineTemplates.ExecuteTemplate(&apiDocs, "developers_api.tmpl", nil); err != nil {
+	if err := inlineTemplates.ExecuteTemplate(&apiDocs, "developers_api.tmpl", struct{ SocialCardURL string }{siteSocialCardPath("api", "", developersAPISocialCard())}); err != nil {
 		t.Fatalf("render API documentation: %v", err)
 	}
 	for _, expected := range []string{"Build on", "/api/v1/openapi.json", "profile:self:read", "OAuth authorization", `href="/developers/api">API Docs`, "data-docs-search", "data-api-language", "data-api-endpoint", "data-copy-example"} {

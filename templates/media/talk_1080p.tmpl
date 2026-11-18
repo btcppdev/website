@@ -1,119 +1,99 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" href="/static/css/mini.css" />
-    <script src="/static/js/script.js" type="text/javascript"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      @font-face { font-family: "Ubuntu Brand"; src: url("/static/fonts/Ubuntu-BoldItalic.ttf") format("truetype"); font-style: italic; font-weight: 700; }
+      @font-face { font-family: "Source Serif 4"; src: url("/static/fonts/SourceSerif4-Italic.ttf") format("truetype"); font-style: italic; font-weight: 400; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: Arial, Helvetica, sans-serif; }
+      .bounding { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #111413; color: #fff; border-top: 16px solid #ffae58; border-left: 16px solid #ffae58; }
+      .art { position: absolute; inset: 0; background-image: linear-gradient(90deg, rgba(17,20,19,.94), rgba(17,20,19,.44)), linear-gradient(0deg, #111413 0%, transparent 55%), url({{ talkClipart .Talk.Clipart }}); background-size: cover; background-position: center; }
+      .bounding::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px); background-size: 64px 64px; }
+      .logo { position: absolute; z-index: 1; top: 8px; right: 64px; width: 353px; height: 265px; background-image: url(/static/img/{{ .ConfTag }}/logo_1080p.png); background-size: contain; background-position: top right; background-repeat: no-repeat; }
+      .captionbox { position: absolute; z-index: 1; top: 280px; right: 64px; bottom: 150px; left: 64px; display: grid; grid-template-columns: minmax(0, 1fr) 620px; gap: 80px; align-items: center; }
+      .talk-copy { min-width: 0; }
+      .talk-title { max-height: 340px; margin: 0; padding-bottom: .12em; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 112px; font-weight: 900; letter-spacing: -.055em; line-height: 1.02; text-wrap: balance; overflow-wrap: anywhere; }
+      .captionbox--solo .speaker-details { margin-top: 42px; padding-top: 28px; border-top: 3px solid #ffae58; }
+      .speaker-name { max-height: 116px; margin: 0; font-size: 52px; font-weight: 700; letter-spacing: -.025em; line-height: 1.1; overflow-wrap: anywhere; }
+      .speaker-meta { max-height: 72px; margin: 12px 0 0; color: #dedfda; font-size: 30px; line-height: 1.2; overflow-wrap: anywhere; }
+      .speakers { display: flex; align-items: flex-start; justify-content: center; gap: 32px; min-width: 0; }
+      .speaker { min-width: 0; margin: 0; width: 100%; }
+      .speaker-photo { display: block; width: 100%; height: auto; aspect-ratio: 1; border: 3px solid rgba(255,255,255,.32); border-radius: 50%; object-fit: cover; background: #202624; }
+      .captionbox--panel { top: 110px; display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 24px; }
+      .captionbox--panel .talk-title { max-width: 1330px; max-height: 224px; font-size: 104px; }
+      .captionbox--panel .speakers { align-items: flex-start; justify-content: flex-start; }
+      .captionbox--panel .speaker { flex: 0 1 400px; }
+      .captionbox--panel .speaker-details { margin-top: 22px; text-align: left; }
+      .captionbox--panel .speaker-name { max-height: 84px; font-size: 42px; }
+      .captionbox--panel .speaker-meta { max-height: 34px; font-size: 28px; white-space: nowrap; }
+      .captionbox--no-speakers { grid-template-columns: 1fr; }
+      .captionbox--no-speakers .talk-title { max-width: 1500px; max-height: 610px; }
+      .card-footer { position: absolute; z-index: 1; right: 64px; bottom: 43px; left: 64px; display: flex; align-items: baseline; justify-content: space-between; color: #fff; }
+      .brand-lockup { display: flex; align-items: baseline; gap: 24px; }
+      .wordmark { display: block; font-family: "Ubuntu Brand", sans-serif; font-size: 54px; font-style: italic; font-weight: 700; letter-spacing: -.035em; line-height: 1; white-space: nowrap; }
+      .wordmark__pluses { display: inline-flex; align-items: baseline; letter-spacing: 0; }
+      .wordmark__pluses span + span { margin-left: -.16em; }
+      .brand-tagline { padding-left: 24px; border-left: 3px solid currentColor; font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -.01em; line-height: 1; white-space: nowrap; }
+      .brand-frontier { font-family: "Source Serif 4", Georgia, serif; font-style: italic; font-weight: 400; }
+      .site { font-family: Arial, Helvetica, sans-serif; font-size: 32px; font-weight: 900; letter-spacing: .02em; }
+    </style>
   </head>
-  <body class="bounding">
-
-
-<style>
-* {
-  box-sizing: border-box;
-}
-html {
-  min-height: 100%;
-}
-body {
-  margin: 0;
-  background: #8f7a66;
-  min-height: 100%;
-}
-
-.bounding {
-  height: 1080px;
-  width:  1920px;
-}
-
-.img {
-  padding: 1rem;
-
-  background-image: url({{ talkClipart .Talk.Clipart }});
-  background-size: cover;
-  background-position: center;
-
-  mask-image: linear-gradient(to top, transparent 10%, black);
-}
-
-.logo {
-  width: 353px;
-  height: 100%;
-  object-fit: contain;
-  position: absolute;
-  right: 0;
-  bottom: 0;
-
-  background-image: url(/static/img/{{ .ConfTag }}/logo_1080p.png);
-  background-size: contain;
-  background-position: bottom;
-  background-repeat: no-repeat;
-}
-
-.captionbox {
-  position: absolute;
-  bottom: 64px;
-  left: 64px;
-  right: 64px;
-}
-
-.speaker {
-  font-size: 10rem;
-  line-height: 10rem;
-}
-
-.talk {
-  font-size: 4rem;
-  line-height: 4rem;
-  margin-right: 360px;
-}
-
-.social {
-  font-size: 2rem;
-}
-</style>
-  <!-- option 1 -->
-  <section class="bounding relative">
-    <div class="relative overflow-hidden bg-gray-900 shadow-xl bounding img"></div>
-    <div class="captionbox flex">
-      <figure class="flex-1">
-        <blockquote class="speaker text-lg font-semibold text-white sm:text-xl/8 mb-4">
-          <p>{{ .DisplayTitle }}</p>
-        </blockquote>
-        {{ if .Talk.Speakers }}
-        <div class="flex items-center gap-x-4">
-	  {{ $first := index .Talk.Speakers 0 }}
-	  {{ $solo := eq (len .Talk.Speakers) 1 }}
-	  {{ range .Talk.Speakers }}
-	    {{ if eq $first . }}
-	  <img src="{{ speakerPhoto .Photo }}" alt="" class="size-64 rounded-full object-cover bg-gray-100" />
-	      {{ if $solo }}
-          <div class="text-sm/6">
-            <p class="font-semibold text-white talk">
-               <span class="absolute inset-0"></span>
-                 {{ .Name }}
-            </p>
-	        {{ if .Company }}
-            <p class="text-white mt-4 text-4xl">{{ .Company }}</p>
-	        {{ end }}
-	        {{ if ne .TwitterHandle "" }}
-            <p class="text-white mt-4 text-4xl">@{{ .TwitterHandle }}</p>
-	        {{ end }}
-	      {{ end }}
-	    {{ else }}
-	      <img src="{{ speakerPhoto .Photo }}" alt="" style="margin-left: -4rem;" class="size-64 rounded-full object-cover bg-gray-100" />
-	    {{ end }}
-	  {{ end }}
+  <body>
+    <main class="bounding">
+      <div class="art"></div>
+      <div class="logo" role="img" aria-label="bitcoin++ {{ .ConfTag }}"></div>
+      {{ $solo := eq (len .Talk.Speakers) 1 }}
+      <section class="captionbox{{ if not .Talk.Speakers }} captionbox--no-speakers{{ else if $solo }} captionbox--solo{{ else }} captionbox--panel{{ end }}">
+        <div class="talk-copy">
+          <h1 class="talk-title">{{ .DisplayTitle }}</h1>
+          {{ if $solo }}{{ range .Talk.Speakers }}
+          <div class="speaker-details">
+            <p class="speaker-name">{{ .Name }}</p>
+            {{ if .Company }}<p class="speaker-meta">{{ .Company }}</p>{{ end }}
+            {{ if ne .TwitterHandle "" }}<p class="speaker-meta">@{{ .TwitterHandle }}</p>{{ end }}
           </div>
+          {{ end }}{{ end }}
+        </div>
+        {{ if .Talk.Speakers }}
+        <div class="speakers">
+          {{ range .Talk.Speakers }}
+          <figure class="speaker">
+            <img class="speaker-photo" src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" />
+            {{ if not $solo }}
+            <figcaption class="speaker-details">
+              <p class="speaker-name">{{ .Name }}</p>
+              {{ if ne .TwitterHandle "" }}<p class="speaker-meta">@{{ .TwitterHandle }}</p>{{ end }}
+            </figcaption>
+            {{ end }}
+          </figure>
+          {{ end }}
         </div>
         {{ end }}
-      </figure>
-      <div class="flex flex-col flex-initial justify-end">
-	<div class="flex-1"></div>
-	<div class="flex-initial logo"></div>
-      </div>
-    </div>
-  </section>
-</body>
+      </section>
+      <footer class="card-footer">
+        <div class="brand-lockup">
+          <div class="wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></div>
+          <div class="brand-tagline">Developing the <span class="brand-frontier">frontier</span> of bitcoin.</div>
+        </div>
+        <div class="site">btcpp.dev</div>
+      </footer>
+    </main>
+    <script>
+      function fitCardText() {
+        document.querySelectorAll('.talk-title, .speaker-name, .speaker-meta').forEach(function (element) {
+          element.style.fontSize = '';
+          var style = getComputedStyle(element);
+          var maxHeight = parseFloat(style.maxHeight);
+          var size = parseFloat(style.fontSize);
+          while (size > 24 && (element.scrollHeight > maxHeight || element.scrollWidth > element.clientWidth)) {
+            element.style.fontSize = (--size) + 'px';
+          }
+        });
+        document.querySelector('main').dataset.cardReady = 'true';
+      }
+      document.fonts.ready.then(fitCardText);
+    </script>
+  </body>
 </html>

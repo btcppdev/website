@@ -46,8 +46,23 @@ func TestCommunityPoolIntegration(t *testing.T) {
 		}
 	}
 	card := communitySocialCard(app, conf, pool)
-	if card.Value != "1250000" || card.Title != "Community prize" {
+	if card.Value != "1.25M" || card.Title != "Community prize" {
 		t.Fatalf("wrong community unfurl: %#v", card)
+	}
+	if len(card.Images) != 0 || !strings.Contains(card.HeroImage, "/static/img/berlin26/leading.") {
+		t.Fatalf("community card should use its event artwork: %#v", card)
+	}
+	if card.FundingGoal != "2M sats" || card.FundingPercent != 62 || card.Callout != "" {
+		t.Fatalf("community card funding progress: %#v", card)
+	}
+	cardHTML, err := imgproc.RenderSiteSocialCardHTML(card)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{`role="progressbar"`, `aria-valuenow="62"`, "62% funded", "2M sats goal", "width: 62%"} {
+		if !bytes.Contains(cardHTML, []byte(needle)) {
+			t.Fatalf("community card missing %q", needle)
+		}
 	}
 	if hackPage.SEOPath() != "/berlin26/hackathon?prize=community" {
 		t.Fatal("missing dedicated share URL")
@@ -58,7 +73,7 @@ func TestCommunityPoolIntegration(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/preview/community-card", func(w http.ResponseWriter, r *http.Request) {
 		preview := card
-		preview.Images = []string{"http://127.0.0.1:8104/static/img/rebrand/hackathon-trophy.jpg"}
+		preview.HeroImage = "http://127.0.0.1:8104" + confImagePath(conf.Tag, "leading")
 		b, err := imgproc.RenderSiteSocialCardHTML(preview)
 		if err != nil {
 			http.Error(w, err.Error(), 500)

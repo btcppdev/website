@@ -7,7 +7,7 @@ WORKDIR /app
 # This copied guard also invalidates the package layer when trust policy changes.
 COPY cmd/container-trust/main.go /tmp/container-trust.go
 RUN apk upgrade --no-cache \
-    && apk add --no-cache --upgrade make 'ca-certificates>=20261020-r0' 'ca-certificates-bundle>=20261020-r0' chromium ffmpeg \
+    && apk add --no-cache --upgrade make 'ca-certificates>=20261020-r0' 'ca-certificates-bundle>=20261020-r0' chromium ffmpeg font-noto-emoji \
     && GO111MODULE=off GOTOOLCHAIN=local go run /tmp/container-trust.go prune /usr/share/ca-certificates /usr/local/share/ca-certificates \
     && update-ca-certificates --fresh \
     && GO111MODULE=off GOTOOLCHAIN=local go run /tmp/container-trust.go verify /etc/ssl/certs

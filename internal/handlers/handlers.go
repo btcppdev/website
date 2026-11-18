@@ -5282,8 +5282,12 @@ func SponsorPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 func ContactPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	switch r.Method {
 	case http.MethodGet:
-		err := ctx.TemplateCache.ExecuteTemplate(w, "embeds/contact.tmpl", &struct{ Year uint }{
-			Year: helpers.CurrentYear(),
+		err := ctx.TemplateCache.ExecuteTemplate(w, "embeds/contact.tmpl", &struct {
+			Year          uint
+			SocialCardURL string
+		}{
+			Year:          helpers.CurrentYear(),
+			SocialCardURL: siteSocialCardPath("contact", "", contactSocialCard()),
 		})
 		if err != nil {
 			http.Error(w, "Unable to load page", http.StatusInternalServerError)

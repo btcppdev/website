@@ -322,7 +322,7 @@ func TestRenderHomeSiteSocialCardHTMLIncludesSharedFooter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
 	}
-	for _, want := range []string{"kind-home", "Ubuntu Brand", "wordmark__pluses", "Developing the", `<span class="home-serif">frontier</span>`, "of bitcoin.", "btcpp.dev", "card-footer", "card-sparkles", "✨", "home-card-map", "home-card-map__point is-upcoming", "left:24.00%;top:42.00%;", "2026 headline partners", "Headline Partner"} {
+	for _, want := range []string{"kind-home", "Ubuntu Brand", "wordmark__pluses", "Developing the", `<span class="brand-frontier">frontier</span>`, "of bitcoin.", "btcpp.dev", "card-footer", "card-sparkles", "✨", "home-card-map", "home-card-map__point is-upcoming", "left:24.00%;top:42.00%;", "2026 headline partners", "Headline Partner"} {
 		if !bytes.Contains(html, []byte(want)) {
 			t.Fatalf("rendered home card missing %q", want)
 		}
@@ -339,13 +339,13 @@ func TestRenderAwardSiteSocialCardHTML(t *testing.T) {
 		Kind: "award", Eyebrow: "Example Sponsor", Title: "Best Signet Infrastructure",
 		Subtitle: "Build reliable tools.", AccentColor: "#2563eb", TextColor: "#ffffff",
 		ValueLabel: "Prize value", Value: "1.75M", ValueSuffix: "sats",
-		Callout: "Local Dev · Austin, TX · Oct 1–3, 2026",
+		Callout: "Local Dev", EventEdition: "signet edition", Location: "Austin, TX · Oct 1–3, 2026",
 		Details: []string{"Hardware signing device"},
 	})
 	if err != nil {
 		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
 	}
-	for _, want := range []string{"kind-award", "award-event", "award-logo", "Local Dev", "Best Signet Infrastructure", `award-value__whole">1`, `award-value__decimal">.75`, `award-value__unit">M`, "Presented by", "Example Sponsor", "award-prize-details", "Hardware signing device", "--card-accent:#2563eb"} {
+	for _, want := range []string{"kind-award", "award-event", "award-logo", `class="award-event__title"`, `class="award-event__edition">signet edition</span>`, "Austin, TX · Oct 1–3, 2026", "Best Signet Infrastructure", `award-value__whole">1`, `award-value__decimal">.75`, `award-value__unit">M`, "Presented by", "Example Sponsor", "award-prize-details", "Hardware signing device", "--card-accent:#2563eb"} {
 		if !bytes.Contains(html, []byte(want)) {
 			t.Fatalf("rendered award card missing %q", want)
 		}
@@ -373,16 +373,17 @@ func TestSplitCompactSocialCardValue(t *testing.T) {
 	}
 }
 
-func TestRenderHackathonSiteSocialCardIncludesSponsorTicker(t *testing.T) {
+func TestRenderHackathonSiteSocialCardUsesPrizeLayout(t *testing.T) {
 	html, err := RenderSiteSocialCardHTML(SiteSocialCard{
-		Kind: "hackathon", Title: "Build something real.",
+		Kind: "hackathon", Title: "Build something real.", HeroImage: "/static/img/seoul/leading.png",
+		Location: "Seoul", EventEdition: "privacy edition", EventDate: "Seoul, South Korea · Nov 5–6, 2026", ValueLabel: "Total prize pool", Value: "9.14M", ValueSuffix: "sats",
 		SponsorLogos: []string{"/headline.svg", "/title.svg", "/hackathon.svg"},
 		SponsorNames: []string{"Headline Partner", "Title Partner", "Hackathon Partner"},
 	})
 	if err != nil {
 		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
 	}
-	for _, want := range []string{"social-card-sponsor-ticker", "social-card-sponsor-march", "grayscale(100%)", "Headline Partner", "Title Partner", "Hackathon Partner"} {
+	for _, want := range []string{"kind-hackathon hackathon-card has-event-art", `class="project-event-art"`, `class="award-event"`, "Seoul", `class="overview-sponsors"`, "Headline Partner", "Title Partner", "Hackathon Partner", `class="award-value"`, `class="award-value__whole">9`, `class="award-value__decimal">.14`, `class="award-value__unit">M`} {
 		if !bytes.Contains(html, []byte(want)) {
 			t.Fatalf("rendered hackathon card missing %q", want)
 		}
@@ -404,7 +405,7 @@ func TestPersonSiteSocialCardUsesAustereImageRail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
 	}
-	for _, want := range []string{".kind-person .images", "grid-template-columns: repeat(5", "object-fit: contain", ".kind-person .copy { inset: 395px", "fitPersonName", "name.scrollWidth <= name.clientWidth", "fitCurrentLayout() >= 125", "person-name-line", "X @mara_x", "person-social-handle", "@mara-gh"} {
+	for _, want := range []string{":is(.kind-person, .kind-whois) .images", "grid-template-columns: repeat(5", "object-fit: cover", ":is(.kind-person, .kind-whois) .copy { inset: 395px", "fitPersonName", "name.scrollWidth <= name.clientWidth", "fitCurrentLayout() >= 125", "person-name-line", "X @mara_x", "person-social-handle", "@mara-gh"} {
 		if !bytes.Contains(html, []byte(want)) {
 			t.Fatalf("rendered person card missing %q", want)
 		}
@@ -416,13 +417,18 @@ func TestPersonSiteSocialCardUsesAustereImageRail(t *testing.T) {
 	}
 }
 
-func TestWhoIsSiteSocialCardIncludesSparkleField(t *testing.T) {
+func TestWhoIsSiteSocialCardUsesProfileLayout(t *testing.T) {
 	html, err := RenderSiteSocialCardHTML(SiteSocialCard{Kind: "whois", Title: "The people building bitcoin."})
 	if err != nil {
 		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
 	}
-	if !bytes.Contains(html, []byte(`class="whois-sparkles"`)) {
-		t.Fatalf("rendered whois card is missing its sparkle field: %s", html)
+	for _, want := range []string{"The people building bitcoin.", ":is(.kind-person, .kind-whois) h1", ":is(.kind-person, .kind-whois) .images", "grid-template-columns: repeat(5", "card-footer"} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Errorf("rendered directory card missing %q", want)
+		}
+	}
+	if bytes.Contains(html, []byte(`class="whois-sparkles"`)) {
+		t.Error("rendered directory card still contains the old sparkle field")
 	}
 }
 
@@ -459,7 +465,7 @@ func TestRenderSocialCardHTML(t *testing.T) {
 	if !bytes.Contains(rendered, []byte(`url("/static/fonts/Ubuntu-BoldItalic.ttf")`)) {
 		t.Fatalf("rendered social card does not contain the brand font: %s", rendered)
 	}
-	for _, want := range []string{`>merch shop</div>`, `Wear the <em>frontier.</em>`, `<h1 class="social-card__title">Bitcoin Core Hat</h1>`, `social-card__price-star`, `Price $35`, `>$35</div>`, `Developing the frontier of bitcoin.`, `btcpp.dev`, `brand-lockup`, `card-sparkles`, `✨`} {
+	for _, want := range []string{`>merch shop</div>`, `Wear the <em>frontier.</em>`, `<h1 class="social-card__title">Bitcoin Core Hat</h1>`, `social-card__price-star`, `Price $35`, `>$35</div>`, `Developing the <span class="brand-frontier">frontier</span> of bitcoin.`, `btcpp.dev`, `brand-lockup`, `card-sparkles`, `✨`} {
 		if !bytes.Contains(rendered, []byte(want)) {
 			t.Fatalf("rendered social card does not contain %q: %s", want, rendered)
 		}

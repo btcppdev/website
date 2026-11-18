@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    {{ template "site_seo" (dict "Title" "API Documentation · bitcoin++" "Description" "Build apps and integrations with the bitcoin++ public API and OAuth authorization server." "Path" "/developers/api" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    {{ template "site_seo" (dict "Title" "API Documentation · bitcoin++" "Description" "Build apps and integrations with the bitcoin++ public API and OAuth authorization server." "Path" "/developers/api" "Image" .SocialCardURL "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
     {{ template "rebrand_header" . }}
     <link rel="icon" href="/favicon.ico">
     <script src="/static/js/api-docs.js" defer></script>

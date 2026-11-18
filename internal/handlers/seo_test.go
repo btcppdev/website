@@ -220,6 +220,7 @@ func TestSEOPublicProjectMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := &HackathonPage{Conf: &types.Conf{Tag: "seoul"}, Competition: &types.HackathonCompetition{Title: "Privacy hackathon"}, Project: &types.HackathonProject{ID: "project-id", Title: "Test project", ShortDescription: "Build private payments", Status: "submitted"}}
+	page.SocialCardURL = "/social-cards/project/seoul--project-id.jpg"
 	var body bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&body, "hackathon_project.tmpl", page); err != nil {
 		t.Fatal(err)

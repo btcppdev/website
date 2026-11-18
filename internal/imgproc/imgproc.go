@@ -38,6 +38,8 @@ func SocialCardID(data []byte, productName, productPrice string) string {
 	hash.Write([]byte{0})
 	hash.Write(socialCardBrandFont)
 	hash.Write([]byte{0})
+	hash.Write(socialCardFrontierFont)
+	hash.Write([]byte{0})
 	hash.Write([]byte(strings.TrimSpace(productName)))
 	hash.Write([]byte{0})
 	hash.Write([]byte(strings.TrimSpace(productPrice)))
@@ -63,8 +65,26 @@ var siteSocialCardTemplateSource string
 //go:embed ubuntu_bold_italic.ttf
 var socialCardBrandFont []byte
 
+//go:embed source_serif_4_italic.ttf
+var socialCardFrontierFont []byte
+
+var socialCardFrontierURL = template.URL("data:font/ttf;base64," + base64.StdEncoding.EncodeToString(socialCardFrontierFont))
+
 //go:embed permanent_marker.ttf
 var socialCardChalkFont []byte
+
+//go:embed ibm_plex_sans.ttf
+var socialCardPlexSansFont []byte
+
+//go:embed ibm_plex_mono_regular.ttf
+var socialCardPlexMonoFont []byte
+
+//go:embed ibm_plex_mono_bold.ttf
+var socialCardPlexMonoBoldFont []byte
+
+var socialCardPlexSansURL = template.URL("data:font/ttf;base64," + base64.StdEncoding.EncodeToString(socialCardPlexSansFont))
+var socialCardPlexMonoURL = template.URL("data:font/ttf;base64," + base64.StdEncoding.EncodeToString(socialCardPlexMonoFont))
+var socialCardPlexMonoBoldURL = template.URL("data:font/ttf;base64," + base64.StdEncoding.EncodeToString(socialCardPlexMonoBoldFont))
 
 var socialCardTemplate = template.Must(template.New("merch_social_card.html").Parse(socialCardTemplateSource))
 var siteSocialCardTemplate = template.Must(template.New("site_social_card.html").Parse(siteSocialCardTemplateSource))
@@ -76,6 +96,7 @@ type socialCardTemplateData struct {
 	ProductName     string
 	ProductPrice    string
 	BrandFontURL    template.URL
+	FrontierFontURL template.URL
 }
 
 type SiteSocialCardStat struct {
@@ -89,6 +110,11 @@ type SiteSocialCardMapPoint struct {
 	Upcoming bool
 }
 
+type SiteSocialCardMember struct {
+	Name  string
+	Photo string
+}
+
 // SiteSocialCard describes the shared large-image unfurl used by public site
 // landing pages. Images must be public HTTP(S) URLs or site-relative paths when
 // RenderSiteSocialCardHTML is used for an in-browser preview.
@@ -99,12 +125,16 @@ type SiteSocialCard struct {
 	TitleSuffix    string
 	Subtitle       string
 	Location       string
+	EventEdition   string
+	EventDate      string
 	Footer         string
 	AccentColor    string
 	TextColor      string
 	ValueLabel     string
 	Value          string
 	ValueSuffix    string
+	FundingGoal    string
+	FundingPercent int64
 	Callout        string
 	HeroImage      string
 	SponsorLabel   string
@@ -114,8 +144,10 @@ type SiteSocialCard struct {
 	PoweredByNames []string
 	Images         []string
 	ImageLabels    []string
+	Team           []SiteSocialCardMember
 	Details        []string
 	Badges         []string
+	AwardRibbon    int // 1–3 for podium placement; 4 for an honorable mention.
 	Stats          []SiteSocialCardStat
 	MapImage       string
 	MapPoints      []SiteSocialCardMapPoint
@@ -134,20 +166,32 @@ type siteSocialCardTemplateMapPoint struct {
 	Upcoming bool
 }
 
+type siteSocialCardTemplateMember struct {
+	Name     string
+	Photo    template.URL
+	Initials string
+}
+
 type siteSocialCardTemplateData struct {
 	SiteSocialCard
-	BrandFontURL      template.URL
-	ChalkFontURL      template.URL
-	CardHeroImage     template.URL
-	CardSponsors      []siteSocialCardTemplateImage
-	CardPoweredBy     []siteSocialCardTemplateImage
-	CardImages        []siteSocialCardTemplateImage
-	CardMapImage      template.URL
-	CardMapPoints     []siteSocialCardTemplateMapPoint
-	CardStyle         template.CSS
-	AwardValueWhole   string
-	AwardValueDecimal string
-	AwardValueUnit    string
+	BrandFontURL           template.URL
+	FrontierFontURL        template.URL
+	ChalkFontURL           template.URL
+	ProjectSansFontURL     template.URL
+	ProjectMonoFontURL     template.URL
+	ProjectMonoBoldFontURL template.URL
+	CardHeroImage          template.URL
+	CardSponsors           []siteSocialCardTemplateImage
+	CardPoweredBy          []siteSocialCardTemplateImage
+	CardImages             []siteSocialCardTemplateImage
+	CardTeam               []siteSocialCardTemplateMember
+	TeamOverflow           int
+	CardMapImage           template.URL
+	CardMapPoints          []siteSocialCardTemplateMapPoint
+	CardStyle              template.CSS
+	AwardValueWhole        string
+	AwardValueDecimal      string
+	AwardValueUnit         string
 }
 
 // SiteSocialCardID fingerprints the editable template, logo, and public page
@@ -159,7 +203,19 @@ func SiteSocialCardID(card SiteSocialCard) string {
 	hash.Write([]byte{0})
 	hash.Write(socialCardBrandFont)
 	hash.Write([]byte{0})
+	hash.Write(socialCardFrontierFont)
+	hash.Write([]byte{0})
 	hash.Write(socialCardChalkFont)
+	if card.Kind == "conference" {
+		hash.Write([]byte{0})
+		hash.Write(socialCardPlexSansFont)
+	}
+	if card.Kind == "project" || card.Kind == "award-winner" || card.Kind == "contact" || card.Kind == "api" {
+		for _, font := range [][]byte{socialCardPlexSansFont, socialCardPlexMonoFont, socialCardPlexMonoBoldFont} {
+			hash.Write([]byte{0})
+			hash.Write(font)
+		}
+	}
 	cardJSON, err := json.Marshal(card)
 	if err != nil {
 		panic(fmt.Sprintf("fingerprint site social card: %s", err))
@@ -170,6 +226,25 @@ func SiteSocialCardID(card SiteSocialCard) string {
 }
 
 func renderSiteSocialCardHTML(card SiteSocialCard, brandFontURL, chalkFontURL template.URL) ([]byte, error) {
+	var projectSans, projectMono, projectMonoBold template.URL
+	if card.Kind == "project" || card.Kind == "award-winner" || card.Kind == "contact" || card.Kind == "api" {
+		projectSans, projectMono, projectMonoBold = socialCardPlexSansURL, socialCardPlexMonoURL, socialCardPlexMonoBoldURL
+	}
+	if card.Kind == "conference" {
+		projectSans = socialCardPlexSansURL
+	}
+	team := make([]siteSocialCardTemplateMember, 0, min(6, len(card.Team)))
+	for _, member := range card.Team[:min(6, len(card.Team))] {
+		words := strings.Fields(member.Name)
+		initials := "+"
+		if len(words) > 0 {
+			initials = string([]rune(words[0])[0])
+			if len(words) > 1 {
+				initials += string([]rune(words[len(words)-1])[0])
+			}
+		}
+		team = append(team, siteSocialCardTemplateMember{Name: member.Name, Photo: template.URL(member.Photo), Initials: strings.ToUpper(initials)})
+	}
 	images := make([]siteSocialCardTemplateImage, 0, len(card.Images))
 	for index, raw := range card.Images {
 		if strings.TrimSpace(raw) != "" {
@@ -211,24 +286,31 @@ func renderSiteSocialCardHTML(card SiteSocialCard, brandFontURL, chalkFontURL te
 			Upcoming: point.Upcoming,
 		})
 	}
+	card.FundingPercent = max(0, min(100, card.FundingPercent))
 	var rendered bytes.Buffer
 	accent := socialCardColor(card.AccentColor, "#0a0a0a")
 	ink := socialCardColor(card.TextColor, "#f6f1e8")
 	awardValueWhole, awardValueDecimal, awardValueUnit := splitCompactSocialCardValue(card.Value)
 	if err := siteSocialCardTemplate.Execute(&rendered, siteSocialCardTemplateData{
-		SiteSocialCard:    card,
-		BrandFontURL:      brandFontURL,
-		ChalkFontURL:      chalkFontURL,
-		CardHeroImage:     template.URL(card.HeroImage),
-		CardSponsors:      sponsors,
-		CardPoweredBy:     poweredBy,
-		CardImages:        images,
-		CardMapImage:      template.URL(card.MapImage),
-		CardMapPoints:     mapPoints,
-		CardStyle:         template.CSS("--card-accent:" + accent + ";--card-ink:" + ink + ";"),
-		AwardValueWhole:   awardValueWhole,
-		AwardValueDecimal: awardValueDecimal,
-		AwardValueUnit:    awardValueUnit,
+		SiteSocialCard:         card,
+		BrandFontURL:           brandFontURL,
+		FrontierFontURL:        socialCardFrontierURL,
+		ChalkFontURL:           chalkFontURL,
+		ProjectSansFontURL:     projectSans,
+		ProjectMonoFontURL:     projectMono,
+		ProjectMonoBoldFontURL: projectMonoBold,
+		CardHeroImage:          template.URL(card.HeroImage),
+		CardSponsors:           sponsors,
+		CardPoweredBy:          poweredBy,
+		CardImages:             images,
+		CardTeam:               team,
+		TeamOverflow:           max(0, len(card.Team)-len(team)),
+		CardMapImage:           template.URL(card.MapImage),
+		CardMapPoints:          mapPoints,
+		CardStyle:              template.CSS("--card-accent:" + accent + ";--card-ink:" + ink + ";"),
+		AwardValueWhole:        awardValueWhole,
+		AwardValueDecimal:      awardValueDecimal,
+		AwardValueUnit:         awardValueUnit,
 	}); err != nil {
 		return nil, fmt.Errorf("render site social card template: %w", err)
 	}
@@ -284,6 +366,7 @@ func renderSocialCardHTML(productImageURL template.URL, productName, productPric
 		ProductName:     strings.TrimSpace(productName),
 		ProductPrice:    strings.TrimSpace(productPrice),
 		BrandFontURL:    brandFontURL,
+		FrontierFontURL: socialCardFrontierURL,
 	}); err != nil {
 		return nil, fmt.Errorf("render social card template: %w", err)
 	}

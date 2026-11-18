@@ -3027,6 +3027,9 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 		FlashError:                  r.URL.Query().Get("error"),
 		Year:                        helpers.CurrentYear(),
 	}
+	if !isProjectEditor && publicHackathonCardProject(page, project) {
+		page.SocialCardURL = siteSocialCardPath("project", conf.Tag+"--"+project.ID, projectSocialCard(ctx, page, project))
+	}
 	configureHackathonNavigation(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s template: %s", competition.ID, project.ID, err)

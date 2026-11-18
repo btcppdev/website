@@ -139,6 +139,14 @@ Conference and hackathon cards use the accent color configured on the event.
 New events default to the bitcoin++ orange (`#f9af5e`). Global administrators
 can change the color from the event-details page without deploying new code.
 
+After a talk/speaker layout release, run `./target/refresh-social-cards
+-all-published` in the production console to review the scope, then repeat with
+`-apply` to refresh changed stored images, including archived events. Use
+`-conf seoul` to limit the operation to one published conference. Wait for the
+server's startup media refresh to finish before running this command. It uses
+the existing content hashes, can be rerun after errors, and does not publish
+social posts or modify YouTube thumbnails.
+
 
 ## To build
 

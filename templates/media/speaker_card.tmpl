@@ -1,0 +1,107 @@
+{{ $speaker := .Speaker }}
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      @font-face { font-family: "Ubuntu Brand"; src: url("/static/fonts/Ubuntu-BoldItalic.ttf") format("truetype"); font-style: italic; font-weight: 700; }
+      @font-face { font-family: "Source Serif 4"; src: url("/static/fonts/SourceSerif4-Italic.ttf") format("truetype"); font-style: italic; font-weight: 400; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: Arial, Helvetica, sans-serif; }
+      .bounding { position: relative; width: 1920px; height: 1080px; overflow: hidden; border-top: 16px solid #ffae58; border-left: 16px solid #ffae58; background: #111413; color: #fff; }
+      .art { position: absolute; inset: 0; background-image: linear-gradient(90deg, rgba(17,20,19,.94), rgba(17,20,19,.44)), linear-gradient(0deg, #111413 0%, transparent 55%), url({{ talkClipart $speaker.TalkImg }}); background-size: cover; background-position: center; }
+      .bounding::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px); background-size: 64px 64px; }
+      .logo { position: absolute; z-index: 1; top: 8px; right: 64px; width: 353px; height: 265px; background-image: url(/static/img/{{ $speaker.ConfTag }}/logo_1080p.png); background-size: contain; background-position: top right; background-repeat: no-repeat; }
+      .content { position: absolute; z-index: 1; top: 280px; right: 64px; bottom: 150px; left: 64px; display: grid; grid-template-columns: minmax(0, 1fr) 620px; gap: 80px; align-items: center; }
+      .speaker-copy { min-width: 0; }
+      .speaker-name { max-height: 340px; margin: 0; padding-bottom: .12em; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 112px; font-weight: 900; letter-spacing: -.055em; line-height: 1.02; text-wrap: balance; }
+      .speaker-details { margin-top: 42px; padding-top: 28px; border-top: 3px solid #ffae58; }
+      .speaker-company { max-height: 116px; margin: 0; font-size: 52px; font-weight: 700; letter-spacing: -.025em; line-height: 1.1; overflow-wrap: anywhere; }
+      .speaker-handle { max-height: 72px; margin: 12px 0 0; color: #dedfda; font-size: 30px; line-height: 1.2; overflow-wrap: anywhere; }
+      .speaker-handle:first-child { margin-top: 0; }
+      .speaker-photo { display: block; width: 100%; height: auto; aspect-ratio: 1; border: 3px solid rgba(255,255,255,.32); border-radius: 50%; object-fit: cover; background: #202624; }
+      .no-portrait .speaker-copy { max-width: 1500px; }
+      .card-footer { position: absolute; z-index: 1; right: 64px; bottom: 43px; left: 64px; display: flex; align-items: baseline; justify-content: space-between; color: #fff; }
+      .brand-lockup { display: flex; align-items: baseline; gap: 24px; }
+      .wordmark { display: block; font-family: "Ubuntu Brand", sans-serif; font-size: 54px; font-style: italic; font-weight: 700; letter-spacing: -.035em; line-height: 1; white-space: nowrap; }
+      .wordmark__pluses { display: inline-flex; align-items: baseline; letter-spacing: 0; }
+      .wordmark__pluses span + span { margin-left: -.16em; }
+      .brand-tagline { padding-left: 24px; border-left: 3px solid currentColor; font-size: 24px; font-weight: 800; letter-spacing: -.01em; line-height: 1; white-space: nowrap; }
+      .brand-frontier { font-family: "Source Serif 4", Georgia, serif; font-style: italic; font-weight: 400; }
+      .site { font-size: 32px; font-weight: 900; letter-spacing: .02em; }
+      .format-insta { width: 1080px; height: 1080px; border-width: 14px; }
+      .format-insta .logo { top: 12px; right: 56px; width: 290px; height: 218px; }
+      .format-insta .content { top: 225px; right: 56px; bottom: 150px; left: 56px; grid-template-columns: minmax(0, 1fr) 440px; gap: 32px; }
+      .format-insta .speaker-name { max-height: 320px; font-size: 88px; }
+      .format-insta .speaker-details { margin-top: 30px; padding-top: 24px; }
+      .format-insta .speaker-company { max-height: 110px; font-size: 34px; }
+      .format-insta .speaker-handle { max-height: 68px; font-size: 28px; }
+      .format-insta .card-footer { right: 56px; bottom: 38px; left: 56px; }
+      .format-insta .brand-lockup { gap: 18px; }
+      .format-insta .wordmark { font-size: 40px; }
+      .format-insta .brand-tagline { padding-left: 18px; border-width: 2px; font-size: 18px; }
+      .format-insta .site { font-size: 26px; }
+      .format-social { width: 600px; height: 314px; border-width: 5px; }
+      .format-social::after { background-size: 20px 20px; }
+      .format-social .logo { top: 0; right: 20px; width: 110px; height: 83px; }
+      .format-social .content { top: 75px; right: 20px; bottom: 44px; left: 20px; grid-template-columns: minmax(0, 1fr) 184px; gap: 24px; }
+      .format-social .speaker-name { max-height: 96px; font-size: 40px; }
+      .format-social .speaker-details { margin-top: 12px; padding-top: 10px; border-width: 1px; }
+      .format-social .speaker-company { max-height: 36px; font-size: 16px; }
+      .format-social .speaker-handle { max-height: 34px; margin-top: 6px; font-size: 14px; }
+      .format-social .speaker-handle:first-child { margin-top: 0; }
+      .format-social .speaker-photo { border-width: 1px; }
+      .format-social .card-footer { right: 20px; bottom: 12px; left: 20px; }
+      .format-social .brand-lockup { gap: 8px; }
+      .format-social .wordmark { font-size: 20px; }
+      .format-social .brand-tagline { padding-left: 8px; border-width: 1px; font-size: 9px; }
+      .format-social .site { font-size: 13px; }
+      .bounding.no-portrait .content { grid-template-columns: 1fr; }
+    </style>
+  </head>
+  <body>
+    <main class="bounding format-{{ .Format }}{{ if not $speaker.Photo }} no-portrait{{ end }}" data-card-ready="false">
+      <div class="art"></div>
+      <div class="logo" role="img" aria-label="bitcoin++ {{ $speaker.ConfTag }}"></div>
+      <section class="content">
+        <div class="speaker-copy">
+          <h1 class="speaker-name">{{ $speaker.Name }}</h1>
+          {{ if or $speaker.Company $speaker.Twitter }}<div class="speaker-details">
+            {{ if $speaker.Company }}<p class="speaker-company">{{ $speaker.Company }}</p>{{ end }}
+            {{ if $speaker.Twitter }}<p class="speaker-handle">@{{ $speaker.Twitter }}</p>{{ end }}
+          </div>{{ end }}
+        </div>
+        {{ if $speaker.Photo }}<img class="speaker-photo" src="{{ speakerPhoto $speaker.Photo }}" alt="{{ $speaker.Name }}">{{ end }}
+      </section>
+      <footer class="card-footer">
+        <div class="brand-lockup">
+          <div class="wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></div>
+          <div class="brand-tagline">Developing the <span class="brand-frontier">frontier</span> of bitcoin.</div>
+        </div>
+        <div class="site">btcpp.dev</div>
+      </footer>
+    </main>
+    <script>
+      function fitSpeakerCard() {
+        var photo = document.querySelector('.speaker-photo');
+        if (photo && photo.complete && !photo.naturalWidth) {
+          photo.remove();
+          document.querySelector('main').classList.add('no-portrait');
+        }
+        document.querySelectorAll('.speaker-name, .speaker-company, .speaker-handle').forEach(function (element) {
+          element.style.fontSize = '';
+          var style = getComputedStyle(element);
+          var maxHeight = parseFloat(style.maxHeight);
+          var size = parseFloat(style.fontSize);
+          while (size > 10 && (element.scrollHeight > maxHeight || element.scrollWidth > element.clientWidth)) {
+            element.style.fontSize = (--size) + 'px';
+          }
+        });
+        document.querySelector('main').dataset.cardReady = 'true';
+      }
+      document.fonts.ready.then(fitSpeakerCard);
+      window.addEventListener('load', fitSpeakerCard);
+    </script>
+  </body>
+</html>

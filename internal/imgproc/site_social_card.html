@@ -5,6 +5,15 @@
   <style>
     @font-face { font-family: "Ubuntu Brand"; src: url("{{ .BrandFontURL }}") format("truetype"); font-style: italic; font-weight: 700; }
     @font-face { font-family: "Permanent Marker"; src: url("{{ .ChalkFontURL }}") format("truetype"); font-style: normal; font-weight: 400; }
+    {{ if .ProjectSansFontURL }}
+    @font-face { font-family: "IBM Plex Sans"; src: url("{{ .ProjectSansFontURL }}") format("truetype"); font-style: normal; font-weight: 100 700; font-stretch: 75% 100%; }
+    {{ end }}
+    {{ if .ProjectMonoFontURL }}
+    @font-face { font-family: "IBM Plex Mono"; src: url("{{ .ProjectMonoFontURL }}") format("truetype"); font-style: normal; font-weight: 400; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("{{ .ProjectMonoBoldFontURL }}") format("truetype"); font-style: normal; font-weight: 700; }
+    {{ end }}
+    @font-face { font-family: "Source Serif 4"; src: url("{{ .FrontierFontURL }}") format("truetype"); font-style: italic; font-weight: 400; }
+    .brand-frontier { font-family: "Source Serif 4", Georgia, serif; font-style: italic; font-weight: 400; }
     * { box-sizing: border-box; }
     html, body { width: 1200px; height: 630px; margin: 0; overflow: hidden; }
     body { background: #f6f3ee; font-family: Arial, Helvetica, sans-serif; }
@@ -56,12 +65,11 @@
     @keyframes social-card-sponsor-march { from { transform: translateX(0); } to { transform: translateX(-16.6667%); } }
 
     .kind-home { border-top: 0; color: #0a0a0a; }
-    .home-map-backdrop { position: absolute; top: -36px; right: 0; bottom: -36px; left: 0; z-index: 1; overflow: hidden; background: #ded8ce; }
-    .home-map-backdrop > img { display: block; width: 100%; height: 100%; opacity: .18; object-fit: fill; }
-    .home-map-backdrop::after { content: ""; position: absolute; inset: 0; background: rgba(246,243,238,.12); }
+    .home-map-backdrop { position: absolute; top: -36px; right: 0; bottom: -36px; left: 0; z-index: 1; overflow: hidden; mask-image: linear-gradient(#000 calc(100% - 156px), transparent calc(100% - 114px)); }
+    .home-map-backdrop > img, .conference-map-backdrop > img { display: block; width: 100%; height: 100%; opacity: .22; object-fit: contain; object-position: left center; }
     .home-card-map__points { position: absolute; inset: 0; z-index: 3; }
-    .home-card-map__point, .home-card-map__point.is-upcoming { position: absolute; width: 15px; height: 15px; border: 3px solid #f6f3ee; border-radius: 50%; background: #f9af5e; box-shadow: 0 0 0 2px #0a0a0a, 0 4px 10px rgba(10,10,10,.35); transform: translate(-50%, -50%); }
-    .kind-home .visual { inset: 0; z-index: 2; width: 100%; height: 100%; padding: 0; }
+    .home-card-map__point, .conference-map-backdrop__point { position: absolute; width: 17px; height: 17px; border: 3px solid #f6f3ee; border-radius: 50%; background: var(--card-accent); box-shadow: 0 0 0 2px #0a0a0a; transform: translate(-50%, -50%); }
+    .kind-home .visual { inset: 0; z-index: 2; width: 100%; height: 100%; padding: 0; clip-path: inset(0 0 78px); }
     .kind-home .images { position: relative; display: block; transform: none; }
     .kind-home .image { position: absolute; border-width: 4px; opacity: .96; transform-origin: center; }
     .kind-home .image:nth-child(1) { top: 138px; left: -28px; width: 244px; height: 154px; transform: rotate(-5deg); }
@@ -73,23 +81,16 @@
     .kind-home .image__label { position: absolute; right: 7px; bottom: 7px; max-width: calc(100% - 14px); padding: 4px 7px; overflow: hidden; background: rgba(10,10,10,.88); color: #fff; font-size: 10px; font-weight: 900; letter-spacing: .055em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
     .kind-home .copy { inset: 0; z-index: 3; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 0; background: transparent; box-shadow: none; }
     .kind-home .copy > .eyebrow { display: none; }
-    .kind-home .social-card-sponsor-ticker { top: 0; right: 0; left: 0; z-index: 6; height: 112px; border: 0; border-bottom: 5px solid #f9af5e; background: rgba(246,243,238,.97); box-shadow: 0 8px 24px rgba(10,10,10,.18); }
-    .kind-home .social-card-sponsor-ticker::after { background: linear-gradient(90deg, rgba(246,243,238,.85), transparent 18%, transparent 88%, rgba(246,243,238,.72)); }
-    .kind-home .social-card-sponsor-ticker__label { top: 0; bottom: 0; left: 0; display: flex; width: 190px; align-items: center; padding: 0 20px; line-height: 1.35; }
-    .kind-home .social-card-sponsor-ticker__track { padding-left: 190px; }
-    .kind-home .social-card-sponsor-ticker__item { width: 238px; height: 107px; padding: 17px 27px; }
-    .kind-home .social-card-sponsor-ticker__item img { filter: grayscale(100%) brightness(0); opacity: .88; }
+    .kind-home .social-card-sponsor-ticker { top: 0; right: 0; left: 0; z-index: 1; height: 120px; }
+    .kind-home .social-card-sponsor-ticker::after { display: none; }
+    .kind-home .social-card-sponsor-ticker__label, .kind-conference .social-card-sponsor-ticker__label { display: none; }
+    .kind-home .social-card-sponsor-ticker__item { width: 220px; height: 106px; }
+    .kind-home .social-card-sponsor-ticker__item img { opacity: .5; }
     .home-brand-panel { position: relative; width: 100%; height: 100%; }
     .home-wordmark { position: absolute; top: 50%; left: 50%; z-index: 1; display: inline-flex; width: max-content; align-items: baseline; color: #0a0a0a; font-family: "Ubuntu Brand", sans-serif; font-size: 207px; font-style: italic; font-weight: 700; letter-spacing: -.045em; line-height: .82; text-align: center; white-space: nowrap; transform: translate(-50%, -50%); -webkit-text-fill-color: #0a0a0a; -webkit-text-stroke: 0; }
-    .home-slogan { position: absolute; top: calc(50% + 105px); left: 50%; z-index: 1; width: max-content; margin: 0; padding: 9px 15px 10px; background: rgba(10,10,10,.92); color: #fff; font-size: 23px; font-weight: 800; letter-spacing: -.012em; line-height: 1; text-align: center; transform: translateX(-50%); }
-    .home-slogan .home-serif { font-family: "Source Serif 4", Georgia, "Times New Roman", serif; font-size: 1.12em; font-style: italic; font-weight: 400; }
-    .home-upcoming { position: absolute; right: 0; bottom: 0; left: 0; z-index: 1; display: flex; height: 70px; align-items: center; gap: 13px; padding: 0 165px 0 22px; background: #0a0a0a; color: #fff; }
-    .home-upcoming span { flex: none; padding: 7px 8px 6px; background: var(--card-accent); color: var(--card-ink); font-size: 11px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
-    .home-upcoming strong { max-width: 500px; overflow: hidden; font-size: 18px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
-    .home-upcoming b { overflow: hidden; color: #d7d2ca; font-size: 13px; letter-spacing: .02em; text-overflow: ellipsis; white-space: nowrap; }
-    .home-upcoming b::before { content: "·"; margin-right: 13px; color: var(--card-accent); }
-    .kind-home .card-footer .brand-lockup { visibility: hidden; }
-    .kind-home .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
+    .home-slogan { position: absolute; top: calc(50% + 93px); left: 50%; z-index: 1; width: max-content; margin: 0; padding: 9px 15px 10px; background: rgba(10,10,10,.92); color: #fff; font-size: 23px; font-weight: 800; letter-spacing: -.012em; line-height: 1; text-align: center; transform: translateX(-50%); }
+    .home-slogan .brand-frontier { font-size: 1.12em; }
+
 
     .kind-events .visual { inset: 0 0 auto; width: 100%; height: 472px; padding: 14px 0 24px; }
     .kind-events .images, .kind-events .images.count-1, .kind-events .images.count-2, .kind-events .images.count-3, .kind-events .images.count-4, .kind-events .images.count-5, .kind-events .images.count-6, .kind-events .images.count-7, .kind-events .images.count-8 { position: relative; display: block; transform: none; }
@@ -105,7 +106,8 @@
     .kind-events .image__label { position: absolute; right: 7px; bottom: 7px; max-width: calc(100% - 14px); padding: 4px 7px; overflow: hidden; background: rgba(10,10,10,.88); color: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 10px; font-weight: 900; letter-spacing: .055em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
     .kind-events .copy { padding: 0; }
     .kind-events .eyebrow { position: absolute; bottom: 185px; left: 58px; padding: 12px 16px; background: #0a0a0a; color: #fff; font-size: 26px; letter-spacing: .1em; }
-    .kind-events .subtitle { position: absolute; bottom: 76px; left: 58px; width: 820px; max-width: none; margin: 0; padding: 13px 16px 14px; background: rgba(10,10,10,.92); color: #fff; font-size: 30px; font-weight: 700; line-height: 1.12; opacity: 1; }
+    .kind-events .subtitle { margin: 0; padding: 13px 16px 14px; background: rgba(10,10,10,.92); color: #fff; font-size: 30px; font-weight: 700; line-height: 1.12; opacity: 1; }
+    .kind-events .subtitle { position: absolute; bottom: 76px; left: 58px; width: 820px; max-width: none; }
 
     .kind-conference { color: #0a0a0a; }
     .kind-conference .visual { inset: 0 auto 0 0; z-index: 2; width: 430px; height: 100%; padding: 0; }
@@ -119,19 +121,17 @@
     .kind-conference .copy { inset: 0; z-index: 1; padding: 0; }
     .kind-conference .copy > .eyebrow { display: none; }
     .conference-map-backdrop { position: absolute; top: -64px; right: -74px; width: 1010px; height: 585px; }
-    .conference-map-backdrop > img { display: block; width: 100%; height: 100%; opacity: .22; object-fit: contain; object-position: left center; }
     .conference-map-backdrop__points { position: absolute; inset: 0 0 0 10px; }
-    .conference-map-backdrop__point { position: absolute; width: 17px; height: 17px; border: 3px solid #f6f3ee; border-radius: 50%; background: var(--card-accent); box-shadow: 0 0 0 2px #0a0a0a; transform: translate(-50%, -50%); }
     .conference-date { position: absolute; top: 44px; right: 50px; padding: 10px 13px 9px; border: 2px solid #0a0a0a; background: var(--card-accent); color: var(--card-ink); font-size: 15px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
     .conference-ticket { position: absolute; top: 135px; right: 50px; z-index: 3; display: flex; width: 330px; min-height: 142px; flex-direction: column; justify-content: center; padding: 24px 22px 20px; border-left: 8px solid var(--card-accent); background: #0a0a0a; color: #fff; box-shadow: 8px 8px 0 rgba(10,10,10,.16); }
     .conference-ticket > span { font-size: 11px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
     .conference-ticket strong { display: block; margin-top: 5px; color: var(--card-accent); font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 76px; font-weight: 900; letter-spacing: -.07em; line-height: .82; }
     .conference-ticket small { display: block; margin-top: 13px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.35); font-size: 11px; font-weight: 900; letter-spacing: .07em; line-height: 1.1; text-transform: uppercase; }
     .conference-title-block { position: absolute; right: 50px; bottom: 83px; left: 430px; padding: 21px 24px 22px; border-left: 9px solid var(--card-accent); background: rgba(246,243,238,.94); }
-    .conference-title-block h1 { position: static; max-width: none; margin: 0; color: #0a0a0a; font-family: Arial, Helvetica, sans-serif; font-size: 66px; font-weight: 400; letter-spacing: -.052em; line-height: .9; }
+    .conference-title-block h1 { position: static; max-width: none; margin: 0; color: #0a0a0a; font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 62px; font-weight: 600; letter-spacing: -.025em; line-height: 1.02; }
     .conference-title-block h1 span { display: block; }
-    .conference-title-block h1 .conference-title__lead { font-style: normal; }
-    .conference-title-block h1 .conference-title__suffix { font-style: italic; }
+    .conference-title-block h1 .conference-title__lead { font-family: "Arial Black", Arial, Helvetica, sans-serif; font-style: normal; font-weight: 900; letter-spacing: -.067em; }
+    .conference-title-block h1 .conference-title__suffix { font-style: normal; font-weight: 400; }
     .conference-title-block p { margin: 12px 0 0; color: #0a0a0a; font-size: 20px; font-weight: 900; line-height: 1.1; opacity: 1; }
     .kind-conference .card-footer { left: 430px; }
     .kind-conference .card-footer .brand-lockup { padding: 7px 11px 6px; background: rgba(246,243,238,.94); }
@@ -145,24 +145,6 @@
     .conference-powered-by > span { font-size: 7px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
     .conference-powered-by img { display: block; width: auto; max-width: 108px; height: 19px; object-fit: contain; filter: grayscale(100%) contrast(1.1); }
 
-    .kind-hackathon .visual { inset: 8px auto auto 8px; width: 55%; height: 570px; padding: 0; }
-    .kind-hackathon .images { display: block; transform: none; }
-    .kind-hackathon .image { width: 100%; height: 100%; border: 0; box-shadow: none; transform: none; }
-    .kind-hackathon .image img { object-position: center; }
-    .kind-hackathon .copy { padding-top: 38px; }
-    .kind-hackathon .eyebrow { position: absolute; top: 230px; left: 145px; z-index: 5; max-width: none; padding: 0; background: transparent; color: #f6f3ee; font-family: "Permanent Marker", sans-serif; font-size: 72px; font-style: normal; font-weight: 400; letter-spacing: -.025em; line-height: 1; text-shadow: 1px 0 0 rgba(246,243,238,.28), -1px 1px 0 rgba(246,243,238,.18), 4px 4px 0 rgba(10,10,10,.68); text-transform: uppercase; transform: rotate(-30deg); transform-origin: left center; }
-    .kind-hackathon .eyebrow::after { display: none; }
-    .kind-hackathon h1 { position: absolute; right: 50px; bottom: 274px; left: 676px; width: auto; margin: 0; color: #0a0a0a; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 58px; font-style: normal; font-weight: 900; letter-spacing: -.062em; line-height: .88; text-wrap: balance; }
-    .kind-hackathon .subtitle { position: absolute; right: 50px; bottom: 390px; left: 676px; max-width: none; margin: 0; padding-bottom: 7px; border-bottom: 3px solid var(--card-accent); color: #0a0a0a; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-style: normal; font-weight: 900; letter-spacing: .02em; line-height: 1.15; opacity: 1; text-transform: uppercase; white-space: nowrap; }
-    .hackathon-value { position: absolute; right: 50px; bottom: 107px; display: flex; width: 462px; height: 140px; gap: 13px; align-items: flex-end; padding: 38px 18px 17px; border-left: 8px solid var(--card-accent); background: #0a0a0a; color: #fff; box-shadow: 7px 7px 0 rgba(10,10,10,.16); }
-    .hackathon-value::before { content: "TOTAL PRIZE POOL"; position: absolute; top: 13px; left: 18px; padding-bottom: 5px; border-bottom: 3px solid var(--card-accent); color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .15em; }
-    .hackathon-value::after { content: "✦"; position: absolute; top: 7px; right: 13px; color: var(--card-accent); font-size: 78px; line-height: 1; opacity: .82; transform: rotate(12deg); }
-    .hackathon-value > span { position: relative; z-index: 1; padding-bottom: 7px; color: #fff; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-    .hackathon-value strong { position: relative; z-index: 1; color: #fff; font-size: 80px; font-weight: 900; letter-spacing: -.075em; line-height: .72; }
-    .hackathon-value small { margin-left: 7px; color: #fff; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
-    .hackathon-challenge { position: absolute; right: 50px; bottom: 78px; display: flex; width: 462px; justify-content: flex-end; }
-    .hackathon-challenge b { padding: 12px 16px 11px; border: 2px solid #0a0a0a; background: var(--card-accent); color: var(--card-ink); box-shadow: 5px 5px 0 #0a0a0a; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 900; letter-spacing: .075em; line-height: 1; text-transform: uppercase; white-space: nowrap; }
-    .kind-hackathon .card-footer .brand-lockup, .kind-hackathon .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
 
     .kind-shop .visual { inset: 50px 0 auto; width: 100%; height: 405px; padding: 22px 24px 42px; }
     .kind-shop .images { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: 1fr; gap: 10px; transform: none; }
@@ -177,103 +159,119 @@
     .kind-shop .image img { object-fit: contain; padding: 7px; }
     .kind-shop .image__label { position: absolute; right: 10px; bottom: 9px; z-index: 2; display: grid; width: 86px; height: 86px; max-width: none; padding: 17px; place-items: center; overflow: visible; background: var(--card-accent); clip-path: polygon(50% 0%, 60% 28%, 85% 15%, 72% 40%, 100% 50%, 72% 60%, 85% 85%, 60% 72%, 50% 100%, 40% 72%, 15% 85%, 28% 60%, 0% 50%, 28% 40%, 15% 15%, 40% 28%); color: #0a0a0a; font-size: 18px; font-weight: 900; letter-spacing: -.04em; line-height: 1; text-align: center; text-transform: none; white-space: nowrap; }
     .kind-shop .subtitle { display: none; }
-    .kind-shop .eyebrow { background: var(--card-accent); color: #0a0a0a; }
+    .kind-shop .eyebrow { position: absolute; top: 18px; left: 58px; max-width: none; padding: 11px 16px 10px; background: #0a0a0a; color: #fff; font-size: 30px; letter-spacing: .07em; line-height: 1.1; }
     .kind-shop h1 { font-family: Georgia, "Times New Roman", serif; font-size: 70px; font-style: normal; font-weight: 700; }
     .kind-shop h1 em { font-style: italic; font-weight: inherit; }
 
-    .kind-person { border-top: 0; background: #f5f1e9; }
-    .kind-person::before { display: none; }
-    .kind-person::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; z-index: 5; display: block; width: 10px; background: var(--card-accent); }
-    .kind-person .visual { inset: 0 0 auto; z-index: 1; width: 100%; height: 485px; padding: 0; }
-    .kind-person .images { position: relative; display: grid; width: 100%; height: 485px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; background: #f5f1e9; transform: none; }
-    .kind-person .images.count-1 { grid-template-columns: 1fr; }
-    .kind-person .images.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .kind-person .images.count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .kind-person .images.count-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .kind-person .image, .kind-person .image:first-child, .kind-person .image:nth-child(2), .kind-person .image:nth-child(3), .kind-person .image:nth-child(4), .kind-person .image:nth-child(5) { position: relative; inset: auto; z-index: 1; width: auto; height: 485px; overflow: hidden; border: 0; border-radius: 0; background: #161616; box-shadow: none; transform: none; }
-    .kind-person .image:first-child::before { display: none; }
-    .kind-person .image img { object-fit: contain; filter: grayscale(.05) saturate(.8) contrast(1.05); }
-    .kind-person .image:first-child img { filter: grayscale(.12) saturate(.72) contrast(1.08); }
-    .kind-person .copy { inset: 395px 0 auto; z-index: 3; display: block; width: 100%; height: 190px; padding: 22px 58px 18px; }
-    .kind-person .eyebrow { position: absolute; top: 156px; right: 58px; left: auto; display: flex; width: 420px; max-width: none; align-items: center; justify-content: flex-end; gap: 14px; padding: 0; background: transparent; color: #0a0a0a; font-size: 12px; letter-spacing: .035em; text-align: right; white-space: nowrap; }
-    .kind-person .eyebrow::before { display: none; }
+    :is(.kind-person, .kind-whois) { border-top: 0; }
+    :is(.kind-person, .kind-whois)::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; z-index: 5; display: block; width: 10px; background: var(--card-accent); }
+    :is(.kind-person, .kind-whois) .visual { inset: 0 0 auto; z-index: 1; width: 100%; height: 485px; padding: 0; }
+    :is(.kind-person, .kind-whois) .images { position: relative; display: grid; width: 100%; height: 485px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; background: transparent; transform: none; }
+    :is(.kind-person, .kind-whois) .images.count-1 { grid-template-columns: 1fr; }
+    :is(.kind-person, .kind-whois) .images.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    :is(.kind-person, .kind-whois) .images.count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    :is(.kind-person, .kind-whois) .images.count-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    :is(.kind-person, .kind-whois) .image, :is(.kind-person, .kind-whois) .image:first-child, :is(.kind-person, .kind-whois) .image:nth-child(2), :is(.kind-person, .kind-whois) .image:nth-child(3), :is(.kind-person, .kind-whois) .image:nth-child(4), :is(.kind-person, .kind-whois) .image:nth-child(5) { position: relative; inset: auto; z-index: 1; width: auto; height: 485px; overflow: hidden; border: 0; border-radius: 0; background: #161616; box-shadow: none; transform: none; }
+    :is(.kind-person, .kind-whois) .image:first-child::before { display: none; }
+    :is(.kind-person, .kind-whois) .image img { object-fit: cover; filter: grayscale(.05) saturate(.8) contrast(1.05); }
+    :is(.kind-person, .kind-whois) .image:first-child img { filter: grayscale(.12) saturate(.72) contrast(1.08); }
+    :is(.kind-person, .kind-whois) .copy { inset: 395px 0 auto; z-index: 3; display: block; width: 100%; height: 190px; padding: 22px 58px 18px; }
+    :is(.kind-person, .kind-whois) .eyebrow { position: absolute; top: 156px; right: 58px; left: auto; display: flex; width: 420px; max-width: none; align-items: center; justify-content: flex-end; gap: 14px; padding: 0; background: transparent; color: #0a0a0a; font-size: 12px; letter-spacing: .035em; text-align: right; white-space: nowrap; }
+    :is(.kind-person, .kind-whois) .eyebrow::before { display: none; }
     .person-social-handle { display: inline-flex; align-items: center; gap: 5px; color: #514b44; font-weight: 700; letter-spacing: -.01em; text-transform: none; }
     .person-social-handle + .person-social-handle::before { content: "·"; margin-right: 3px; color: #8b847a; font-weight: 900; }
     .person-social-handle svg { width: 17px; height: 17px; flex: none; fill: #0a0a0a; }
-    .kind-person h1 { position: absolute; right: 58px; bottom: 128px; left: 58px; z-index: 5; max-width: none; margin: 0; color: #f5f1e9; font-family: Georgia, "Times New Roman", serif; font-size: 216px; font-style: normal; font-weight: 700; letter-spacing: -.065em; line-height: .78; text-shadow: 0 3px 0 rgba(10,10,10,.78); white-space: nowrap; }
-    .kind-person h1.is-two-line { white-space: normal; }
-    .kind-person h1 .person-name-line { display: block; width: max-content; }
-    .kind-person .subtitle { position: absolute; top: 110px; right: 58px; display: -webkit-box; width: 420px; max-height: 50px; margin: 0; overflow: hidden; color: #403b35; font-family: Georgia, "Times New Roman", serif; font-size: 17px; font-style: normal; font-weight: 400; line-height: 1.28; opacity: 1; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    :is(.kind-person, .kind-whois) h1 { position: absolute; right: 58px; bottom: 128px; left: 58px; z-index: 5; max-width: none; margin: 0; color: #f5f1e9; font-family: Georgia, "Times New Roman", serif; font-size: 216px; font-style: normal; font-weight: 700; letter-spacing: -.065em; line-height: .78; text-shadow: 0 3px 0 rgba(10,10,10,.78); white-space: nowrap; }
+    :is(.kind-person, .kind-whois) h1.is-two-line { white-space: normal; }
+    :is(.kind-person, .kind-whois) h1 .person-name-line { display: block; width: max-content; }
+    :is(.kind-person, .kind-whois) .subtitle { position: absolute; top: 110px; right: 58px; display: -webkit-box; width: 420px; max-height: 50px; margin: 0; overflow: hidden; color: #403b35; font-family: Georgia, "Times New Roman", serif; font-size: 17px; font-style: normal; font-weight: 400; line-height: 1.28; opacity: 1; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     .person-accomplishments { position: absolute; top: 0; right: 0; left: 10px; z-index: 4; display: flex; height: 42px; align-items: center; margin: 0; padding: 0 22px; overflow: hidden; background: rgba(10,10,10,.9); color: #f5f1e9; font-size: 11px; font-weight: 700; letter-spacing: .025em; line-height: 1; text-transform: uppercase; white-space: nowrap; }
     .person-accomplishments span { display: inline-flex; align-items: center; }
     .person-accomplishments span::after { content: "·"; margin: 0 9px; color: var(--card-accent); font-weight: 900; }
     .person-accomplishments span:last-child::after { content: ""; }
-    .kind-person .stats { position: absolute; top: 101px; left: 58px; display: grid; width: 600px; max-width: none; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: baseline; margin: 0; padding: 0; }
-    .kind-person .stat { display: flex; min-width: 0; align-items: baseline; justify-content: center; padding: 0; border-top: 0; }
-    .kind-person .stat:first-child { justify-content: flex-start; }
-    .kind-person .stat:last-child { justify-content: flex-end; }
-    .kind-person .stat + .stat::before { display: none; }
-    .kind-person .stat strong { display: inline; font-family: Georgia, "Times New Roman", serif; font-size: 55px; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: -.04em; line-height: 1; }
-    .kind-person .stat span { display: inline; margin: 0 0 0 10px; font-size: 12px; font-weight: 900; letter-spacing: .14em; }
-    .kind-person .person-achievement-stickers, .kind-person > .card-sparkles { display: none; }
-    .kind-person .card-footer { bottom: 17px; }
-    .kind-person .card-footer .brand-lockup, .kind-person .card-footer .site { padding: 6px 0 5px; background: #f5f1e9; }
+    :is(.kind-person, .kind-whois) .stats { position: absolute; top: 101px; left: 58px; display: grid; width: 600px; max-width: none; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: baseline; margin: 0; padding: 0; }
+    :is(.kind-person, .kind-whois) .stat { display: flex; min-width: 0; align-items: baseline; justify-content: center; padding: 0; border-top: 0; }
+    :is(.kind-person, .kind-whois) .stat:first-child { justify-content: flex-start; }
+    :is(.kind-person, .kind-whois) .stat:last-child { justify-content: flex-end; }
+    :is(.kind-person, .kind-whois) .stat + .stat::before { display: none; }
+    :is(.kind-person, .kind-whois) .stat strong { display: inline; font-family: Georgia, "Times New Roman", serif; font-size: 55px; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: -.04em; line-height: 1; }
+    :is(.kind-person, .kind-whois) .stat span { display: inline; margin: 0 0 0 10px; font-size: 12px; font-weight: 900; letter-spacing: .14em; }
+    :is(.kind-person, .kind-whois) .person-achievement-stickers, :is(.kind-person, .kind-whois) > .card-sparkles { display: none; }
+    :is(.kind-person, .kind-whois) .card-footer { bottom: 17px; }
+    :is(.kind-person, .kind-whois) .card-footer .brand-lockup, :is(.kind-person, .kind-whois) .card-footer .site { padding: 6px 0 5px; background: transparent; }
 
-    .kind-whois { background: #ded9d0; }
-    .kind-whois .visual { inset: 0; width: 100%; height: 100%; padding: 0; }
-    .kind-whois .images { --whois-count: 12; position: relative; display: grid; width: 100%; height: 100%; grid-template-columns: repeat(var(--whois-count), minmax(0, 1fr)); transform: none; }
-    .kind-whois .images.count-1 { --whois-count: 1; }
-    .kind-whois .images.count-2 { --whois-count: 2; }
-    .kind-whois .images.count-3 { --whois-count: 3; }
-    .kind-whois .images.count-4 { --whois-count: 4; }
-    .kind-whois .images.count-5 { --whois-count: 5; }
-    .kind-whois .images.count-6 { --whois-count: 6; }
-    .kind-whois .images.count-7 { --whois-count: 7; }
-    .kind-whois .images.count-8 { --whois-count: 8; }
-    .kind-whois .images.count-9 { --whois-count: 9; }
-    .kind-whois .images.count-10 { --whois-count: 10; }
-    .kind-whois .images.count-11 { --whois-count: 11; }
-    .kind-whois .image { position: relative; top: -72px; width: max(230px, calc(2400px / var(--whois-count) + 40px)); height: 402px; border: 4px solid #f6f3ee; border-radius: 0; background: #24211d; box-shadow: 0 16px 34px rgba(10,10,10,.28); transform: rotate(-3.5deg); transform-origin: center; }
-    .kind-whois .image:nth-child(even) { top: 292px; transform: translateX(-22px) rotate(3deg); }
-    .kind-whois .image:nth-child(3n) { top: -105px; transform: translateX(-8px) rotate(-1.5deg); }
-    .kind-whois .image:nth-child(4n) { top: 268px; transform: translateX(-30px) rotate(4deg); }
-    .kind-whois .images.count-1 .image, .kind-whois .images.count-2 .image, .kind-whois .images.count-3 .image { top: -25px; width: calc(1200px / var(--whois-count) + 28px); height: 680px; transform: rotate(0); }
-    .kind-whois .image img { filter: saturate(.92) contrast(1.04); }
-    .kind-whois .image__label { position: absolute; top: 125px; left: 8px; display: flex; max-width: calc(100% - 16px); align-items: center; gap: 6px; padding: 6px 8px 6px 7px; overflow: hidden; background: rgba(10,10,10,.9); color: #fff; font-size: 12px; font-weight: 900; letter-spacing: -.01em; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
-    .kind-whois .image:nth-child(even) .image__label { top: 12px; }
+    .kind-whois .eyebrow { top: -395px; right: 0; left: 10px; width: auto; height: 42px; justify-content: flex-start; padding: 0 22px; background: rgba(10,10,10,.9); color: #f5f1e9; font-size: 11px; text-align: left; }
+    .kind-whois .image__label { position: absolute; top: 52px; left: 8px; display: flex; max-width: calc(100% - 16px); align-items: center; gap: 6px; padding: 6px 8px; overflow: hidden; background: rgba(10,10,10,.9); color: #fff; font-size: 12px; font-weight: 900; line-height: 1; white-space: nowrap; }
     .kind-whois .image__label svg { width: 15px; height: 15px; flex: none; fill: currentColor; }
-    .kind-whois .copy { inset: auto auto 75px 58px; z-index: 3; display: flex; width: 650px; min-height: 292px; flex-direction: column; padding: 25px 28px 24px; border: 2px solid #0a0a0a; background: rgba(246,243,238,.96); box-shadow: 11px 11px 0 var(--card-accent); }
-    .kind-whois .eyebrow { order: 1; background: #0a0a0a; color: #fff; }
-    .kind-whois h1 { position: static; order: 2; max-width: 575px; margin: 15px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: 59px; font-style: normal; font-weight: 700; letter-spacing: -.055em; line-height: .88; }
-    .kind-whois .subtitle { order: 3; width: auto; max-width: 560px; margin: 13px 0 0; color: #403b35; font-family: Arial, Helvetica, sans-serif; font-size: 17px; font-style: normal; font-weight: 700; line-height: 1.16; opacity: 1; }
-    .kind-whois .stats { order: 4; max-width: none; gap: 20px; margin-top: 18px; }
-    .kind-whois .stat { min-width: 76px; padding-top: 7px; border-top-width: 2px; }
-    .kind-whois .stat strong { font-size: 24px; }
-    .kind-whois .stat span { margin-top: 4px; font-size: 10px; }
-    .whois-sparkles { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
-    .whois-sparkles span { position: absolute; display: block; line-height: 1; filter: drop-shadow(2px 3px 0 rgba(10,10,10,.28)); }
-    .whois-sparkles span:nth-child(1) { top: 105px; left: 345px; font-size: 34px; transform: rotate(-14deg); }
-    .whois-sparkles span:nth-child(2) { top: 178px; right: 102px; font-size: 24px; transform: rotate(12deg); }
-    .whois-sparkles span:nth-child(3) { right: 318px; bottom: 102px; font-size: 42px; transform: rotate(-8deg); }
-    .whois-sparkles span:nth-child(4) { top: 38px; left: 720px; font-size: 19px; transform: rotate(18deg); }
+    .kind-whois .visual > .fallback { background: #202624; color: #f5f1e9; opacity: 1; }
+    .kind-whois .stats { width: 720px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .kind-whois .stat { justify-content: flex-start; flex-wrap: wrap; column-gap: 8px; row-gap: 2px; }
+    .kind-whois .stat:last-child { justify-content: flex-start; }
+    .kind-whois .stat strong { font-size: 44px; }
+    .kind-whois .stat span { margin-left: 0; font-size: 10px; }
+    .kind-whois .subtitle { width: 320px; }
 
-    .kind-award { color: #0a0a0a; }
-    .kind-award::before { opacity: .055; background-size: 36px 36px; }
-    .kind-award::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; display: block; width: 18px; background: var(--card-accent); }
-    .kind-award .copy { inset: 0; padding: 0; }
-    .kind-award .copy > .eyebrow { display: none; }
-    .award-event { position: absolute; top: 36px; right: 450px; left: 58px; display: flex; overflow: hidden; flex-direction: column; gap: 6px; padding-bottom: 11px; border-bottom: 3px solid var(--card-accent); text-transform: uppercase; white-space: nowrap; }
-    .award-event strong, .award-event span { overflow: hidden; text-overflow: ellipsis; }
-    .award-event strong { font-size: 14px; font-weight: 900; letter-spacing: .045em; line-height: 1.1; }
-    .award-event span { color: #59534c; font-size: 11px; font-weight: 800; letter-spacing: .08em; line-height: 1; }
+    /* Project imagery, team portraits, and placement sashes. */
+    .project-team__copy > span, .project-art .image__label, .project-award-ribbon { font-family: "IBM Plex Mono", monospace; }
+    .project-team { position: absolute; left: 56px; top: 426px; display: flex; align-items: center; gap: 18px; width: 620px; min-height: 64px; }
+    .project-team__copy { min-width: 0; }
+    .project-team__copy span { display: block; margin-bottom: 7px; color: #736c61; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .project-team__copy strong { display: -webkit-box; overflow: hidden; font-size: 19px; font-weight: 600; line-height: 1.2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .project-team__avatars { display: flex; flex: 0 0 auto; align-items: center; }
+    .project-team__avatar { position: relative; display: grid; place-items: center; flex: 0 0 64px; width: 64px; height: 64px; overflow: hidden; border: 3px solid #f5f1e9; border-radius: 50%; background: #e6dfd3; color: #554f47; font-size: 22px; font-weight: 800; box-shadow: 0 0 0 1px #b8b1a7; }
+    .project-team__avatar + .project-team__avatar { margin-left: -12px; }
+    .project-team__avatar img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+    .project-team__avatar--more { background: #141414; color: #f5f1e9; font-size: 17px; }
+    .project-art { position: absolute; top: 85px; right: 48px; width: 410px; height: 394px; overflow: hidden; border: 2px solid #141414; background: #e6dfd3; box-shadow: 7px 7px 0 #141414; }
+    .project-art .images { position: relative; display: grid; grid-template-columns: 1fr; width: 100%; height: 100%; gap: 3px; transform: none; }
+    .project-art .images.count-2 { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+    .project-art .images.count-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 1.5fr 1fr; }
+    .project-art .images.count-3 .image:first-child { grid-column: 1 / -1; grid-row: auto; }
+    .project-art .image, .project-art .image:first-child, .project-art .image:nth-child(2), .project-art .image:nth-child(3) { position: relative; inset: auto; width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 0; border-radius: 0; background: #e6dfd3; box-shadow: none; transform: none; }
+    .project-art .image img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .project-art .image__label { position: absolute; right: 0; bottom: 0; left: 0; max-width: 100%; overflow: hidden; padding: 5px 9px; background: #141414; color: #f5f1e9; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .project-art .fallback { opacity: 1; display: grid; place-items: center; width: 100%; height: 100%; background: repeating-linear-gradient(0deg,transparent,transparent 38px,#14141414 39px,#14141414 40px),repeating-linear-gradient(90deg,transparent,transparent 38px,#14141414 39px,#14141414 40px),var(--card-accent); color: var(--card-ink); font-family: "IBM Plex Mono", monospace; font-size: 200px; font-weight: 700; letter-spacing: -.13em; line-height: 1; }
+    /* Woven sashes drape over the corner; SVG hems and folds share each medal palette. */
+    .project-award-ribbon { --ribbon-cloth: #e8ac35; --ribbon-thread: #805015; --ribbon-ink: #21180b; --ribbon-letter-shadow: rgba(255,244,195,.5); position: absolute; top: 20px; left: -96px; z-index: 6; display: flex; width: 320px; height: 88px; align-items: center; justify-content: center; transform: rotate(-45deg); color: var(--ribbon-ink); filter: drop-shadow(1px 3px 1px rgba(32,21,13,.24)) drop-shadow(3px 10px 6px rgba(32,21,13,.25)); }
+    .project-award-ribbon.ribbon-2 { --ribbon-cloth: #294b6b; --ribbon-thread: #cfdeeb; --ribbon-ink: #f0f4f8; --ribbon-letter-shadow: rgba(0,0,0,.5); }
+    .project-award-ribbon.ribbon-3 { --ribbon-cloth: #91462b; --ribbon-thread: #f3c38e; --ribbon-ink: #fff0d9; --ribbon-letter-shadow: rgba(0,0,0,.5); }
+    .project-award-ribbon.ribbon-4 { --ribbon-cloth: #69449e; --ribbon-thread: #d5bfee; --ribbon-ink: #fff; --ribbon-letter-shadow: rgba(0,0,0,.5); }
+    .project-award-ribbon__fabric { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .project-award-ribbon__hem { fill: none; stroke: var(--ribbon-thread); stroke-width: 1.3; stroke-dasharray: 3 3; stroke-linecap: round; opacity: .76; }
+    .project-award-ribbon__label { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 2px; white-space: nowrap; text-shadow: 0 1px 1px var(--ribbon-letter-shadow); }
+    .project-award-ribbon strong { font-size: 48px; font-weight: 700; letter-spacing: -.06em; line-height: 1; }
+    .project-award-ribbon small { font-size: 10px; font-weight: 700; letter-spacing: .08em; line-height: 1; text-transform: uppercase; }
+    .project-award-ribbon.ribbon-4 .project-award-ribbon__label { gap: 3px; }
+    .project-award-ribbon.ribbon-4 strong { font-size: 18px; letter-spacing: -.04em; text-transform: uppercase; }
+    .project-award-ribbon.ribbon-4 small { font-size: 15px; letter-spacing: .06em; }
+    .has-award-ribbon .project-kicker { display: none; }
+    .project-event-art { position: absolute; inset: 0 0 0 auto; width: 690px; overflow: hidden; pointer-events: none; }
+    .project-event-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .project-event-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #f5f1e9 0%, rgba(245,241,233,.94) 15%, rgba(245,241,233,.48) 32%, rgba(245,241,233,0) 57%), linear-gradient(0deg, #f5f1e9 0%, rgba(245,241,233,0) 27%); }
+    .project-sponsor { position: absolute; top: 27px; left: 492px; display: flex; align-items: center; justify-content: center; width: 184px; height: 90px; }
+    .project-sponsor img { display: block; width: 100%; height: 100%; min-width: 0; object-fit: contain; }
+
+    /* Event awards and information pages share the grid, orange frame, and brand footer. */
+    .hackathon-card, .info-card { --award-accent: #f9af5e; border-top: 14px solid var(--award-accent); background: #f6f3ee; color: #0a0a0a; }
+    .hackathon-card::before, .info-card::before { z-index: 1; pointer-events: none; opacity: .055; background-size: 36px 36px; }
+    .hackathon-card::after, .info-card::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; display: block; width: 18px; background: var(--award-accent); }
+    .hackathon-card .copy { inset: 0; padding: 0; }
+    .hackathon-card .copy > .eyebrow { display: none; }
+    .award-event { position: absolute; top: 36px; right: 450px; left: 58px; display: flex; overflow: hidden; flex-direction: column; gap: 6px; padding-bottom: 11px; border-bottom: 3px solid var(--award-accent); white-space: nowrap; }
+    .award-event > strong, .award-event > span { overflow: hidden; text-overflow: ellipsis; }
+    .award-event > strong { font-size: 17px; font-weight: 900; letter-spacing: -.025em; line-height: 1.1; }
+    .award-event > span { margin-top: 0; color: #59534c; font-size: 11px; font-weight: 800; letter-spacing: .08em; line-height: 1; }
+    .award-event__title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .award-event__title .wordmark { flex: 0 0 auto; font-size: 24px; }
+    .award-event__edition { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .award-logo { position: absolute; top: 24px; right: 58px; display: flex; width: 370px; height: 104px; align-items: center; justify-content: flex-end; }
     .award-logo img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: right center; }
     .award-sponsor { position: absolute; top: 136px; right: 58px; z-index: 4; overflow: hidden; width: 370px; color: #59534c; font-size: 10px; font-weight: 900; letter-spacing: .13em; line-height: 1; text-align: right; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
     .award-sponsor::before { content: "Presented by  ·  "; color: #0a0a0a; }
-    .kind-award h1 { position: absolute; top: 216px; right: 58px; left: 58px; display: -webkit-box; max-height: 183px; margin: 0; overflow: hidden; color: #0a0a0a; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 91px; font-style: normal; font-weight: 900; letter-spacing: -.067em; line-height: .88; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-    .kind-award .subtitle { position: absolute; top: 420px; right: 470px; left: 58px; display: -webkit-box; max-width: none; margin: 0; overflow: hidden; color: #514b44; font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-style: normal; font-weight: 700; line-height: 1.22; opacity: 1; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-    .award-value { position: absolute; right: 58px; bottom: 96px; width: 360px; padding-top: 15px; border-top: 3px solid var(--card-accent); color: #0a0a0a; text-align: right; }
-    .award-value::before { content: "✦"; position: absolute; top: -23px; left: -2px; padding: 0 8px; background: #f6f3ee; color: var(--card-accent); font-size: 27px; line-height: 1; }
+    .hackathon-card h1 { position: absolute; top: 216px; right: 58px; bottom: auto; left: 58px; display: -webkit-box; max-height: 183px; margin: 0; padding-bottom: .12em; overflow: hidden; color: #0a0a0a; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 91px; font-style: normal; font-weight: 900; letter-spacing: -.067em; line-height: .88; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .hackathon-card .subtitle { position: absolute; top: 420px; right: 470px; left: 58px; display: -webkit-box; max-width: none; margin: 0; overflow: hidden; color: #514b44; font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-style: normal; font-weight: 700; line-height: 1.22; opacity: 1; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .award-value { position: absolute; right: 58px; bottom: 96px; width: 360px; padding-top: 15px; border-top: 3px solid var(--award-accent); color: #0a0a0a; text-align: right; }
+    .award-value::before { content: "✦"; position: absolute; top: -23px; left: -2px; padding: 0 8px; background: transparent; color: var(--award-accent); font-size: 27px; line-height: 1; }
     .award-value > span { display: block; margin-bottom: 9px; color: #59534c; font-size: 10px; font-weight: 900; letter-spacing: .17em; text-transform: uppercase; }
     .award-value strong { display: flex; align-items: baseline; justify-content: flex-end; color: #0a0a0a; font-size: 102px; font-weight: 900; letter-spacing: -.075em; line-height: .72; white-space: nowrap; }
     .award-value__decimal { margin-left: .01em; font-size: .72em; letter-spacing: -.08em; opacity: .8; }
@@ -281,64 +279,224 @@
     .award-value small { margin-left: 10px; color: #59534c; font-size: 14px; letter-spacing: .09em; text-transform: uppercase; }
     .award-prize-details { display: flex; margin-top: 13px; flex-direction: column; align-items: flex-end; gap: 5px; }
     .award-prize-details b { max-width: 100%; overflow: hidden; color: #59534c; font-size: 10px; font-weight: 800; letter-spacing: .04em; line-height: 1.15; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-    .kind-award .card-footer .brand-lockup, .kind-award .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
-    .kind-award > .card-sparkles { display: none; }
-    .kind-community .eyebrow { font-size: 62px; max-width: 550px; overflow-wrap: anywhere; }
-    .kind-community .hackathon-value { display: block; padding-top: 48px; }
-    .kind-community .hackathon-value::before { content: "CONFIRMED COMMUNITY FUNDING"; }
-    .kind-community .hackathon-value::after { display: none; }
-    .kind-community .hackathon-value strong { display: block; font-size: 52px; line-height: 1; letter-spacing: -.04em; white-space: nowrap; }
-    .kind-community .hackathon-value > span { display: none; }
+    .hackathon-card .card-footer .brand-lockup, .hackathon-card .card-footer .site, .info-card .card-footer .brand-lockup, .info-card .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
+    .hackathon-card .card-footer .brand-lockup, .info-card .card-footer .brand-lockup { align-items: center; padding-bottom: 7px; }
+    .hackathon-card > .card-sparkles { display: none; }
+
+    .hackathon-card .project-event-art { width: 710px; opacity: .65; }
+    .hackathon-card .project-event-art::after { background: linear-gradient(90deg, #f6f3ee 0%, rgba(246,243,238,.9) 24%, rgba(246,243,238,.25) 68%), linear-gradient(0deg, #f6f3ee 0%, rgba(246,243,238,.8) 22%, rgba(246,243,238,.15) 60%, rgba(246,243,238,.88) 100%); }
+    .hackathon-card .award-event { z-index: 2; max-width: none; font-family: Arial, Helvetica, sans-serif; }
+    .hackathon-card.has-award-ribbon .award-event { left: 208px; }
+    .hackathon-card .project-copy { position: absolute; top: 216px; left: 58px; width: 1084px; z-index: 2; }
+    .hackathon-card .project-copy h1 { position: static; width: 100%; overflow-wrap: anywhere; }
+    .hackathon-card .project-kicker { position: absolute; top: 154px; left: 58px; z-index: 2; max-width: 1084px; padding: 8px 14px; overflow: hidden; background: var(--award-accent); color: #0a0a0a; font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; text-transform: none; text-overflow: ellipsis; white-space: nowrap; }
+    .hackathon-card .project-kicker b { font-weight: 900; }
+    .hackathon-card .project-kicker.project-awards { display: block; }
+    .hackathon-card .project-sponsor { top: 24px; right: 58px; left: auto; z-index: 2; width: 370px; height: 104px; justify-content: flex-end; }
+    .hackathon-card .project-sponsor img { object-position: right center; }
+    .hackathon-card .project-art { top: 412px; right: auto; left: 58px; z-index: 2; width: 152px; height: 104px; border-width: 1px; box-shadow: 4px 4px 0 #141414; }
+    .hackathon-card .project-art .images { display: block; }
+    .hackathon-card .project-art .image:not(:first-child), .hackathon-card .project-art .image__label { display: none; }
+    .hackathon-card .project-team { top: 432px; left: 236px; z-index: 2; width: 500px; gap: 16px; }
+    .hackathon-card .project-copy + .project-team { left: 58px; width: 680px; }
+    .hackathon-card .project-team__copy strong { font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 700; }
+    .hackathon-card .award-value { z-index: 2; }
+    .hackathon-card .project-summary { position: absolute; top: 412px; right: 58px; z-index: 2; width: 360px; margin: 0; padding-top: 15px; border-top: 3px solid var(--award-accent); color: #514b44; }
+    .hackathon-card .project-summary p { display: -webkit-box; margin: 0; overflow: hidden; font-size: 18px; font-weight: 700; line-height: 1.22; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+    .hackathon-card .project-art .fallback { background: var(--award-accent); color: #0a0a0a; font-size: 72px; }
+
+    .info-copy { position: absolute; top: 47px; left: 58px; z-index: 3; width: 645px; }
+    .info-eyebrow { margin: 0; padding-bottom: 16px; border-bottom: 3px solid var(--card-accent); font: 700 14px/1.2 "IBM Plex Mono", monospace; letter-spacing: .12em; text-transform: uppercase; }
+    .info-copy h1 { position: static; margin: 105px 0 30px; max-width: 645px; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 100px; font-style: normal; font-weight: 900; letter-spacing: -.065em; line-height: .94; text-wrap: balance; }
+    .info-subtitle { max-width: 565px; margin: 0; color: #514b44; font: 500 26px/1.3 "IBM Plex Sans", Arial, sans-serif; text-wrap: balance; }
+    .info-callout { display: inline-block; margin-top: 28px; padding-bottom: 9px; border-bottom: 3px solid var(--card-accent); font: 700 27px/1.2 "IBM Plex Mono", monospace; }
+    .info-art { position: absolute; top: 135px; right: 58px; z-index: 2; width: 360px; }
+    .contact-envelope { display: block; width: 100%; height: 300px; overflow: visible; transform: rotate(-7deg); filter: drop-shadow(10px 14px 0 rgba(10,10,10,.12)); }
+    .info-terminal { top: 132px; padding: 0 24px 26px; border: 2px solid #0a0a0a; background: #0a0a0a; color: #f6f3ee; box-shadow: 12px 12px 0 var(--card-accent); transform: rotate(2deg); font-family: "IBM Plex Mono", monospace; }
+    .info-terminal__bar { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 14px; border-bottom: 1px solid #5d544a; color: #cfc6bb; font-size: 12px; }
+    .info-terminal__bar i { width: 8px; height: 8px; background: var(--card-accent); box-shadow: -14px 0 0 #65574a, -28px 0 0 #65574a; }
+    .info-terminal__prompt { margin: 25px 0 22px; color: var(--card-accent); font-size: 30px; font-weight: 700; }
+    .info-terminal__row { display: flex; gap: 14px; margin-top: 17px; font-size: 17px; }
+    .info-terminal__row span { color: var(--card-accent); font-size: 12px; line-height: 24px; }
+    .info-terminal__cursor { display: block; width: 13px; height: 20px; margin-top: 27px; background: var(--card-accent); }
+
+    /* Let the shared title fitter measure every line before choosing a font size. */
+    .kind-hackathon h1, .kind-community h1 { top: 301px; display: block; height: 95px; max-height: 95px; -webkit-line-clamp: unset; }
+    .kind-hackathon h1 { max-width: 692px; }
+    .overview-type { position: absolute; top: 190px; left: 260px; padding: 8px 11px; background: var(--award-accent); font-size: 13px; font-weight: 900; letter-spacing: .13em; line-height: 1; text-transform: uppercase; }
+    .kind-community .overview-type { top: 36px; right: 58px; left: auto; }
+    .overview-trophy { position: absolute; top: 98px; right: 58px; display: grid; width: 290px; height: 290px; place-items: center; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; font-size: 264px; line-height: 1; filter: drop-shadow(0 7px 2px rgba(71,43,7,.16)); }
+    .overview-address { position: absolute; top: 419px; left: 58px; width: 630px; margin: 0; overflow: hidden; color: #514b44; font-size: 17px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+    .community-progress { position: absolute; bottom: 102px; left: 58px; width: 630px; color: #0a0a0a; }
+    .community-progress__labels { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 20px; line-height: 1.2; }
+    .community-progress__labels strong { font-weight: 900; }
+    .community-progress__labels span { font-weight: 700; }
+    .community-progress__track { height: 24px; margin-top: 10px; overflow: hidden; border: 2px solid #0a0a0a; background: #262421; }
+    .community-progress__fill { display: block; height: 100%; background: var(--award-accent); }
+    .overview-callout { position: absolute; bottom: 112px; left: 58px; max-width: 630px; padding: 13px 16px; background: #0a0a0a; color: #fff; font-size: 16px; font-weight: 800; line-height: 1.2; }
+    .overview-callout span { margin-left: 16px; color: var(--award-accent); }
+    .overview-sponsors { position: absolute; top: 136px; left: 58px; z-index: 2; width: 370px; }
+    .overview-sponsors > span { display: block; margin-bottom: 12px; color: #59534c; font-size: 10px; font-weight: 900; letter-spacing: .13em; text-align: left; text-transform: uppercase; }
+    .overview-sponsors__logos { display: grid; height: 110px; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 12px 20px; }
+    .overview-sponsors__logos.count-1 { grid-template-columns: 1fr; }
+    .overview-sponsors__logos.is-many { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .overview-sponsors__logo { min-width: 0; min-height: 0; }
+    .overview-sponsors__logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .overview-sponsors__logos.count-1 img { object-position: left center; }
+    .award-value--pending strong { font-size: 36px; letter-spacing: -.03em; line-height: 1; }
   </style>
 </head>
 <body>
-  <main class="card kind-{{ .Kind }}{{ if eq .Kind "community" }} kind-hackathon{{ end }}{{ if .CardPoweredBy }} has-title-sponsor{{ end }}" style="{{ .CardStyle }}" data-card-ready="false">
+  <main class="card kind-{{ .Kind }}{{ if or (eq .Kind "contact") (eq .Kind "api") }} info-card{{ end }}{{ if or (eq .Kind "award") (eq .Kind "award-winner") (eq .Kind "project") (eq .Kind "hackathon") (eq .Kind "community") }} hackathon-card{{ end }}{{ if .AwardRibbon }} has-award-ribbon{{ end }}{{ if and .CardHeroImage (or (eq .Kind "project") (eq .Kind "award-winner") (eq .Kind "award") (eq .Kind "hackathon") (eq .Kind "community")) }} has-event-art{{ end }}{{ if and (eq .Kind "award-winner") .CardSponsors }} has-prize-sponsor{{ end }}{{ if .CardPoweredBy }} has-title-sponsor{{ end }}" style="{{ .CardStyle }}" data-card-ready="false">
     {{ if and (eq .Kind "home") .CardMapImage }}<div class="home-map-backdrop" aria-hidden="true"><img src="{{ .CardMapImage }}" alt=""><div class="home-card-map__points">{{ range .CardMapPoints }}<span class="home-card-map__point{{ if .Upcoming }} is-upcoming{{ end }}" style="{{ .Style }}"></span>{{ end }}</div></div>{{ end }}
-    {{ if .CardSponsors }}
+    {{ if and .CardSponsors (ne .Kind "award-winner") (ne .Kind "hackathon") }}
     <div class="social-card-sponsor-ticker" aria-hidden="true">{{ if .SponsorLabel }}<span class="social-card-sponsor-ticker__label">{{ .SponsorLabel }}</span>{{ end }}<div class="social-card-sponsor-ticker__track"><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div></div></div>
     {{ end }}
+    {{ if and .CardHeroImage (or (eq .Kind "project") (eq .Kind "award-winner") (eq .Kind "award") (eq .Kind "hackathon") (eq .Kind "community")) }}<div class="project-event-art" aria-hidden="true"><img src="{{ .CardHeroImage }}" alt=""></div>{{ end }}
+    {{ if or (eq .Kind "contact") (eq .Kind "api") }}
+    <section class="info-copy">
+      <p class="info-eyebrow">{{ .Eyebrow }}</p>
+      <h1>{{ .Title }}</h1>
+      <p class="info-subtitle">{{ .Subtitle }}</p>
+      {{ if eq .Kind "contact" }}<div class="info-callout">{{ .Callout }}</div>{{ end }}
+    </section>
+    {{ if eq .Kind "contact" }}
+    <div class="info-art" aria-hidden="true">
+      <svg class="contact-envelope" viewBox="0 0 360 300" focusable="false">
+        <path d="M10 115L180 9L350 115V288H10Z" fill="#e99c47" stroke="#0a0a0a" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M44 40H306V227H44Z" fill="#f6f3ee" stroke="#0a0a0a" stroke-width="3"/>
+        <path d="M75 77H181M75 94H237" fill="none" stroke="#0a0a0a" stroke-width="5"/>
+        <path d="M256 61L263 81L284 88L263 95L256 116L249 95L228 88L249 81Z" fill="#f9af5e"/>
+        <path d="M10 115L180 218L350 115V288H10Z" fill="#f9af5e" stroke="#0a0a0a" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M10 288L130 189M350 288L230 189" fill="none" stroke="#0a0a0a" stroke-width="2"/>
+        <path d="M140 236H174M157 219V253M184 236H218M201 219V253" stroke="#0a0a0a" stroke-width="5"/>
+      </svg>
+    </div>
+    {{ else }}
+    <aside class="info-art info-terminal" aria-label="Public API endpoints">
+      <div class="info-terminal__bar"><span>btcpp.dev / developer tools</span><i aria-hidden="true"></i></div>
+      <div class="info-terminal__prompt">{{ .Callout }}</div>
+      {{ range .Details }}<div class="info-terminal__row"><span>GET</span><code>{{ . }}</code></div>{{ end }}
+      <span class="info-terminal__cursor" aria-hidden="true"></span>
+    </aside>
+    {{ end }}
+    {{ else if or (eq .Kind "hackathon") (eq .Kind "community") }}
+    <section class="copy">
+      {{ if .Location }}<div class="award-event">{{ template "event-brand" . }}{{ if .EventDate }}<span>{{ .EventDate }}</span>{{ end }}</div>{{ end }}
+      <div class="overview-trophy" aria-hidden="true">🏆</div>
+      {{ if eq .Kind "community" }}<div class="overview-type">{{ .Eyebrow }}</div>{{ end }}
+      <h1>{{ .Title }}</h1>
+      {{ if and (eq .Kind "community") .Subtitle }}<p class="overview-address">{{ .Subtitle }}</p>{{ end }}
+      {{ if and (eq .Kind "community") .FundingGoal }}
+      <div class="community-progress" role="progressbar" aria-label="Community funding toward {{ .FundingGoal }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ .FundingPercent }}">
+        <div class="community-progress__labels"><strong>{{ if ge .FundingPercent 100 }}Goal reached{{ else }}{{ .FundingPercent }}% funded{{ end }}</strong><span>{{ .FundingGoal }} goal</span></div>
+        <div class="community-progress__track"><span class="community-progress__fill" style="width: {{ .FundingPercent }}%"></span></div>
+      </div>
+      {{ else if .Callout }}<div class="overview-callout">{{ .Callout }} <span aria-hidden="true">→</span></div>{{ end }}
+      {{ template "award-value" . }}
+    </section>
+    {{ if .CardSponsors }}<aside class="overview-sponsors" aria-label="Hackathon sponsors">
+      <span>Supported by</span>
+      <div class="overview-sponsors__logos count-{{ len .CardSponsors }}{{ if gt (len .CardSponsors) 4 }} is-many{{ end }}">{{ range .CardSponsors }}<div class="overview-sponsors__logo"><img src="{{ .URL }}" alt="{{ .Label }}"></div>{{ end }}</div>
+    </aside>{{ end }}
+    {{ else if or (eq .Kind "project") (eq .Kind "award-winner") }}
+    {{ if .AwardRibbon }}
+    <div class="project-award-ribbon ribbon-{{ .AwardRibbon }}">
+      <svg class="project-award-ribbon__fabric" viewBox="0 0 320 88" aria-hidden="true" focusable="false">
+        <defs>
+          <path id="ribbon-cloth" d="M0 6C54 1 104 1 145 8S239 9 320 2L320 80C258 77 222 88 176 83S65 79 0 87Z"/>
+          <linearGradient id="ribbon-folds" x1="0" x2="1">
+            <stop offset="0" stop-color="#000" stop-opacity=".24"/><stop offset=".27" stop-color="#000" stop-opacity=".05"/>
+            <stop offset=".31" stop-color="#fff" stop-opacity=".2"/><stop offset=".34" stop-color="#000" stop-opacity=".19"/>
+            <stop offset=".4" stop-color="#000" stop-opacity="0"/><stop offset=".57" stop-color="#fff" stop-opacity=".08"/>
+            <stop offset=".68" stop-color="#000" stop-opacity="0"/><stop offset=".72" stop-color="#000" stop-opacity=".24"/>
+            <stop offset=".75" stop-color="#fff" stop-opacity=".18"/><stop offset=".8" stop-color="#000" stop-opacity=".05"/>
+            <stop offset="1" stop-color="#000" stop-opacity=".24"/>
+          </linearGradient>
+          <linearGradient id="ribbon-drape" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".15" stop-color="#fff" stop-opacity=".04"/>
+            <stop offset=".52" stop-color="#000" stop-opacity="0"/><stop offset=".83" stop-color="#000" stop-opacity=".08"/>
+            <stop offset="1" stop-color="#000" stop-opacity=".3"/>
+          </linearGradient>
+          <pattern id="ribbon-weave" width="4" height="4" patternUnits="userSpaceOnUse">
+            <path d="M0 .5H4M.5 0V4" fill="none" stroke="#fff" stroke-width=".7" opacity=".085"/>
+            <path d="M0 2.5H4M2.5 0V4" fill="none" stroke="#000" stroke-width=".65" opacity=".08"/>
+          </pattern>
+        </defs>
+        <use href="#ribbon-cloth" fill="var(--ribbon-cloth)"/>
+        <use href="#ribbon-cloth" fill="url(#ribbon-folds)"/>
+        <use href="#ribbon-cloth" fill="url(#ribbon-drape)"/>
+        <use href="#ribbon-cloth" fill="url(#ribbon-weave)"/>
+        <path d="M0 6C54 1 104 1 145 8S239 9 320 2" fill="none" stroke="#fff" stroke-width="1.4" opacity=".3"/>
+        <path d="M0 87C65 79 130 78 176 83S258 77 320 80" fill="none" stroke="#000" stroke-width="1.5" opacity=".25"/>
+        <path class="project-award-ribbon__hem" d="M0 13C54 8 104 8 145 15S239 16 320 9M0 80C65 72 130 71 176 76S258 70 320 73"/>
+      </svg>
+      <div class="project-award-ribbon__label">{{ if eq .AwardRibbon 4 }}<strong>Honorable</strong><small>mention</small>{{ else }}<strong>{{ if eq .AwardRibbon 1 }}1st{{ else if eq .AwardRibbon 2 }}2nd{{ else }}3rd{{ end }}</strong><small>place</small>{{ end }}</div>
+    </div>
+    {{ end }}
+    <div class="project-event award-event">{{ template "event-brand" . }}{{ if .EventDate }}<span>{{ .EventDate }}</span>{{ end }}</div>
+    {{ if and (eq .Kind "project") .Badges }}
+    <div class="project-kicker project-awards"><b>Winner:</b> {{ range $index, $badge := .Badges }}{{ if $index }} · {{ end }}{{ $badge }}{{ end }}</div>
+    {{ else }}
+    <div class="project-kicker">{{ if eq .Kind "award-winner" }}<b>{{ if eq .Eyebrow "hackathon winner" }}Winner{{ else }}{{ .Eyebrow }}{{ end }}:</b> {{ .TitleSuffix }}{{ else }}{{ .Eyebrow }}{{ end }}</div>
+    {{ end }}
+    {{ if and (eq .Kind "award-winner") .CardSponsors }}<aside class="project-sponsor" aria-label="Prize sponsor">{{ range .CardSponsors }}<img src="{{ .URL }}" alt="{{ .Label }}">{{ end }}</aside>{{ end }}
+    <section class="project-copy">
+      <h1>{{ .Title }}</h1>
+    </section>
+    {{ if and .Subtitle (eq .Kind "project") }}<aside class="project-summary"><p>{{ .Subtitle }}</p></aside>{{ end }}
+    {{ if or .CardImages (eq .Kind "project") }}<section class="project-art" aria-label="Project artwork">
+      {{ if .CardImages }}<div class="images count-{{ len .CardImages }}">{{ range .CardImages }}<div class="image"><img src="{{ .URL }}" alt="">{{ if .Label }}<span class="image__label">{{ .Label }}</span>{{ end }}</div>{{ end }}</div>
+      {{ else }}<div class="fallback">++</div>{{ end }}
+    </section>{{ end }}
+    {{ if or .Callout .CardTeam }}
+    <div class="project-team">
+      {{ if .CardTeam }}<div class="project-team__avatars">{{ range .CardTeam }}<div class="project-team__avatar" aria-label="{{ .Name }}"><span aria-hidden="true">{{ .Initials }}</span>{{ if .Photo }}<img src="{{ .Photo }}" alt="{{ .Name }}">{{ end }}</div>{{ end }}{{ if .TeamOverflow }}<div class="project-team__avatar project-team__avatar--more">+{{ .TeamOverflow }}</div>{{ end }}</div>{{ end }}
+      <div class="project-team__copy"><span>{{ if .Callout }}Built by{{ else }}{{ .Eyebrow }}{{ end }}</span>{{ if .Callout }}<strong>{{ .Callout }}</strong>{{ end }}</div>
+    </div>
+    {{ end }}
+    {{ if eq .Kind "award-winner" }}
+    {{ if .SponsorLabel }}<div class="award-sponsor">{{ .SponsorLabel }}</div>{{ end }}
+    {{ template "award-value" . }}
+
+    {{ end }}
+    {{ else }}
     {{ if eq .Kind "award" }}
     {{ else if .CardImages }}
     <section class="visual"><div class="images count-{{ len .CardImages }}">{{ range .CardImages }}<div class="image"><img src="{{ .URL }}" alt="">{{ if .Label }}<span class="image__label">{{ if eq $.Kind "whois" }}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.3 11.3 0 0 0-3.6 22c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2V22c0 .3.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"/></svg>@{{ .Label }}{{ else }}{{ .Label }}{{ end }}</span>{{ end }}</div>{{ end }}</div></section>
     {{ else }}<section class="visual"><div class="fallback">++</div></section>{{ end }}
     <section class="copy">
       <div class="eyebrow">{{ if eq .Kind "person" }}{{ if .XHandle }}<span class="person-social-handle">X @{{ .XHandle }}</span>{{ end }}{{ if .GitHubHandle }}<span class="person-social-handle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.3 11.3 0 0 0-3.6 22c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2V22c0 .3.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"/></svg>@{{ .GitHubHandle }}</span>{{ end }}{{ else }}{{ .Eyebrow }}{{ end }}</div>
-      {{ if or (eq .Kind "hackathon") (eq .Kind "community") }}
-      <h1>{{ .Title }}</h1>
-      {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
-      {{ if .Value }}<div class="hackathon-value"><strong>{{ .Value }}{{ if .ValueSuffix }} <small>{{ .ValueSuffix }}</small>{{ end }}</strong>{{ if .ValueLabel }}<span>{{ .ValueLabel }}</span>{{ end }}</div>{{ end }}
-      {{ if .Callout }}<div class="hackathon-challenge"><b>{{ .Callout }} →</b></div>{{ end }}
-      {{ else if eq .Kind "home" }}
+      {{ if eq .Kind "home" }}
       <div class="home-brand-panel">
         <div class="home-wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></div>
-        <p class="home-slogan">Developing the <span class="home-serif">frontier</span> of bitcoin.</p>
-        {{ if .Title }}<div class="home-upcoming"><span>{{ .Eyebrow }}</span><strong>{{ .Title }}</strong>{{ if .Subtitle }}<b>{{ .Subtitle }}</b>{{ end }}</div>{{ end }}
+        <p class="home-slogan">Developing the <span class="brand-frontier">frontier</span> of bitcoin.</p>
       </div>
       {{ else if eq .Kind "conference" }}
       {{ if .CardMapImage }}<div class="conference-map-backdrop" aria-hidden="true"><img src="{{ .CardMapImage }}" alt=""><div class="conference-map-backdrop__points">{{ range .CardMapPoints }}<span class="conference-map-backdrop__point" style="{{ .Style }}"></span>{{ end }}</div></div>{{ end }}
       {{ if .Eyebrow }}<div class="conference-date">{{ .Eyebrow }}</div>{{ end }}
       {{ if .Value }}<div class="conference-ticket"><span>{{ .ValueLabel }}</span><strong>{{ .Value }}</strong>{{ if .Callout }}<small>{{ .Callout }}</small>{{ end }}</div>{{ end }}
-      <div class="conference-title-block"><h1><span class="conference-title__lead">{{ .Title }}</span>{{ if .TitleSuffix }}<span class="conference-title__suffix">{{ .TitleSuffix }}</span>{{ end }}</h1>{{ if .Subtitle }}<p>{{ .Subtitle }}</p>{{ end }}</div>
+      <div class="conference-title-block"><h1><span class="conference-title__lead">{{ .Title }}</span>{{ if .TitleSuffix }}<span class="conference-title__suffix">{{ .TitleSuffix }}</span>{{ end }}</h1>{{ if .Subtitle }}<p>{{ template "brand-copy" .Subtitle }}</p>{{ end }}</div>
       {{ else if eq .Kind "award" }}
-      {{ if .Callout }}<div class="award-event"><strong>{{ .Callout }}</strong>{{ if .Location }}<span>{{ .Location }}</span>{{ end }}</div>{{ end }}
+      {{ if .Callout }}<div class="award-event">{{ template "event-brand" . }}{{ if .Location }}<span>{{ .Location }}</span>{{ end }}</div>{{ end }}
       {{ if .Eyebrow }}<div class="award-sponsor">{{ .Eyebrow }}</div>{{ end }}
       {{ if .CardImages }}<div class="award-logo">{{ range .CardImages }}<img src="{{ .URL }}" alt="">{{ end }}</div>{{ end }}
       <h1>{{ .Title }}</h1>
       {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
-      {{ if .Value }}<div class="award-value"><span>{{ .ValueLabel }}</span><strong><b class="award-value__whole">{{ .AwardValueWhole }}</b>{{ if .AwardValueDecimal }}<b class="award-value__decimal">{{ .AwardValueDecimal }}</b>{{ end }}{{ if .AwardValueUnit }}<b class="award-value__unit">{{ .AwardValueUnit }}</b>{{ end }}{{ if .ValueSuffix }} <small>{{ .ValueSuffix }}</small>{{ end }}</strong>{{ if .Details }}<div class="award-prize-details">{{ range .Details }}<b>+ {{ . }}</b>{{ end }}</div>{{ end }}</div>{{ end }}
+      {{ template "award-value" . }}
       {{ else }}
       {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
       {{ if .Stats }}<div class="stats">{{ range .Stats }}<div class="stat"><strong>{{ .Value }}</strong><span>{{ .Label }}</span></div>{{ end }}</div>{{ end }}
       {{ if eq .Kind "shop" }}<h1><span>{{ .Title }}</span>{{ if .TitleSuffix }} <em>{{ .TitleSuffix }}</em>{{ end }}</h1>{{ else if ne .Kind "events" }}<h1>{{ .Title }}</h1>{{ end }}
       {{ end }}
     </section>
+    {{ end }}
     {{ if and (eq .Kind "person") .Details }}<div class="person-accomplishments">{{ range .Details }}<span>{{ . }}</span>{{ end }}{{ range .Details }}<span>{{ . }}</span>{{ end }}</div>{{ end }}
-    {{ if eq .Kind "whois" }}<div class="whois-sparkles" aria-hidden="true"><span>✨</span><span>✨</span><span>✨</span><span>✨</span></div>{{ end }}
-    {{ if ne .Kind "person" }}<div class="card-sparkles" aria-hidden="true"><span>✨</span><span>✨</span><span>✨</span><span>✨</span><span>✨</span></div>{{ end }}
+    {{ if and (ne .Kind "person") (ne .Kind "contact") (ne .Kind "api") }}<div class="card-sparkles" aria-hidden="true"><span>✨</span><span>✨</span><span>✨</span><span>✨</span><span>✨</span></div>{{ end }}
     <footer class="card-footer">
       <div class="brand-lockup">
         <div class="brand-primary"><div class="wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></div>{{ if and (eq .Kind "conference") .CardPoweredBy }}<div class="conference-powered-by"><span>powered by</span>{{ range .CardPoweredBy }}<img src="{{ .URL }}" alt="{{ .Label }}">{{ end }}</div>{{ end }}</div>
-        <div class="brand-tagline">Developing the frontier of bitcoin.</div>
+        <div class="brand-tagline">Developing the <span class="brand-frontier">frontier</span> of bitcoin.</div>
       </div>
       <div class="site">btcpp.dev</div>
     </footer>
@@ -354,7 +512,25 @@
           settled = true;
           clearTimeout(timer);
           if (!loaded) {
-            var container = img.closest('.image, .award-logo, .social-card-sponsor-ticker__item, .conference-powered-by img');
+            var prizeSponsor = img.closest('.project-sponsor');
+            if (prizeSponsor) {
+              img.remove();
+              if (!prizeSponsor.querySelector('img')) {
+                prizeSponsor.closest('.card').classList.remove('has-prize-sponsor');
+                prizeSponsor.remove();
+              }
+            }
+            var eventArt = img.closest('.project-event-art');
+            if (eventArt) {
+              eventArt.closest('.card').classList.remove('has-event-art');
+              eventArt.remove();
+            }
+            if (img.closest('.project-team__avatar')) {
+              img.remove();
+              resolve();
+              return;
+            }
+            var container = img.closest('.image, .award-logo, .social-card-sponsor-ticker__item, .conference-powered-by img, .overview-sponsors__logo');
             if (container) container.remove();
           }
           resolve();
@@ -366,7 +542,7 @@
       });
     }
     function fitPersonName() {
-      var name = document.querySelector('.kind-person h1');
+      var name = document.querySelector('.kind-person h1, .kind-whois h1');
       if (!name) return;
       var fullName = name.textContent.trim().replace(/\s+/g, ' ');
       function fits() {
@@ -427,11 +603,40 @@
         if (count === 0) images.replaceWith(Object.assign(document.createElement('div'), { className: 'fallback', textContent: '++' }));
         else images.className = 'images count-' + count;
       }
+      var sponsors = document.querySelector('.overview-sponsors');
+      if (sponsors && !sponsors.querySelector('img')) sponsors.remove();
       document.fonts.ready.then(function () {
         fitPersonName();
+        var projectTitle = document.querySelector('.project-copy h1, .hackathon-card h1');
+        if (projectTitle) {
+          var style = getComputedStyle(projectTitle);
+          var size = parseFloat(style.fontSize);
+          var limit = parseFloat(style.maxHeight);
+          while (size > 26 && (projectTitle.scrollHeight > limit || projectTitle.scrollWidth > projectTitle.clientWidth)) {
+            projectTitle.style.fontSize = (--size) + 'px';
+          }
+        }
+        var winnerLabel = document.querySelector('.hackathon-card .project-kicker');
+        if (winnerLabel && getComputedStyle(winnerLabel).display !== 'none') {
+          var labelSize = parseFloat(getComputedStyle(winnerLabel).fontSize);
+          while (labelSize > 18 && winnerLabel.scrollWidth > winnerLabel.clientWidth) {
+            winnerLabel.style.fontSize = (--labelSize) + 'px';
+          }
+        }
+        document.querySelectorAll('.award-value strong').forEach(function (amount) {
+          var size = parseFloat(getComputedStyle(amount).fontSize);
+          while (size > 36 && amount.scrollWidth > amount.clientWidth) {
+            amount.style.fontSize = (--size) + 'px';
+          }
+        });
         card.dataset.cardReady = 'true';
       });
     });
   </script>
 </body>
 </html>
+{{ define "award-value" }}{{ if .Value }}<div class="award-value{{ if and (eq .Kind "hackathon") (not .ValueSuffix) }} award-value--pending{{ end }}"><span>{{ .ValueLabel }}</span><strong><b class="award-value__whole">{{ .AwardValueWhole }}</b>{{ if .AwardValueDecimal }}<b class="award-value__decimal">{{ .AwardValueDecimal }}</b>{{ end }}{{ if .AwardValueUnit }}<b class="award-value__unit">{{ .AwardValueUnit }}</b>{{ end }}{{ if .ValueSuffix }} <small>{{ .ValueSuffix }}</small>{{ end }}</strong>{{ if .Details }}<div class="award-prize-details">{{ range .Details }}<b>+ {{ . }}</b>{{ end }}</div>{{ end }}</div>{{ end }}{{ end }}
+
+{{ define "brand-copy" }}{{ if eq . "Developing the frontier of bitcoin." }}Developing the <span class="brand-frontier">frontier</span> of bitcoin.{{ else }}{{ . }}{{ end }}{{ end }}
+
+{{ define "event-brand" }}<strong class="award-event__title"><span class="wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></span>{{ if .EventEdition }}<span class="award-event__edition">{{ .EventEdition }}</span>{{ end }}</strong>{{ end }}

@@ -57,6 +57,7 @@ build-ops:
 	$(GO_ENV) go build -v -o target/service-closure-plan ./cmd/service-closure-plan
 	$(GO_ENV) go build -v -o target/service-bitcoin-verify ./cmd/service-bitcoin-verify
 	$(GO_ENV) go build -v -o target/service-account-cancellations ./cmd/service-account-cancellations
+	$(GO_ENV) go build -v -o target/refresh-social-cards ./cmd/refresh-social-cards
 
 .PHONY: css-build
 css-build:

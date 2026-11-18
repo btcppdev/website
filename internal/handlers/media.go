@@ -149,6 +149,7 @@ type TalkCard struct {
 }
 
 type SpeakerCard struct {
+	Photo   string
 	ConfTag string
 	TalkImg string
 	Name    string
@@ -391,10 +392,11 @@ func PreviewSpeakerCard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	confTag := params["conf"]
 	card := params["card"]
 
-	template := fmt.Sprintf("media/%s_%s.tmpl", confTag, card)
+	template := fmt.Sprintf("media/speaker_%s.tmpl", card)
 	err := ctx.TemplateCache.ExecuteTemplate(w, template, &SpeakerCard{
 		ConfTag: confTag,
 		Name:    "Speaker's Name",
+		Photo:   "niftynei.jpg",
 		Company: "Acme Bitcoin Co.",
 		TalkImg: "riga_clock.png",
 		Twitter: "niftynei",
@@ -439,6 +441,7 @@ func MakeSpeakerCard(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	err = ctx.TemplateCache.ExecuteTemplate(w, template, &SpeakerCard{
 		ConfTag: confTag,
 		Name:    speaker.Name,
+		Photo:   speaker.Photo,
 		Company: speaker.Company,
 		TalkImg: talk.Clipart,
 		Twitter: speaker.TwitterHandle(),

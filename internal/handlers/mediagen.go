@@ -152,8 +152,12 @@ func sponsorLogoFingerprint(rawURL string) string {
 	return fresh[filename]
 }
 
+// Bump when the speaker announcement layout changes so stored cards refresh.
+const speakerCardLayoutVersion = "20261116-dark-portrait"
+
 func speakerCardHash(speaker *types.Speaker, talk *types.Talk) string {
 	h := sha256.New()
+	h.Write([]byte(speakerCardLayoutVersion))
 	h.Write([]byte(speaker.Name))
 	h.Write([]byte(speaker.Photo))
 	h.Write([]byte(speaker.Twitter.Handle))
@@ -167,8 +171,12 @@ func speakerCardHash(speaker *types.Speaker, talk *types.Talk) string {
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
 }
 
+// Bump when the talk card layout changes so the media refresher replaces stored cards.
+const talkCardLayoutVersion = "20261116-panel-handles"
+
 func talkCardHash(talk *types.Talk) string {
 	h := sha256.New()
+	h.Write([]byte(talkCardLayoutVersion))
 	h.Write([]byte(socialCardTalkTitle(talk.Name)))
 	h.Write([]byte(talk.Clipart))
 	// Clipart fingerprint comes from the Spaces manifest now that

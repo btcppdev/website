@@ -1,13 +1,12 @@
 <!doctype html>
 <html lang="en">
 <head>
-  {{ if or .IsNew .IsProjectEditor }}
-  <title>{{ if .IsNew }}Create project{{ else }}Edit {{ .Project.Title }}{{ end }} · {{ .Competition.Title }}</title>
+  {{ if or .IsNew .IsProjectEditor (not .SocialCardURL) }}
+  <title>{{ if .IsNew }}Create project{{ else }}{{ if .IsProjectEditor }}Edit {{ end }}{{ .Project.Title }}{{ end }} · {{ .Competition.Title }}</title>
   <meta name="robots" content="noindex, nofollow">
   {{ else }}
   {{ $description := .Project.ShortDescription }}{{ if not $description }}{{ $description = printf "%s — a project from %s. Explore the write-up, team, demo, and source code." .Project.Title .Competition.Title }}{{ end }}
-  {{ $image := .Project.ImageURL }}{{ if not $image }}{{ $image = printf "%s" (conferenceSocialCard .Conf) }}{{ end }}
-  {{ template "site_seo" (dict "Title" (printf "%s · %s · bitcoin++" .Project.Title .Competition.Title) "Description" $description "Path" (.ProjectURL .Project) "Image" $image) }}
+  {{ template "site_seo" (dict "Title" (printf "%s · %s · bitcoin++" .Project.Title .Competition.Title) "Description" $description "Path" (.ProjectURL .Project) "Image" .SocialCardURL "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
   {{ end }}
   {{ template "hackathon_header" . }}
 </head>

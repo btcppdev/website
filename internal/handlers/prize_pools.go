@@ -283,11 +283,13 @@ func communitySocialCard(app *config.AppContext, conf *types.Conf, p *prizepool.
 	card := hackathonSocialCard(app, &HackathonPage{Conf: conf})
 	card.Kind = "community"
 	card.Title = "Community prize"
-	card.Eyebrow = conf.Tag
-	card.ValueLabel = "Community-funded"
-	card.Value = p.Sats()
+	card.Eyebrow = "Community funding"
+	card.ValueLabel = "Confirmed community funding"
+	card.Value = socialCardPrizeSatoshiLabel(p.TotalMSat / 1000)
 	card.ValueSuffix = "sats"
-	card.Callout = "Help reach " + p.GoalLabel() + " sats"
+	card.Callout = ""
+	card.FundingGoal = p.GoalLabel() + " sats"
+	card.FundingPercent = p.Progress()
 	card.Subtitle = p.Address()
 	return normalizeSiteSocialCard(app, card)
 }

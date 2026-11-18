@@ -198,7 +198,7 @@ func TestWhoIsSocialCardPrioritizesFeaturedSpeakersAndGitHubLabels(t *testing.T)
 	}
 }
 
-func TestWhoIsSocialCardUsesAtMostTwelveUniquePortraits(t *testing.T) {
+func TestWhoIsSocialCardUsesAtMostFiveUniquePortraits(t *testing.T) {
 	featured := &types.Speaker{ID: "speaker-07", Name: "Featured", Photo: "https://localhost/07.jpg"}
 	people := make([]*WhoIsPerson, 0, 15)
 	for index := 0; index < 15; index++ {
@@ -211,8 +211,8 @@ func TestWhoIsSocialCardUsesAtMostTwelveUniquePortraits(t *testing.T) {
 	card := imgproc.SiteSocialCard{Kind: "whois"}
 	appendWhoIsCardSpeakers(&card, people, []*types.Speaker{featured})
 
-	if len(card.Images) != 12 {
-		t.Fatalf("whois portrait count = %d, want 12", len(card.Images))
+	if len(card.Images) != 5 {
+		t.Fatalf("whois portrait count = %d, want 5", len(card.Images))
 	}
 	if card.Images[0] != featured.Photo {
 		t.Fatalf("first whois portrait = %q, want featured %q", card.Images[0], featured.Photo)
@@ -226,7 +226,8 @@ func TestWhoIsSocialCardUsesAtMostTwelveUniquePortraits(t *testing.T) {
 	}
 }
 
-func TestHackathonSocialCardFeaturesTrophyAndPrizePool(t *testing.T) {
+func TestHackathonSocialCardUsesEventArtworkAndPrizePool(t *testing.T) {
+	t.Chdir(findRepoRoot(t))
 	ctx := &config.AppContext{Env: &types.EnvConfig{Host: "localhost", Port: "8888"}}
 	page := &HackathonPage{
 		Competition: &types.HackathonCompetition{Title: "Signet Hackathon"},
@@ -257,8 +258,11 @@ func TestHackathonSocialCardFeaturesTrophyAndPrizePool(t *testing.T) {
 	if card.Subtitle != "Local Dev · Austin · August 2026" {
 		t.Fatalf("hackathon card subtitle = %q, want conference, location, and date metadata", card.Subtitle)
 	}
-	if len(card.Images) != 1 || card.Images[0] != "http://localhost:8888/static/img/rebrand/hackathon-trophy.jpg" {
-		t.Fatalf("hackathon card images = %#v", card.Images)
+	if len(card.Images) != 0 || !strings.Contains(card.HeroImage, "/static/img/dev26/leading.") {
+		t.Fatalf("hackathon card artwork = %q, images = %#v", card.HeroImage, card.Images)
+	}
+	if card.Location != "Local Dev" || card.EventDate != "Austin · August 2026" || card.ValueLabel != "Total prize pool" {
+		t.Fatalf("hackathon card event/value metadata = %#v", card)
 	}
 	if got, want := strings.Join(card.SponsorNames, ","), "Headline Partner,Hack Partner,Title Partner,Workshop Partner"; got != want {
 		t.Fatalf("hackathon card sponsors = %q, want %q", got, want)

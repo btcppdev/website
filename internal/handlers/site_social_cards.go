@@ -176,6 +176,8 @@ func normalizeSiteSocialCard(ctx *config.AppContext, card imgproc.SiteSocialCard
 		imageLimit = 3
 	} else if card.Kind == "person" {
 		imageLimit = 5
+	} else if card.Kind == "project" || card.Kind == "award-winner" {
+		imageLimit = 3
 	}
 	images := make([]string, 0, imageLimit)
 	labels := make([]string, 0, imageLimit)
@@ -194,6 +196,13 @@ func normalizeSiteSocialCard(ctx *config.AppContext, card imgproc.SiteSocialCard
 	}
 	card.Images = images
 	card.ImageLabels = labels
+	team := make([]imgproc.SiteSocialCardMember, 0, len(card.Team))
+	for _, member := range card.Team {
+		member.Name = truncateSiteSocialCardText(socialCardWithoutWordmark(member.Name), 48)
+		member.Photo = siteSocialCardImageURL(ctx, member.Photo)
+		team = append(team, member)
+	}
+	card.Team = team
 	card.ProfileHandle = truncateSiteSocialCardText(strings.TrimPrefix(strings.TrimSpace(card.ProfileHandle), "@"), 32)
 	card.XHandle = truncateSiteSocialCardText(strings.TrimPrefix(strings.TrimSpace(card.XHandle), "@"), 24)
 	card.GitHubHandle = truncateSiteSocialCardText(strings.TrimPrefix(strings.TrimSpace(card.GitHubHandle), "@"), 32)
@@ -212,9 +221,14 @@ func normalizeSiteSocialCard(ctx *config.AppContext, card imgproc.SiteSocialCard
 		}
 	}
 	card.Details = details
+	badgeTextLimit := 28
+	if card.Kind == "project" {
+		// Project awards now occupy the full-width winner banner.
+		badgeTextLimit = 96
+	}
 	badges := make([]string, 0, min(2, len(card.Badges)))
 	for _, badge := range card.Badges {
-		badge = truncateSiteSocialCardText(socialCardWithoutWordmark(badge), 28)
+		badge = truncateSiteSocialCardText(socialCardWithoutWordmark(badge), badgeTextLimit)
 		if badge != "" {
 			badges = append(badges, badge)
 		}
@@ -254,12 +268,19 @@ func normalizeSiteSocialCard(ctx *config.AppContext, card imgproc.SiteSocialCard
 	card.PoweredByNames = poweredByNames
 	card.MapImage = siteSocialCardImageURL(ctx, card.MapImage)
 	card.Eyebrow = truncateSiteSocialCardText(socialCardWithoutWordmark(card.Eyebrow), 72)
-	card.Title = truncateSiteSocialCardText(socialCardWithoutWordmark(card.Title), 68)
+	titleLimit := 68
+	if card.Kind == "project" || card.Kind == "award-winner" {
+		titleLimit = 140
+	}
+	card.Title = truncateSiteSocialCardText(socialCardWithoutWordmark(card.Title), titleLimit)
 	card.TitleSuffix = truncateSiteSocialCardText(socialCardWithoutWordmark(card.TitleSuffix), 68)
 	card.Subtitle = truncateSiteSocialCardText(socialCardWithoutWordmark(card.Subtitle), 150)
 	card.Location = truncateSiteSocialCardText(socialCardWithoutWordmark(card.Location), 96)
+	card.EventDate = truncateSiteSocialCardText(card.EventDate, 64)
 	calloutLimit := 54
-	if card.Kind == "award" {
+	if card.Kind == "project" || card.Kind == "award-winner" {
+		calloutLimit = 140
+	} else if card.Kind == "award" {
 		calloutLimit = 96
 	}
 	card.Callout = truncateSiteSocialCardText(socialCardWithoutWordmark(card.Callout), calloutLimit)
@@ -668,10 +689,9 @@ func hackathonSocialCard(ctx *config.AppContext, page *HackathonPage) imgproc.Si
 		Kind:        "hackathon",
 		Eyebrow:     "hackathon",
 		Title:       "Build something real.",
-		ValueLabel:  "",
+		ValueLabel:  "Total prize pool",
 		Value:       "Coming soon",
 		Callout:     "Enter the hackathon",
-		Images:      []string{"/static/img/rebrand/hackathon-trophy.jpg"},
 		AccentColor: types.DefaultConferenceAccentColor,
 		TextColor:   "#ffffff",
 	}
@@ -690,9 +710,15 @@ func hackathonSocialCard(ctx *config.AppContext, page *HackathonPage) imgproc.Si
 			date = page.Conf.StartDate.Format("Jan 2, 2006")
 		}
 		card.Subtitle = strings.Join(nonEmptyStrings(page.ConferenceLabel(), page.Conf.Location, date), " · ")
+		card.EventEdition = page.Conf.ArchiveEdition()
+		card.Location = page.ConferenceLabel()
+		card.EventDate = strings.Join(nonEmptyStrings(page.Conf.Location, date), " · ")
+		if image := confImagePath(page.Conf.Tag, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
+			card.HeroImage = image
+		}
 	}
 	if total := page.PrizePoolSats(); total > 0 {
-		card.Value = strings.TrimSuffix(compactSatoshiLabel(total), " satoshis")
+		card.Value = socialCardPrizeSatoshiLabel(total)
 		card.ValueSuffix = "sats"
 	}
 	return normalizeSiteSocialCard(ctx, card)
@@ -770,16 +796,16 @@ func awardSocialCard(ctx *config.AppContext, page *HackathonPage, award *types.A
 	}
 	if page != nil && page.Conf != nil {
 		applySiteSocialCardPalette(&card, page.Conf)
+		if image := confImagePath(page.Conf.Tag, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
+			card.HeroImage = image
+		}
 		card.Footer = strings.TrimSpace(strings.Join(nonEmptyStrings(page.ConferenceLabel()+" hackathon", "btcpp.dev"), " · "))
 		date := strings.TrimSpace(page.Conf.DateDesc)
 		if date == "" && !page.Conf.StartDate.IsZero() {
 			date = page.Conf.StartDate.Format("Jan 2, 2006")
 		}
-		competition := ""
-		if page.Competition != nil {
-			competition = strings.TrimSpace(page.Competition.Title)
-		}
-		card.Callout = strings.Join(nonEmptyStrings(page.ConferenceLabel(), competition), " · ")
+		card.EventEdition = page.Conf.ArchiveEdition()
+		card.Callout = page.ConferenceLabel()
 		card.Location = strings.Join(nonEmptyStrings(page.Conf.Location, date), " · ")
 	}
 	if award == nil {
@@ -828,6 +854,9 @@ func awardSocialCard(ctx *config.AppContext, page *HackathonPage, award *types.A
 				card.ValueSuffix = "prizes"
 			}
 		}
+	}
+	if winner, ok := awardWinnerSocialCard(ctx, page, award, card); ok {
+		return winner
 	}
 	return normalizeSiteSocialCard(ctx, card)
 }
@@ -878,7 +907,7 @@ func appendWhoIsCardSpeakers(card *imgproc.SiteSocialCard, people []*WhoIsPerson
 	}
 	seen := make(map[string]bool, len(people))
 	appendSpeaker := func(speaker *types.Speaker) {
-		if speaker == nil || len(card.Images) >= 12 || strings.TrimSpace(speaker.Photo) == "" {
+		if speaker == nil || len(card.Images) >= 5 || strings.TrimSpace(speaker.Photo) == "" {
 			return
 		}
 		key := strings.TrimSpace(speaker.ID)
@@ -1225,11 +1254,25 @@ func loadAwardSocialCard(ctx *config.AppContext, encodedSlug string) (imgproc.Si
 	if award == nil {
 		return imgproc.SiteSocialCard{}, fmt.Errorf("public award %q not found", parts[1])
 	}
+	if page.ResultsFinalized() && page.ProjectGalleryOpen() {
+		page.Projects, err = getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{})
+		if err != nil {
+			return imgproc.SiteSocialCard{}, err
+		}
+		page.ProjectMembersByProject, err = getters.ListProjectMembersForCompetition(ctx, competition.ID)
+		if err != nil {
+			return imgproc.SiteSocialCard{}, err
+		}
+	}
 	return awardSocialCard(ctx, page, award), nil
 }
 
 func loadSiteSocialCard(ctx *config.AppContext, kind, slug string) (imgproc.SiteSocialCard, error) {
 	switch kind {
+	case "contact":
+		return contactSocialCard(), nil
+	case "api":
+		return developersAPISocialCard(), nil
 	case "home":
 		confs, err := getters.ListConfs(ctx)
 		return homeSocialCard(ctx, confs), err
@@ -1269,6 +1312,8 @@ func loadSiteSocialCard(ctx *config.AppContext, kind, slug string) (imgproc.Site
 		return loadHackathonSocialCard(ctx, slug)
 	case "award":
 		return loadAwardSocialCard(ctx, slug)
+	case "project":
+		return loadProjectSocialCard(ctx, slug)
 	case "whois":
 		people, err := buildWhoIsDirectory(ctx)
 		return whoIsSocialCard(ctx, people), err
