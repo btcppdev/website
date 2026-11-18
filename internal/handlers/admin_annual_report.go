@@ -47,6 +47,8 @@ func (e annualEvent) HackKnown() bool {
 
 type annualEditionLink struct{ URL, Date string }
 type annualReportPage struct {
+	SharedTextRevision                                      int64    `json:"-"`
+	ShareTextFields                                         []string `json:"-"`
 	RecipientKey, RecipientOrganizationID, RecipientLogoURL string
 	Recipients                                              []annualReportRecipient `json:"-"`
 	QuoteAuthors                                            map[string]annualQuoteAuthor
@@ -269,6 +271,10 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 	if p.Saved == nil {
 		p.Saved = map[string]string{}
 	}
+	if err = loadAnnualSharedText(ctx, app, &p); err != nil {
+		http.Error(w, "Unable to load shared report text", 503)
+		return
+	}
 	p.CSRF, err = ensureAuthMethodsCSRF(app, r)
 	if err != nil {
 		http.Error(w, "Unable to prepare editor", 500)
@@ -293,6 +299,15 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 			http.Error(w, errReportConflict.Error(), 409)
 			return
 		}
+		sharedRevision := r.PostForm.Get("shared_text_revision")
+		if sharedRevision == "" {
+			sharedRevision = "0"
+		} // Older forms before sharing existed.
+		sharedRev, e := strconv.ParseInt(sharedRevision, 10, 64)
+		if e != nil || sharedRev != p.SharedTextRevision {
+			http.Error(w, errReportConflict.Error(), 409)
+			return
+		}
 		if err = annualReportForm(&p, r.PostForm, now); err != nil {
 			http.Error(w, err.Error(), 400)
 			return
@@ -308,6 +323,10 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 		return
 	}
 	if r.Method == http.MethodPost {
+		if _, err := p.sharedTextPatch(); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
 		id, err := saveAnnualReport(ctx, app, p, r.PostForm.Get("action") == "freeze")
 		if errors.Is(err, errReportConflict) {
 			http.Error(w, err.Error(), 409)
@@ -318,6 +337,9 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 			return
 		}
 		target := p.URL() + "&saved=1"
+		if len(p.ShareTextFields) > 0 {
+			target += "&shared=1"
+		}
 		if id != "" {
 			target = p.URL() + "&edition=" + id
 		}
@@ -347,14 +369,21 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 		return
 	}
 	if r.URL.Query().Get("saved") == "1" {
-		p.Message = "Annual draft saved. Each recipient has an independent draft."
+		p.Message = "Annual draft saved for " + p.Recipient + "."
+		if r.URL.Query().Get("shared") == "1" {
+			p.Message = fmt.Sprintf("Annual draft saved. Selected text replaced across all %d sponsor drafts and will be used in new reports. Frozen editions are unchanged.", p.Year)
+		}
 	}
 	renderAnnualReport(w, app, p)
 }
 
 func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
-	if f.Get("action") != "save" && f.Get("action") != "freeze" && f.Get("action") != "include_all" {
+	if f.Get("action") != "save" && f.Get("action") != "freeze" && f.Get("action") != "include_all" && f.Get("action") != "share_text" {
 		return fmt.Errorf("invalid report action")
+	}
+	selected, err := annualSharedTextSelection(f)
+	if err != nil {
+		return err
 	}
 	cutoff, err := time.Parse("2006-01-02", f.Get("cutoff"))
 	if err != nil || cutoff.Year() != p.Year || cutoff.After(now) {
@@ -432,12 +461,17 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 		return err
 	}
 	p.Saved = saved
+	p.ShareTextFields = selected
 	p.Cutoff = saved["cutoff"]
 	return nil
 }
 
 // Saving a draft and creating its immutable data snapshot is one transaction.
 func saveAnnualReport(ctx context.Context, app *config.AppContext, p annualReportPage, freeze bool) (string, error) {
+	patch, err := p.sharedTextPatch()
+	if err != nil {
+		return "", err
+	}
 	// Persist default recaps too, so a frozen edition does not pick up future copy changes.
 	saved := make(map[string]string, len(p.Saved)+len(p.Events))
 	for key, value := range p.Saved {
@@ -457,6 +491,9 @@ func saveAnnualReport(ctx context.Context, app *config.AppContext, p annualRepor
 		return "", err
 	}
 	defer tx.Rollback(ctx)
+	if err := lockAnnualSharedText(ctx, tx, p); err != nil {
+		return "", err
+	}
 	content, err := json.Marshal(p.Saved)
 	if err != nil {
 		return "", err
@@ -470,6 +507,9 @@ func saveAnnualReport(ctx context.Context, app *config.AppContext, p annualRepor
 	}
 	if result.RowsAffected() != 1 {
 		return "", errReportConflict
+	}
+	if err := saveAnnualSharedText(ctx, tx, p, patch); err != nil {
+		return "", err
 	}
 	id := ""
 	if freeze {

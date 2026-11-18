@@ -127,7 +127,7 @@ if (reportForm) {
   const saveStatus = document.getElementById("report-save-status");
   const pending = new Set();
   const markDirty = (event) => {
-    if (event?.target?.id === "report-post-search" || event?.target?.id === "report-post-filter") return;
+    if (event?.target?.id === "report-post-search" || event?.target?.id === "report-post-filter" || event?.target?.name === "share_field") return;
     dirty = true;
     reportForm.dataset.dirty = "true";
     if (!event?.target?.matches("[data-report-section]")) reportForm.dataset.figuresEdited = "true";
@@ -303,3 +303,29 @@ async function collectAnnualSources(automatic) {
 }
 annualRefresh?.addEventListener("click", () => collectAnnualSources(false));
 if (annualRefresh && document.body.dataset.readonly !== "true") collectAnnualSources(true);
+
+// Sharing is an explicit save action; selecting fields does not edit the draft.
+const shareWriting = document.getElementById("annual-share-writing");
+if (shareWriting && reportForm) {
+  const choices = [...reportForm.querySelectorAll('input[name="share_field"]')];
+  const shareButton = reportForm.querySelector('button[value="share_text"]');
+  const shareStatus = document.getElementById("annual-share-status");
+  const readOnly = document.body.dataset.readonly === "true";
+  function updateShareSelection() {
+    const count = choices.filter(input => input.checked).length;
+    shareButton.disabled = readOnly || count === 0;
+    shareStatus.textContent = count
+      ? `${count} text ${count === 1 ? "field" : "fields"} selected to replace across all ${shareWriting.dataset.year} sponsor drafts.`
+      : "No text selected for sharing.";
+  }
+  for (const input of choices) input.addEventListener("change", updateShareSelection);
+  document.getElementById("annual-share-select-all").addEventListener("click", () => {
+    choices.forEach(input => { input.checked = true; });
+    updateShareSelection();
+  });
+  document.getElementById("annual-share-clear").addEventListener("click", () => {
+    choices.forEach(input => { input.checked = false; });
+    updateShareSelection();
+  });
+  updateShareSelection();
+}
