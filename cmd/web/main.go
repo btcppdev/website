@@ -10,7 +10,6 @@ import (
 	texttemplate "text/template"
 	"time"
 
-	"btcpp-web/external/buffer"
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/external/tokens"
@@ -82,9 +81,6 @@ func main() {
 	}
 	youtubepkg.Init(app.Env.YouTube.ClientID, app.Env.YouTube.ClientSecret, app.Env.YouTube.RedirectURL, app.Env.YouTube.UpdatesEnabled)
 
-	/* Start up Buffer */
-	buffer.Init(app.Env.BufferAPI)
-
 	/* Set up Routes + Templates */
 	routes, err := handlers.Routes(&app)
 	if err != nil {
@@ -128,6 +124,7 @@ func main() {
 	}
 
 	handlers.StartRecordingAutopublisher(&app)
+	handlers.StartPublishingWorker(&app)
 	handlers.StartShopMaintenance(&app)
 	handlers.StartPrizePoolMonitor(&app)
 	handlers.StartServicePaymentReconciliation(&app)

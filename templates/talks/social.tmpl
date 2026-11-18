@@ -13,9 +13,9 @@
     <header class="social-page-heading"><div><p class="social-eyebrow">{{ .Conf.Tag }} / publishing</p><h1>Social posts</h1><p>{{ .Conf.Desc }} · {{ .Conf.DateDesc }}</p></div><span class="social-channels">X · Instagram · LinkedIn</span></header>
     {{ if .FlashMessage }}<div class="social-notice" role="status">{{ .FlashMessage }}</div>{{ end }}
     {{ if .FlashError }}<div class="social-notice social-notice-error" role="alert">{{ .FlashError }}</div>{{ end }}
-    {{ if not .BufferOK }}<div class="social-notice">Buffer is not configured.</div>{{ else }}
+    {{ if not .PublishingOK }}<div class="social-notice">No publishing account is configured. Ask a site administrator to connect one in Publishing.</div>{{ else }}
     <form method="POST" action="/{{ .Conf.Tag }}/admin/social/post" data-social-form data-media-upload-url="/{{ .Conf.Tag }}/admin/social/media">
-      <p class="social-instructions">Review the media in posting order. Move attachments left or right, remove any, or add files. New files start first; you can move them afterward. A video must be the only attachment in its post.</p>
+      <p class="social-instructions">Review the media in posting order. Move attachments left or right, remove any, or add files. New files start first; you can move them afterward. X posts support up to four images.</p>
       <noscript><p>Enable JavaScript to edit media. Otherwise, the original attachments shown below will be used.</p></noscript>
 <section class="social-post-section" id="speakers">
     <header class="social-section-heading"><h2>Speakers <span>{{ len .SpeakerRows }}</span></h2>
@@ -43,7 +43,7 @@
                                         <input type="hidden" name="media_items_speaker_{{ .ID }}" data-media-items>
                                         <p data-media-validation role="status" class="text-xs text-red-700"></p>
                                         <label class="block text-sm font-medium text-gray-700">Add media
-                                            <input type="file" multiple accept="video/mp4,video/quicktime,image/jpeg,image/png,.mp4,.mov" data-media-file class="mt-1 block w-full text-sm">
+                                            <input type="file" multiple accept="image/jpeg,image/png" data-media-file class="mt-1 block w-full text-sm">
                                         </label>
                                         <p class="mt-1 text-xs text-gray-600" data-media-status role="status"></p>
                                     </div>
@@ -74,7 +74,7 @@
                                         <input type="hidden" name="media_items_talk_{{ .ID }}" data-media-items>
                                         <p data-media-validation role="status" class="text-xs text-red-700"></p>
                                         <label class="block text-sm font-medium text-gray-700">Add media
-                                            <input type="file" multiple accept="video/mp4,video/quicktime,image/jpeg,image/png,.mp4,.mov" data-media-file class="mt-1 block w-full text-sm">
+                                            <input type="file" multiple accept="image/jpeg,image/png" data-media-file class="mt-1 block w-full text-sm">
                                         </label>
                                         <p class="mt-1 text-xs text-gray-600" data-media-status role="status"></p>
                                     </div>
@@ -107,7 +107,7 @@
                                         <input type="hidden" name="media_items_sponsor_{{ .Ref }}" data-media-items>
                                         <p data-media-validation role="status" class="text-xs text-red-700"></p>
                                         <label class="block text-sm font-medium text-gray-700">Add media
-                                            <input type="file" multiple accept="video/mp4,video/quicktime,image/jpeg,image/png,.mp4,.mov" data-media-file class="mt-1 block w-full text-sm">
+                                            <input type="file" multiple accept="image/jpeg,image/png" data-media-file class="mt-1 block w-full text-sm">
                                         </label>
                                         <p class="mt-1 text-xs text-gray-600" data-media-status role="status"></p>
                                     </div>
@@ -120,13 +120,10 @@
     </article>
     {{ else }}<p class="social-empty">No sponsors found.</p>{{ end }}
 </section>
-      {{ if .SponsorBatchText }}<section class="social-batch"><h2>Instagram sponsor carousel</h2><p>Image sponsors are combined in sponsor order, using the media order from each row. Video sponsors are posted individually.</p><p data-carousel-summary role="status">Select sponsors above to preview their carousel images.</p>
-      <ol class="social-carousel-preview" data-carousel-preview aria-label="Instagram carousel images in posting order"></ol>
-      <label for="social-batch-copy">Carousel post text</label><textarea id="social-batch-copy" name="text_sponsor_batch" rows="4">{{ .SponsorBatchText }}</textarea></section>{{ end }}
-      <footer class="social-submit-bar"><p>Select the posts you want to queue.<br><span>MP4, MOV, JPEG or PNG · Up to 300 MB per file.</span></p><button type="submit" data-social-submit>Queue selected posts to Buffer →</button></footer>
+      <footer class="social-submit-bar"><p>Select the posts you want to queue.<br><span>Direct X publishing: up to 4 JPEG or PNG images, 5 MB each.</span></p><button type="submit" data-social-submit>Queue selected posts →</button></footer>
     </form>{{ end }}
   </main>
-  <script src="/static/js/social-media-upload.js" defer></script>
+  <script src="/static/js/social-media-upload.js?v=20261118-direct-1" defer></script>
   <script>function toggleAll(source, group) { document.querySelectorAll('input[type="checkbox"][data-selection-group="' + group + '"]').forEach(function(cb) { cb.checked = source.checked; }); }</script>
 </body>
 </html>

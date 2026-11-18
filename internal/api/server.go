@@ -205,6 +205,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}", s.patchConferenceTalk).Methods(http.MethodPatch)
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}/schedule", s.updateConferenceTalkSchedule).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/recording-candidates", s.recordingCandidates).Methods(http.MethodGet)
+	r.HandleFunc("/publishing/streams", s.putPublishingStreams).Methods(http.MethodPut)
 	r.HandleFunc("/recording-broadcast-plans", s.recordingBroadcastPlans).Methods(http.MethodGet)
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}/recording", s.putTalkRecording).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/speakers", s.conferenceSpeakers).Methods(http.MethodGet)

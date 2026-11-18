@@ -41,7 +41,7 @@ const maxRecordingUploadBytes int64 = 25 << 30 // 25 GiB
 const (
 	recordingPlatformYouTube = "youtube"
 	recordingPlatformX       = "twitter"
-	recordingPlatformBufferX = "buffer-twitter"
+	recordingPlatformLegacyX = "buffer-twitter"
 )
 
 // ---- page data ---------------------------------------------------------
@@ -52,7 +52,7 @@ type RecordingRow struct {
 	Speakers          []*types.Speaker
 	YTSocialPost      *types.SocialPost
 	XSocialPost       *types.SocialPost
-	BufferXSocialPost *types.SocialPost
+	LegacyXSocialPost *types.SocialPost
 	YTURL             string
 	XURL              string
 	XReplyURL         string
@@ -408,7 +408,7 @@ func recordingSocialPostsByRef(ctx *config.AppContext, recs []*types.Recording) 
 		}
 		refs[recordingSocialPostRef(rec, recordingPlatformYouTube)] = true
 		refs[recordingSocialPostRef(rec, recordingPlatformX)] = true
-		refs[recordingSocialPostRef(rec, recordingPlatformBufferX)] = true
+		refs[recordingSocialPostRef(rec, recordingPlatformLegacyX)] = true
 	}
 	if len(refs) == 0 {
 		return nil
@@ -1571,7 +1571,7 @@ func attachRecordingSocialPosts(ctx *config.AppContext, row *RecordingRow) {
 	}
 	row.YTSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformYouTube)
 	row.XSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformX)
-	row.BufferXSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformBufferX)
+	row.LegacyXSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformLegacyX)
 	applyRecordingSocialPosts(row)
 }
 
@@ -1581,7 +1581,7 @@ func attachRecordingSocialPostsFromMap(row *RecordingRow, socialPostsByRef map[s
 	}
 	row.YTSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformYouTube)]
 	row.XSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformX)]
-	row.BufferXSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformBufferX)]
+	row.LegacyXSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformLegacyX)]
 	applyRecordingSocialPosts(row)
 }
 

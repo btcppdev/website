@@ -70,12 +70,12 @@ type (
 		HMACSecret                  string
 		HMACKey                     [32]byte
 		DatabaseURL                 string
-		BufferAPI                   string
 		Spaces                      SpacesConfig
 		CacheTTLSec                 int
 		YouTube                     YouTubeConfig
 		OAuth                       OAuthConfig
 		Recordings                  RecordingsConfig
+		Publishing                  PublishingConfig
 		TaxFormEncryptionKey        string
 		BadgeStudioURL              string
 		SignerAuthPrivateKey        string
@@ -87,6 +87,11 @@ type (
 		InsiderFulfillmentToken     string
 		InsiderAllowedReturnOrigins string
 		InsiderMerchantName         string
+	}
+
+	PublishingConfig struct {
+		Enabled                                bool
+		XClientID, XClientSecret, XRedirectURL string
 	}
 
 	OAuthConfig struct {

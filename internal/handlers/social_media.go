@@ -8,15 +8,15 @@ import (
 	"path"
 	"strings"
 
-	"btcpp-web/external/buffer"
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
+	"btcpp-web/internal/publishing"
 
 	"github.com/google/uuid"
 )
 
-const maxSocialMediaBytes = 300 * 1000 * 1000
+const maxSocialMediaBytes = 5 * 1000 * 1000
 
 // socialMediaType detects supported formats from bytes, not the supplied filename.
 func socialMediaType(header []byte) (kind, contentType, ext string, err error) {
@@ -51,7 +51,7 @@ func SocialMediaUpload(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	limitRequestBody(w, r, maxSocialMediaBytes+maxFormBodyBytes)
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
-		http.Error(w, "Unable to read upload; maximum file size is 300 MB", http.StatusBadRequest)
+		http.Error(w, "Unable to read upload; maximum file size is 5 MB", http.StatusBadRequest)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
@@ -62,7 +62,7 @@ func SocialMediaUpload(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	defer file.Close()
 	if info.Size <= 0 || info.Size > maxSocialMediaBytes {
-		http.Error(w, "File must be between 1 byte and 300 MB", http.StatusBadRequest)
+		http.Error(w, "File must be between 1 byte and 5 MB", http.StatusBadRequest)
 		return
 	}
 	header := make([]byte, 512)
@@ -74,6 +74,10 @@ func SocialMediaUpload(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	kind, contentType, ext, err := socialMediaType(header[:n])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if kind != "image" {
+		http.Error(w, "Direct X posts currently support JPEG or PNG images", http.StatusBadRequest)
 		return
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
@@ -89,11 +93,11 @@ func SocialMediaUpload(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(buffer.Asset{URL: mediaURL, Kind: kind})
+	json.NewEncoder(w).Encode(publishing.Media{URL: mediaURL, Kind: kind})
 }
 
 // Only accept media hosted in this event's upload directory.
-func validateSocialUpload(confTag, field, u, kind string) (*buffer.Asset, error) {
+func validateSocialUpload(confTag, field, u, kind string) (*publishing.Media, error) {
 	prefix := spaces.PublicURL("social-media/" + confTag + "/")
 	if !strings.HasPrefix(u, prefix) || len(u) == len(prefix) || strings.ContainsAny(strings.TrimPrefix(u, prefix), "/?#") {
 		return nil, fmt.Errorf("invalid uploaded media for %s; upload the file again", field)
@@ -116,7 +120,7 @@ func validateSocialUpload(confTag, field, u, kind string) (*buffer.Asset, error)
 	if kind != "image" && kind != "video" {
 		return nil, fmt.Errorf("invalid media type for %s", field)
 	}
-	return &buffer.Asset{URL: u, Kind: kind}, nil
+	return &publishing.Media{URL: u, Kind: kind}, nil
 }
 
 // SocialMediaItem identifies a generated attachment or an uploaded file.
@@ -172,13 +176,13 @@ func socialMediaSelection(r *http.Request, confTag, field string) ([]SocialMedia
 	return items, nil
 }
 
-func selectedSocialAssets(r *http.Request, field, service string, items []SocialMediaItem) []buffer.Asset {
-	var assets []buffer.Asset
+func selectedSocialAssets(r *http.Request, field, service string, items []SocialMediaItem) []publishing.Media {
+	var assets []publishing.Media
 	for _, item := range items {
-		asset := buffer.Asset{Kind: "image"}
+		asset := publishing.Media{Kind: "image"}
 		switch item.Source {
 		case "upload":
-			asset = buffer.Asset{URL: item.URL, Kind: item.Kind}
+			asset = publishing.Media{URL: item.URL, Kind: item.Kind}
 		case "photo":
 			asset.URL = r.FormValue("speakerphoto_" + field)
 		case "card":
@@ -186,7 +190,7 @@ func selectedSocialAssets(r *http.Request, field, service string, items []Social
 			if strings.HasPrefix(field, "sponsor_") {
 				asset.URL = r.FormValue("card_" + field)
 			}
-			if strings.HasPrefix(field, "speaker_") && (service == "twitter" || service == "instagram") && r.FormValue("instaphoto_"+field) != "" {
+			if strings.HasPrefix(field, "speaker_") && (service == "x" || service == "twitter" || service == "instagram") && r.FormValue("instaphoto_"+field) != "" {
 				asset.URL = r.FormValue("instaphoto_" + field)
 			}
 		}

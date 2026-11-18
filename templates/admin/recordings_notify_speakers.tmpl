@@ -13,7 +13,7 @@
             <div class="px-4 py-5 sm:p-6">
               <a href="/{{ .Conf.Tag }}/admin/recordings" class="text-xs text-gray-500 hover:text-gray-700">&larr; Recordings</a>
               <h1 class="text-xl font-bold text-gray-900">Speaker release campaign</h1>
-              <p class="text-sm text-gray-500">Review the immediate schedule digest, 24-hour speaker reminders, and Buffer/X release posts before queuing them.</p>
+              <p class="text-sm text-gray-500">Review the immediate schedule digest, 24-hour speaker reminders, and X release posts before queuing them.</p>
             </div>
           </div>
         </section>
@@ -33,9 +33,9 @@
           <div class="bg-blue-50 border border-blue-300 text-blue-900 px-4 py-3 rounded-lg">Development email override is active. All outgoing email is redirected to <strong>{{ .DevEmailOverride }}</strong>.</div>
         </section>
         {{ end }}
-        {{ if not .BufferOK }}
+        {{ if not .PublishingOK }}
         <section class="mb-6">
-          <div class="bg-yellow-50 border border-yellow-300 text-yellow-800 px-4 py-3 rounded-lg">Buffer is not configured. The emails can still be queued, but X posts will be skipped.</div>
+          <div class="bg-yellow-50 border border-yellow-300 text-yellow-800 px-4 py-3 rounded-lg">X publishing is not configured. The emails can still be queued, but X posts will be skipped.</div>
         </section>
         {{ end }}
         {{ if .FlashError }}
@@ -82,7 +82,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Talk</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">YouTube public</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buffer/X</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">X</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Links</th>
                   </tr>
                 </thead>
@@ -92,7 +92,7 @@
                     <td class="px-4 py-3 text-sm text-gray-900">{{ .VenueLabel }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700">{{ .TalkTitle }}<div class="text-xs text-gray-500">{{ .SpeakerNames }}</div></td>
                     <td class="px-4 py-3 text-sm text-gray-700">{{ .PublishLabel }}<div class="text-xs text-gray-500">{{ .PublishUTCLabel }}</div></td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ .BufferLabel }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ .AnnouncementLabel }}</td>
                     <td class="px-4 py-3 text-sm whitespace-nowrap"><a href="{{ .TalkURL }}" target="_blank" rel="noopener" class="text-indigo-600 hover:text-indigo-800">Talk ↗</a> <span class="text-gray-300 mx-1">·</span> <a href="{{ .YouTubeURL }}" target="_blank" rel="noopener" class="text-indigo-600 hover:text-indigo-800">YouTube ↗</a></td>
                   </tr>
                   {{ end }}

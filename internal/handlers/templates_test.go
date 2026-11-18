@@ -1292,14 +1292,14 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	var socialPage bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&socialPage, "talks/social.tmpl", &SocialAdminPage{
-		Conf: &types.Conf{Tag: "berlin26", Desc: "Berlin"}, BufferOK: true,
+		Conf: &types.Conf{Tag: "berlin26", Desc: "Berlin"}, PublishingOK: true,
 		SpeakerRows: []*SocialSpeakerRow{{ID: "speaker-id", Name: "Ada", PhotoURL: "/speaker-card.png", InstaPhotoURL: "/speaker-square.png", SpeakerPhotoURL: "/speaker-portrait.jpg"}},
 		TalkRows:    []*SocialTalkRow{{ID: "talk-id", Name: "Bitcoin"}},
 		SponsorRows: []*SocialSponsorRow{{Ref: "sponsor-id", OrgName: "Builders"}},
 	}); err != nil {
 		t.Fatalf("render social upload controls: %v", err)
 	}
-	for _, want := range []string{`data-media-upload-url="/berlin26/admin/social/media"`, `name="media_items_speaker_speaker-id"`, `name="media_items_talk_talk-id"`, `name="media_items_sponsor_sponsor-id"`, `data-source="photo"`, `src="/speaker-portrait.jpg"`, `src="/speaker-card.png"`, `src="/speaker-square.png"`, `src="/static/js/social-media-upload.js"`, "Review the media in posting order"} {
+	for _, want := range []string{`data-media-upload-url="/berlin26/admin/social/media"`, `name="media_items_speaker_speaker-id"`, `name="media_items_talk_talk-id"`, `name="media_items_sponsor_sponsor-id"`, `data-source="photo"`, `src="/speaker-portrait.jpg"`, `src="/speaker-card.png"`, `src="/speaker-square.png"`, `src="/static/js/social-media-upload.js?v=20261118-direct-1"`, "Review the media in posting order"} {
 		if !strings.Contains(socialPage.String(), want) {
 			t.Errorf("social page missing %q", want)
 		}

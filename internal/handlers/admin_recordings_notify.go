@@ -12,7 +12,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"btcpp-web/external/buffer"
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
@@ -21,21 +20,21 @@ import (
 )
 
 type RecordingSpeakerCampaignTalk struct {
-	Row             *RecordingRow
-	TalkTitle       string
-	VenueLabel      string
-	AgendaLabel     string
-	YouTubeURL      string
-	TalkURL         string
-	CardKey         string
-	CardURL         string
-	PublishAt       time.Time
-	PublishLabel    string
-	PublishUTCLabel string
-	BufferAt        time.Time
-	BufferLabel     string
-	SpeakerNames    string
-	SpeakerCredit   string
+	Row               *RecordingRow
+	TalkTitle         string
+	VenueLabel        string
+	AgendaLabel       string
+	YouTubeURL        string
+	TalkURL           string
+	CardKey           string
+	CardURL           string
+	PublishAt         time.Time
+	PublishLabel      string
+	PublishUTCLabel   string
+	AnnouncementAt    time.Time
+	AnnouncementLabel string
+	SpeakerNames      string
+	SpeakerCredit     string
 }
 
 type RecordingSpeakerNotification struct {
@@ -80,7 +79,7 @@ type RecordingSpeakerNotificationsPage struct {
 	MailOff          bool
 	DevEmailOverride string
 	CanSendEmailTest bool
-	BufferOK         bool
+	PublishingOK     bool
 	FlashMessage     string
 	FlashError       string
 	Year             uint
@@ -106,7 +105,7 @@ func RecordingsAdminNotifySpeakersPreview(w http.ResponseWriter, r *http.Request
 		MailOff:          ctx.Env.MailOff,
 		DevEmailOverride: devEmailOverride,
 		CanSendEmailTest: !ctx.Env.MailOff && devEmailOverride != "",
-		BufferOK:         buffer.IsConfigured(),
+		PublishingOK:     eventPublishingConfigured(ctx),
 		FlashMessage:     r.URL.Query().Get("flash"),
 		FlashError:       r.URL.Query().Get("err"),
 		Year:             uint(time.Now().Year()),
@@ -170,7 +169,7 @@ func RecordingsAdminNotifySpeakersTest(w http.ResponseWriter, r *http.Request, c
 		redirectRecordingSpeakerTestErr(w, r, conf.Tag, "Test digest was queued, but the reminder failed: "+err.Error())
 		return
 	}
-	msg := fmt.Sprintf("Sent a development digest and reminder to %s; Buffer was not touched", override)
+	msg := fmt.Sprintf("Sent a development digest and reminder to %s; no social posts were queued", override)
 	http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/notify-speakers?flash="+url.QueryEscape(msg)), http.StatusSeeOther)
 }
 
@@ -222,26 +221,26 @@ func RecordingsAdminNotifySpeakersApply(w http.ResponseWriter, r *http.Request, 
 		reminders++
 	}
 
-	bufferQueued, bufferSkipped, err := scheduleRecordingBufferPosts(ctx, campaign.Talks)
+	postsQueued, postsSkipped, err := scheduleRecordingReleasePosts(ctx, campaign.Talks)
 	if err != nil {
-		redirectRecordingCampaignPartialError(w, r, conf.Tag, digests, reminders, bufferQueued, err)
+		redirectRecordingCampaignPartialError(w, r, conf.Tag, digests, reminders, postsQueued, err)
 		return
 	}
 
-	msg := fmt.Sprintf("Queued %d immediate speaker digest(s), %d 24-hour reminder(s), and %d Buffer/X post(s)", digests, reminders, bufferQueued)
+	msg := fmt.Sprintf("Queued %d immediate speaker digest(s), %d 24-hour reminder(s), and %d X post(s)", digests, reminders, postsQueued)
 	if ctx.Env.MailOff {
-		msg = fmt.Sprintf("Mailer is off; previewed %d digest(s) and %d reminder(s); queued %d Buffer/X post(s)", digests, reminders, bufferQueued)
+		msg = fmt.Sprintf("Mailer is off; previewed %d digest(s) and %d reminder(s); queued %d X post(s)", digests, reminders, postsQueued)
 	}
-	if !buffer.IsConfigured() {
-		msg += "; Buffer is not configured, so X posts were not queued"
-	} else if bufferSkipped > 0 {
-		msg += fmt.Sprintf("; %d Buffer/X post(s) were already scheduled", bufferSkipped)
+	if !eventPublishingConfigured(ctx) {
+		msg += "; X publishing is not configured, so posts were not queued"
+	} else if postsSkipped > 0 {
+		msg += fmt.Sprintf("; %d X post(s) were already scheduled", postsSkipped)
 	}
 	http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape(msg)), http.StatusSeeOther)
 }
 
-func redirectRecordingCampaignPartialError(w http.ResponseWriter, r *http.Request, confTag string, digests, reminders, bufferPosts int, err error) {
-	msg := fmt.Sprintf("Campaign stopped after queuing %d digest(s), %d reminder(s), and %d Buffer/X post(s): %s. Retry is safe; stable job keys prevent duplicate emails.", digests, reminders, bufferPosts, err)
+func redirectRecordingCampaignPartialError(w http.ResponseWriter, r *http.Request, confTag string, digests, reminders, socialPosts int, err error) {
+	msg := fmt.Sprintf("Campaign stopped after queuing %d digest(s), %d reminder(s), and %d X post(s): %s. Retry is safe; stable job keys prevent duplicate emails.", digests, reminders, socialPosts, err)
 	redirectRecordingsListErr(w, r, confTag, msg)
 }
 
@@ -273,20 +272,20 @@ func buildRecordingSpeakerCampaign(rows []*RecordingRow, conf *types.Conf, now t
 		}
 
 		talk := &RecordingSpeakerCampaignTalk{
-			Row:             row,
-			TalkTitle:       recordingNotificationTalkTitle(row),
-			VenueLabel:      recordingNotificationVenueLabel(row),
-			AgendaLabel:     recordingNotificationAgendaLabel(row, conf),
-			YouTubeURL:      youtubeURL,
-			TalkURL:         recordingNotificationTalkURL(baseURI, conf, row),
-			CardKey:         recordingNotificationCardKey(row, conf),
-			PublishAt:       *rec.PublishAt,
-			PublishLabel:    recordingNotificationPublishLabel(*rec.PublishAt, conf),
-			PublishUTCLabel: recordingNotificationUTCPublishLabel(*rec.PublishAt),
-			BufferAt:        rec.PublishAt.Add(5 * time.Minute),
-			BufferLabel:     recordingNotificationPublishLabel(rec.PublishAt.Add(5*time.Minute), conf),
-			SpeakerNames:    joinSpeakerNames(row.Speakers),
-			SpeakerCredit:   joinSpeakerXCredits(row.Speakers),
+			Row:               row,
+			TalkTitle:         recordingNotificationTalkTitle(row),
+			VenueLabel:        recordingNotificationVenueLabel(row),
+			AgendaLabel:       recordingNotificationAgendaLabel(row, conf),
+			YouTubeURL:        youtubeURL,
+			TalkURL:           recordingNotificationTalkURL(baseURI, conf, row),
+			CardKey:           recordingNotificationCardKey(row, conf),
+			PublishAt:         *rec.PublishAt,
+			PublishLabel:      recordingNotificationPublishLabel(*rec.PublishAt, conf),
+			PublishUTCLabel:   recordingNotificationUTCPublishLabel(*rec.PublishAt),
+			AnnouncementAt:    rec.PublishAt.Add(5 * time.Minute),
+			AnnouncementLabel: recordingNotificationPublishLabel(rec.PublishAt.Add(5*time.Minute), conf),
+			SpeakerNames:      joinSpeakerNames(row.Speakers),
+			SpeakerCredit:     joinSpeakerXCredits(row.Speakers),
 		}
 		if talk.CardKey != "" {
 			if spaces.IsConfigured() {
@@ -614,91 +613,18 @@ func sendRecordingSpeakerReminder(ctx *config.AppContext, conf *types.Conf, item
 	})
 }
 
-func scheduleRecordingBufferPosts(ctx *config.AppContext, talks []*RecordingSpeakerCampaignTalk) (int, int, error) {
-	if !buffer.IsConfigured() {
+func scheduleRecordingReleasePosts(ctx *config.AppContext, talks []*RecordingSpeakerCampaignTalk) (int, int, error) {
+	direct, err := directEventX(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	if direct == "" {
 		return 0, len(talks), nil
 	}
-	channels, err := buffer.FetchChannels()
-	if err != nil {
-		return 0, 0, fmt.Errorf("fetch Buffer channels: %w", err)
-	}
-	var targets []buffer.Channel
-	for _, channel := range channels {
-		if channel.Service == "twitter" && strings.Contains(strings.ToLower(channel.Name), "btcplusplus") {
-			targets = append(targets, channel)
-		}
-	}
-	if len(targets) == 0 {
-		return 0, 0, fmt.Errorf("no btcplusplus X/Twitter channel was found in Buffer")
-	}
-
-	channel := targets[0]
-	queued, skipped := 0, 0
-	for _, talk := range talks {
-		if talk.Row.XURL != "" || socialPostBlocksBufferSchedule(talk.Row.XSocialPost) {
-			skipped++
-			continue
-		}
-		ref := recordingSocialPostRef(talk.Row.Recording, recordingPlatformBufferX)
-		existing, err := getters.FindSocialPostByRef(ctx, ref)
-		if err != nil {
-			return queued, skipped, fmt.Errorf("load existing Buffer post for %q: %w", talk.TalkTitle, err)
-		}
-		if existing != nil && strings.EqualFold(existing.Status, recordingStatusScheduled) && existing.ScheduledAt != nil && existing.ScheduledAt.Equal(talk.BufferAt) && existing.Text == recordingBufferXText(talk) {
-			skipped++
-			continue
-		}
-		text := recordingBufferXText(talk)
-		status := recordingStatusScheduling
-		if _, err := getters.UpsertSocialPost(ctx, getters.SocialPostUpdate{
-			Ref:         ref,
-			Text:        &text,
-			PostedTo:    "buffer-twitter",
-			Kind:        getters.SocialPostKindRecording,
-			RecordingID: talk.Row.Recording.ID,
-			ConfTalkID:  talk.Row.Recording.ConfTalkID,
-			Status:      &status,
-			ScheduledAt: &talk.BufferAt,
-		}); err != nil {
-			return queued, skipped, fmt.Errorf("save pending Buffer post for %q: %w", talk.TalkTitle, err)
-		}
-		var images []string
-		if talk.CardURL != "" {
-			images = []string{talk.CardURL}
-		}
-		var result *buffer.PostResult
-		if existing != nil && strings.EqualFold(existing.Status, recordingStatusScheduled) {
-			if strings.TrimSpace(existing.URL) == "" {
-				return queued, skipped, fmt.Errorf("Buffer/X post for %q needs updating, but its Buffer post ID is missing", talk.TalkTitle)
-			}
-			result, err = buffer.EditScheduledPost(existing.URL, text, images, channel.Service, talk.BufferAt)
-		} else {
-			result, err = buffer.CreateScheduledPost(channel.ID, text, images, channel.Service, talk.BufferAt)
-		}
-		if err != nil {
-			failed := recordingStatusFailed
-			msg := err.Error()
-			_, _ = getters.UpsertSocialPost(ctx, getters.SocialPostUpdate{Ref: ref, Status: &failed, Error: &msg})
-			return queued, skipped, fmt.Errorf("schedule Buffer/X post for %q: %w", talk.TalkTitle, err)
-		}
-		if result == nil || strings.TrimSpace(result.ID) == "" {
-			failed := recordingStatusFailed
-			msg := "Buffer returned no post ID"
-			_, _ = getters.UpsertSocialPost(ctx, getters.SocialPostUpdate{Ref: ref, Status: &failed, Error: &msg})
-			return queued, skipped, fmt.Errorf("schedule Buffer/X post for %q: %s", talk.TalkTitle, msg)
-		}
-		status = recordingStatusScheduled
-		bufferID := result.ID
-		clear := ""
-		if _, err := getters.UpsertSocialPost(ctx, getters.SocialPostUpdate{Ref: ref, Status: &status, URL: &bufferID, Error: &clear, ScheduledAt: &talk.BufferAt}); err != nil {
-			return queued, skipped, fmt.Errorf("save scheduled Buffer post for %q: %w", talk.TalkTitle, err)
-		}
-		queued++
-	}
-	return queued, skipped, nil
+	return scheduleRecordingDirectPosts(ctx, talks, direct)
 }
 
-func socialPostBlocksBufferSchedule(post *types.SocialPost) bool {
+func socialPostBlocksAnnouncement(post *types.SocialPost) bool {
 	if post == nil {
 		return false
 	}
@@ -710,7 +636,7 @@ func socialPostBlocksBufferSchedule(post *types.SocialPost) bool {
 	}
 }
 
-func recordingBufferXText(talk *RecordingSpeakerCampaignTalk) string {
+func recordingAnnouncementText(talk *RecordingSpeakerCampaignTalk) string {
 	if talk == nil {
 		return ""
 	}

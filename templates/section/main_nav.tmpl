@@ -298,7 +298,7 @@
     <a href="/dashboard/settings">Account settings</a>
     <a href="/dashboard/profile">Edit profile</a>
     {{ if .ProfileURL }}<a href="{{ .ProfileURL }}">View public profile</a>{{ end }}
-    {{ if .IsGlobalAdmin }}<a href="/admin">Site administration</a>{{ end }}
+    {{ if .IsGlobalAdmin }}<a href="/admin">Site administration</a><a href="/admin/publishing">Publishing calendar</a>{{ end }}
     <form method="POST" action="/logout">
       <input type="hidden" name="csrf" value="{{ .CSRF }}">
       <button type="submit">Sign out</button>
