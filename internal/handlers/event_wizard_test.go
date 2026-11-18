@@ -86,7 +86,10 @@ func TestEventWizardAccessAndStudentPricing(t *testing.T) {
 	if w := request(path, "", ""); w.Code != 200 || !strings.Contains(w.Body.String(), "event-wizard-data") {
 		t.Fatalf("render %d %s", w.Code, w.Body.String())
 	}
-	body := `{"section":"readiness","revision":0,"data":{"tasks":[]}}`
+	if w := request(path, `{"section":"readiness","revision":0,"data":{"tasks":[{"title":"Legacy task","status":"todo"}]}}`, "test-token"); w.Code != 400 {
+		t.Fatal("retired task editor accepted", w.Code, w.Body.String())
+	}
+	body := `{"section":"merch","revision":0,"data":{"product_ids":[]}}`
 	if w := request(path, body, "wrong"); w.Code != 403 {
 		t.Fatal("CSRF bypass", w.Code)
 	}

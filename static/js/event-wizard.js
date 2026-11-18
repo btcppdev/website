@@ -57,9 +57,9 @@
     ],
     [
       "readiness",
-      "Planning & readiness",
-      "Turn the plan into an event.",
-      "Assign the remaining work, follow the decisions, and review what is ready.",
+      "Readiness",
+      "Review your event setup.",
+      "See which event details are set and which still need a decision.",
     ],
   ];
   const step = data.new
@@ -1044,21 +1044,6 @@
     );
   }
   if (current[0] === "readiness") {
-    const tasks = plan.tasks || [],
-      summary = el("div", "ew-summary");
-    [
-      [
-        tasks.filter((t) => t.status === "done").length + "/" + tasks.length,
-        "Tasks complete",
-      ],
-      [data.team?.length || 0, "Team invitations"],
-      [plan.venues?.length || 0, "Venues"],
-    ].forEach(([n, label]) => {
-      const card = el("div", "ew-stat");
-      card.append(el("strong", "", String(n)), el("span", "", label));
-      summary.append(card);
-    });
-    main.append(summary);
     const s = section("Before opening the doors"),
       list = el("ul", "ew-list");
     [
@@ -1077,32 +1062,6 @@
       list.append(li);
     });
     s.append(list);
-    arrayEditor(
-      "Task",
-      tasks,
-      (s, t) => {
-        const g = grid(s);
-        field(g, t, "title", "Task");
-        field(g, t, "owner", "Owner");
-        field(g, t, "due", "Due date", "date");
-        field(g, t, "status", "Status", "text", "", [
-          ["todo", "To do"],
-          ["doing", "In progress"],
-          ["blocked", "Waiting on something"],
-          ["done", "Done"],
-        ]);
-        field(g, t, "notes", "Notes", "textarea");
-      },
-      () => ({
-        id: crypto.randomUUID(),
-        title: "",
-        owner: "",
-        due: "",
-        status: "todo",
-        notes: "",
-      }),
-    );
-    payload = () => ({ tasks });
     main.append(
       link(
         "Review publication & event settings ↗",
@@ -1120,7 +1079,7 @@
     "ew-footer" + (current[0] === "team" ? " ew-footer--inline" : ""),
   );
   footer.append(message);
-  if (!["artwork", "team"].includes(current[0])) {
+  if (!["artwork", "team", "readiness"].includes(current[0])) {
     const save = button(
       data.new ? "Create draft event" : "Save " + current[1].toLowerCase(),
       async () => {
@@ -1158,7 +1117,7 @@
     );
     footer.append(save);
   }
-  main.append(footer);
+  if (current[0] !== "readiness") main.append(footer);
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
       e.preventDefault();

@@ -22,7 +22,7 @@ type EventPlanning struct {
 }
 
 func LoadEventPlanning(ctx *config.AppContext, confID string) (EventPlanning, error) {
-	out := EventPlanning{Plan: eventplan.Plan{ShiftHours: 4, Tasks: eventplan.DefaultTasks()}}
+	out := EventPlanning{Plan: eventplan.Plan{ShiftHours: 4}}
 	var raw []byte
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `SELECT revision,data FROM event_plans WHERE conference_id=$1`, confID).Scan(&out.Revision, &raw)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -49,7 +49,7 @@ func CreatePlannedEvent(ctx *config.AppContext, b eventplan.Basics, actor string
 	if err != nil {
 		return "", fmt.Errorf("could not create event; the URL may already be in use: %w", err)
 	}
-	raw, _ := json.Marshal(eventplan.Plan{Country: b.Country, ShiftHours: 4, Tasks: eventplan.DefaultTasks()})
+	raw, _ := json.Marshal(eventplan.Plan{Country: b.Country, ShiftHours: 4})
 	_, err = tx.Exec(ctx.DatabaseContext(), `INSERT INTO event_plans(conference_id,data,updated_by) VALUES($1,$2,$3::uuid)`, id, raw, nullableUUID(actor))
 	if err != nil {
 		return "", err
@@ -73,7 +73,7 @@ func SaveEventPlanning(ctx *config.AppContext, conf *types.Conf, revision int64,
 	if _, err = tx.Exec(c, `SELECT id FROM conferences WHERE id=$1 FOR UPDATE`, conf.Ref); err != nil {
 		return 0, err
 	}
-	initial, _ := json.Marshal(eventplan.Plan{ShiftHours: 4, Tasks: eventplan.DefaultTasks()})
+	initial, _ := json.Marshal(eventplan.Plan{ShiftHours: 4})
 	if _, err = tx.Exec(c, `INSERT INTO event_plans(conference_id,data) VALUES($1,$2) ON CONFLICT DO NOTHING`, conf.Ref, initial); err != nil {
 		return 0, err
 	}
@@ -223,22 +223,6 @@ func SaveEventPlanning(ctx *config.AppContext, conf *types.Conf, revision int64,
 			return 0, err
 		}
 		err = savePlanningMerch(c, tx, conf.Ref, in.ProductIDs)
-	case "readiness":
-		var in struct {
-			Tasks []eventplan.Task `json:"tasks"`
-		}
-		if err = json.Unmarshal(payload, &in); err != nil {
-			return 0, err
-		}
-		if err = eventplan.ValidateTasks(in.Tasks); err != nil {
-			return 0, err
-		}
-		for i := range in.Tasks {
-			if in.Tasks[i].ID == "" {
-				in.Tasks[i].ID = uuid.NewString()
-			}
-		}
-		plan.Tasks = in.Tasks
 	default:
 		return 0, fmt.Errorf("unknown setup step")
 	}

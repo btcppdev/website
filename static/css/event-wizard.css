@@ -453,26 +453,6 @@
 .ew-invite {
   max-width: 700px;
 }
-.ew-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
-  margin: 25px 0;
-}
-.ew-stat {
-  padding: 20px;
-  background: #e9e1d3;
-}
-.ew-stat strong {
-  display: block;
-  font-size: 30px;
-  letter-spacing: -0.04em;
-}
-.ew-stat span {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
 .event-wizard button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -552,12 +532,6 @@
   }
   .ew-intro .ew-primary {
     margin-top: 15px;
-  }
-  .ew-summary {
-    gap: 8px;
-  }
-  .ew-stat {
-    padding: 12px;
   }
   .ew-footer {
     gap: 12px;

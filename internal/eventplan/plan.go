@@ -14,7 +14,6 @@ type Plan struct {
 	Country            string    `json:"country"`
 	Venues             []Venue   `json:"venues"`
 	Sponsors           []Sponsor `json:"sponsors"`
-	Tasks              []Task    `json:"tasks"`
 	LocalEligibility   string    `json:"local_eligibility"`
 	StudentEligibility string    `json:"student_eligibility"`
 	VolunteerNotes     string    `json:"volunteer_notes"`
@@ -51,14 +50,6 @@ type Sponsor struct {
 	Status         string `json:"status"`
 	Contact        string `json:"contact"`
 	Commitments    string `json:"commitments"`
-}
-type Task struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Owner  string `json:"owner"`
-	Due    string `json:"due"`
-	Status string `json:"status"`
-	Notes  string `json:"notes"`
 }
 type Ticket struct {
 	ID               string `json:"id"`
@@ -164,30 +155,6 @@ func ValidateVenues(venues []Venue, loc *time.Location) error {
 		}
 	}
 	return nil
-}
-func ValidateTasks(tasks []Task) error {
-	if len(tasks) > 200 {
-		return fmt.Errorf("use at most 200 tasks")
-	}
-	for _, t := range tasks {
-		if strings.TrimSpace(t.Title) == "" {
-			return fmt.Errorf("task title is required")
-		}
-		switch t.Status {
-		case "todo", "doing", "blocked", "done":
-		default:
-			return fmt.Errorf("invalid task status")
-		}
-		if t.Due != "" {
-			if _, e := time.Parse("2006-01-02", t.Due); e != nil {
-				return fmt.Errorf("invalid task due date")
-			}
-		}
-	}
-	return nil
-}
-func DefaultTasks() []Task {
-	return []Task{{ID: "venue", Title: "Confirm venue and access hours", Status: "todo"}, {ID: "budget", Title: "Agree event budget and responsibilities", Status: "todo"}, {ID: "program", Title: "Set application and review dates", Status: "todo"}, {ID: "crew", Title: "Review volunteer coverage", Status: "todo"}, {ID: "merch", Title: "Confirm event merchandise and stock", Status: "todo"}}
 }
 
 type Basics struct {
