@@ -1,7 +1,6 @@
 "use strict";
 const printButton = document.getElementById("report-print");
-// Annual reports have fixed A4 pages and validate their layout before printing.
-if (printButton && !document.body.classList.contains("annual-report")) printButton.addEventListener("click", () => window.print());
+// Report export is handled by report-print.js after previews are current.
 const editButton = document.getElementById("report-edit");
 if (editButton) editButton.addEventListener("click", () => {
   const editor = document.querySelector(".report-editor");

@@ -66,8 +66,18 @@ Two follow-ups have dated public evidence: template-watcher's [October 17 projec
 
 ## PDF layout verification
 
-Use the report’s **Print / Save as PDF** button. It prepares an isolated snapshot at A4 width, waits for fonts and images, and checks every designed page against the printable page size. Oversized content stops export and names the affected pages; shorten the copy or adjust pagination before retrying. Failed assets also stop export. The checked snapshot is what opens in the print dialog. Browser menu/keyboard printing bypasses this check. Choose A4, 100% scale, background graphics on, and browser headers/footers off; custom print-dialog settings can still change pagination.
+Use the report’s **Print / Save as PDF** button. It prepares an isolated snapshot at A4 width, waits for fonts and images, and checks every designed page against the printable page size. Oversized content stops export and names the affected pages; shorten the copy or adjust pagination before retrying. Failed assets also stop export. The checked snapshot is what opens in the print dialog. Browser menu/keyboard printing bypasses this check and the image optimization described below. Choose A4, 100% scale, background graphics on, and browser headers/footers off; custom print-dialog settings can still change pagination.
 
 The A4 print layout reserves space for saved narrative text, keeps three reach headlines in one row, and uses content-sized event recap rows. It never clips or truncates prose to enforce a page count. The funding overview contains the charts, event cards and short sponsorship caption; longer builder and resource-use narratives appear with the winning projects. No saved copy is shortened.
 
 For regression review with an existing report, set `ANNUAL_REPORT_COPY_PREVIEW` to a local JSON object of narrative/event-highlight keys and text. It is loaded only by the opt-in preview harness; it never updates saved drafts. Export the preview with print backgrounds and CSS page size, then inspect the PDF page count, folios, footer placement, and rendered pages. The November 2026 NYDIG regression uses a roughly 300-word letter, 300 words of follow-up copy, 70-word event recaps, three reach headlines, five hackathon cards, and full city/country names in the community links.
+
+## Smaller PDF exports
+
+The report’s **Print / Save as PDF** button now optimizes images in the isolated print snapshot, for both annual reports and event reports (paper or slides). Photos and artwork are sized for about 192 dpi at their largest printed use, capped at 1,600 pixels on the longest edge, and encoded as JPEG at 90% quality. Repeated images share one optimized source. This matters even for small AVIF/WebP source files: Chromium can expand them into large lossless image streams in a PDF.
+
+Text, links and SVG charts stay native. Recipient/sponsor logos and SVG images are kept as supplied; resized transparent raster images retain alpha with PNG. The editor, saved editions and original website assets are unchanged. A loaded image that cannot be optimized (for example, a remote host without CORS) stays in the print copy, with a reminder to check the saved size. Missing visible images still stop export.
+
+This targets smaller files, not a guaranteed byte limit: the browser controls final PDF encoding and reports vary in length and imagery. Use the report button rather than browser-menu printing, and check the combined size when attaching multiple PDFs.
+
+The browser regression suite is `ops/test-report-print.cjs`. With Node.js, Playwright and its Chromium installed, run `node ops/test-report-print.cjs`. It uses local fixtures, including the oversized Vegas AVIF, and checks actual PDF byte reduction, print sizing, shared images, alpha, logos/SVGs, CDN failures, responsive images, export guards and both event formats. It needs no database or live service.

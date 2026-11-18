@@ -1,7 +1,7 @@
 "use strict";
 
-// Measure a snapshot using the print styles at A4 width. Measuring the editor
-// viewport misses wrapping changes; printing before fonts load misses them too.
+// Prepare a snapshot using the actual print styles and page width. Annual
+// reports also check that each designed page fits A4 before opening the dialog.
 (() => {
   const button = document.getElementById("report-print");
   const status = document.getElementById("report-print-status");
@@ -52,9 +52,13 @@
     const refresh = document.getElementById("annual-refresh-all");
     const refreshDisabled = refresh?.disabled;
     if (refresh) refresh.disabled = true;
+    const controller = new AbortController();
     try {
+      const annual = document.body.classList.contains("annual-report");
+      const layout = annual ? "paper" : document.body.dataset.layout;
+      const slides = layout === "slides";
       const main = document.querySelector("main");
-      if (!main?.querySelector(".paper-sheet")) throw new Error("The report is not ready. Reload and try again.");
+      if (!main?.querySelector(slides ? ".report-page" : ".paper-sheet")) throw new Error("The report is not ready. Reload and try again.");
       const source = main.innerHTML;
       const snapshot = document.implementation.createHTMLDocument(document.title);
       snapshot.documentElement.lang = document.documentElement.lang;
@@ -63,17 +67,18 @@
       snapshot.head.append(base);
       for (const style of document.head.querySelectorAll('link[rel="stylesheet"], style')) snapshot.head.append(style.cloneNode(true));
       snapshot.body.className = document.body.className;
-      snapshot.body.dataset.layout = "paper";
+      snapshot.body.dataset.layout = layout;
       const previewBanner = document.querySelector(".synthetic-banner");
       if (previewBanner) snapshot.body.append(previewBanner.cloneNode(true));
       snapshot.body.append(main.cloneNode(true));
+      for (const hidden of snapshot.querySelectorAll(slides ? ".paper-edition" : ".slide-edition")) hidden.remove();
       for (const img of snapshot.images) img.loading = "eager";
       frame = document.createElement("iframe");
-      frame.title = "Prepared annual report";
+      frame.title = "Prepared report";
       frame.setAttribute("aria-hidden", "true");
       frame.tabIndex = -1;
       frame.dataset.reportPrintFrame = "true";
-      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;";
+      frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${slides ? "1200px" : "210mm"};height:${slides ? "675px" : "297mm"};border:0;`;
       const loaded = new Promise(resolve => frame.addEventListener("load", resolve, {once:true}));
       frame.srcdoc = "<!doctype html>" + snapshot.documentElement.outerHTML;
       document.body.append(frame);
@@ -85,18 +90,23 @@
       const restoreStyles = usePrintStyles(doc);
       // Trigger layout before waiting for the fonts used by the print styles.
       doc.body.getBoundingClientRect();
-      await withDeadline(Promise.all([doc.fonts.ready, ...[...doc.images].map(img => img.decode())]));
+      await withDeadline(Promise.all([doc.fonts.ready, ...[...doc.images]
+        .filter(img => img.getClientRects().length && (img.currentSrc || img.getAttribute("src")))
+        .map(img => img.decode())]));
       if ([...doc.fonts].some(font => font.status === "error")) throw new Error("Report fonts could not load. Reload and try again.");
+
+      status.textContent = "Preparing smaller PDF images…";
+      const images = await withDeadline(optimizeReportPrintImages(doc, controller.signal));
 
       const ruler = doc.createElement("div");
       ruler.style.cssText = "position:absolute;width:210mm;height:297mm;";
       doc.body.append(ruler);
       const paper = ruler.getBoundingClientRect();
       ruler.remove();
-      const sheets = [...doc.querySelectorAll("main .paper-sheet")];
+      const sheets = [...doc.querySelectorAll(slides ? "main .report-page" : "main .paper-sheet")];
       if (!sheets.length) throw new Error("The report is not ready. Reload and try again.");
       const oversized = [];
-      sheets.forEach((sheet, index) => {
+      if (annual) sheets.forEach((sheet, index) => {
         const box = sheet.getBoundingClientRect();
         // Leave a small rounding allowance inside A4, never clip overflow.
         if (Math.max(box.height, sheet.scrollHeight) > paper.height - 1 ||
@@ -108,11 +118,13 @@
       if (!document.dispatchEvent(new Event("report-before-print", {cancelable:true}))) {
         throw new Error("Wait for the narrative previews to update before exporting.");
       }
-      if (main !== document.querySelector("main") || main.innerHTML !== source) {
+      if (main !== document.querySelector("main") || main.innerHTML !== source || (!annual && document.body.dataset.layout !== layout)) {
         throw new Error("The report changed while preparing the PDF. Please try again.");
       }
       restoreStyles();
-      status.textContent = `${sheets.length} pages fit A4. Save at 100% scale with browser headers and footers off.`;
+      status.textContent = (annual ? `${sheets.length} pages fit A4. ` : "PDF ready. ") +
+        "Save at 100% scale with background graphics on and browser headers and footers off." +
+        (images.original ? " Some images kept their original size; check the saved file size before emailing." : "");
       const prepared = frame;
       prepared.contentWindow.addEventListener("afterprint", () => prepared.remove(), {once:true});
       prepared.contentWindow.focus();
@@ -124,6 +136,7 @@
         : error.message;
       status.scrollIntoView({block:"center"});
     } finally {
+      controller.abort();
       busy = false;
       button.disabled = false;
       if (refresh) refresh.disabled = refreshDisabled;

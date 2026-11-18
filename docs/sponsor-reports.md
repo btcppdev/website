@@ -154,3 +154,7 @@ Export both formats with background graphics, 100% scale and browser headers
 and footers disabled; the paper edition uses A4 portrait and slides use their
 CSS landscape size. Verify that physical PDF pages match the rendered sheets,
 with no orphan footers, split cards or missing roster entries.
+
+### Smaller PDF files
+
+Use **Print / Save as PDF** to prepare an isolated copy of the selected paper or slide edition with images sized for print and JPEG compression. Text, links, SVG charts and sponsor logos are preserved. The screen report and source artwork are unchanged. Browser-menu printing bypasses this optimization. See [annual report PDF exports](annual-sponsor-reports.md#smaller-pdf-exports) for quality settings and limits.
