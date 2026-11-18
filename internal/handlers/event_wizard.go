@@ -3,14 +3,14 @@ package handlers
 import (
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
+	"btcpp-web/internal/artwork"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/eventplan"
+	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/types"
 	"bytes"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -277,7 +277,7 @@ func eventWizardData(app *config.AppContext, conf *types.Conf, edit bool) (map[s
 	for _, o := range orgs {
 		organizations = append(organizations, map[string]string{"id": o.Ref, "name": o.Name})
 	}
-	return map[string]any{"new": false, "can_edit": edit, "revision": saved.Revision, "tag": conf.Tag, "published": conf.IsPublished(), "basics": eventplan.Basics{Tag: conf.Tag, Name: conf.Desc, Edition: conf.EditionType, Location: conf.Location, Country: saved.Plan.Country, Timezone: conf.Timezone, Start: local(&conf.StartDate), End: local(&conf.EndDate), Description: conf.AboutBody}, "artwork": map[string]string{"leading": conf.LeadingImageURL, "black": conf.LogoBlackURL, "white": conf.LogoWhiteURL}, "plan": saved.Plan, "team": team, "tickets": tickets, "applications": eventplan.Applications{TalksOpen: local(conf.SpeakerApplicationsOpen), TalksClose: local(conf.SpeakerApplicationsClose), VolunteersOpen: local(conf.VolunteerApplicationsOpen), VolunteersClose: local(conf.VolunteerApplicationsClose), Notes: saved.Plan.VolunteerNotes, ShiftHours: saved.Plan.ShiftHours, MerchDesk: saved.Plan.MerchDesk}, "products": choices, "product_ids": productIDs, "organizations": organizations}, nil
+	return map[string]any{"new": false, "can_edit": edit, "revision": saved.Revision, "tag": conf.Tag, "published": conf.IsPublished(), "basics": eventplan.Basics{Tag: conf.Tag, Name: conf.Desc, Edition: conf.EditionType, Location: conf.Location, Country: saved.Plan.Country, Timezone: conf.Timezone, Start: local(&conf.StartDate), End: local(&conf.EndDate), Description: conf.AboutBody}, "artwork": map[string]string{"leading": artwork.Resolve(conf, "leading").Web(), "black": conferenceArtwork(conf, "logo-black"), "white": conferenceArtwork(conf, "logo-white")}, "plan": saved.Plan, "team": team, "tickets": tickets, "applications": eventplan.Applications{TalksOpen: local(conf.SpeakerApplicationsOpen), TalksClose: local(conf.SpeakerApplicationsClose), VolunteersOpen: local(conf.VolunteerApplicationsOpen), VolunteersClose: local(conf.VolunteerApplicationsClose), Notes: saved.Plan.VolunteerNotes, ShiftHours: saved.Plan.ShiftHours, MerchDesk: saved.Plan.MerchDesk}, "products": choices, "product_ids": productIDs, "organizations": organizations}, nil
 }
 func EventWizardArtwork(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 	id, conf, _ := wizardIdentity(w, r, app)
@@ -325,21 +325,25 @@ func EventWizardArtwork(w http.ResponseWriter, r *http.Request, app *config.AppC
 		wizardError(w, fmt.Errorf("image storage is not configured"))
 		return
 	}
-	hash := sha256.Sum256(raw)
-	digest := hex.EncodeToString(hash[:])
-	key := "events/" + conf.Ref + "/" + field + "/" + digest[:20] + "." + ext
-	imageURL, e := spaces.UploadImmutable(key, raw, mime, digest)
+	uploaded, e := storeEventArtwork(conf.Ref, field, mime, ext, raw, imgproc.MakeArtworkAVIF, spaces.UploadImmutable)
 	if e != nil {
 		wizardError(w, fmt.Errorf("could not upload artwork"))
 		return
 	}
-	_, e = app.DB.Exec(r.Context(), `UPDATE conferences SET `+column+`=$2 WHERE id=$1`, conf.Ref, imageURL)
+	if uploaded.OptimizationError != nil {
+		app.Err.Printf("event artwork AVIF: %s", uploaded.OptimizationError)
+	}
+	if field == "leading" {
+		_, e = app.DB.Exec(r.Context(), `UPDATE conferences SET leading_image_url=$2,leading_image_avif_url=$3 WHERE id=$1`, conf.Ref, uploaded.Original, uploaded.AVIF)
+	} else {
+		_, e = app.DB.Exec(r.Context(), `UPDATE conferences SET `+column+`=$2 WHERE id=$1`, conf.Ref, uploaded.Original)
+	}
 	if e != nil {
 		wizardError(w, e)
 		return
 	}
 	invalidateConferenceCache(app)
-	wizardJSON(w, 200, map[string]string{"url": imageURL})
+	wizardJSON(w, 200, map[string]string{"url": uploaded.Original, "avif_url": uploaded.AVIF})
 }
 func EventWizardInvite(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 	id, e := auth.Resolve(r, app)

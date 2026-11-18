@@ -29,6 +29,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/api"
+	"btcpp-web/internal/artwork"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
@@ -201,14 +202,13 @@ func loadTemplates(ctx *config.AppContext) error {
 			return template.URL(recordingWatchPath(recordingID))
 		},
 		"confImage": func(tag, base string) template.URL {
-			if confs, err := cachedConfs(ctx); err == nil {
-				for _, conf := range confs {
-					if conf.Tag == tag {
-						return template.URL(conferenceArtwork(conf, base))
-					}
-				}
-			}
-			return template.URL(confImagePath(tag, base))
+			return template.URL(conferenceArtwork(conferenceForArtwork(ctx, tag), base))
+		},
+		"confOriginal": func(tag, base string) template.URL {
+			return template.URL(artwork.Resolve(conferenceForArtwork(ctx, tag), base).Original)
+		},
+		"confAVIF": func(tag, base string) template.URL {
+			return template.URL(artwork.Resolve(conferenceForArtwork(ctx, tag), base).AVIF)
 		},
 		"confVenueImages":         confVenueImages,
 		"archiveTalks":            archiveTalks,
@@ -531,16 +531,21 @@ func loadTemplates(ctx *config.AppContext) error {
 			}
 			return SponsorBannerForConf(ctx, conf.Ref)
 		},
-		"merchPrimaryImage":           merchPrimaryImage,
-		"merchImage":                  merchImage,
-		"merchSocialImage":            merchSocialImage,
-		"merchSocialImageWidth":       merchSocialImageWidth,
-		"merchSocialImageHeight":      merchSocialImageHeight,
-		"merchImageSocialPreview":     merchImageSocialPreview,
-		"merchSEODescription":         merchSEODescription,
-		"shopSEOImage":                shopSEOImage,
-		"merchProductStock":           merchProductStock,
-		"shopOrderItemImage":          shopOrderItemImage,
+		"merchPrimaryImage":       merchPrimaryImage,
+		"merchImage":              merchImage,
+		"merchSocialImage":        merchSocialImage,
+		"merchSocialImageWidth":   merchSocialImageWidth,
+		"merchSocialImageHeight":  merchSocialImageHeight,
+		"merchImageSocialPreview": merchImageSocialPreview,
+		"merchSEODescription":     merchSEODescription,
+		"shopSEOImage":            shopSEOImage,
+		"merchProductStock":       merchProductStock,
+		"shopOrderItemImage": func(item *types.ShopOrderItem) string {
+			if item != nil && item.BadgeCanvas == nil && strings.TrimSpace(item.ImageObjectKey) == "" && item.SaleConferenceTag != "" {
+				return conferenceArtwork(conferenceForArtwork(ctx, item.SaleConferenceTag), "leading")
+			}
+			return shopOrderItemImage(item)
+		},
 		"shopFulfillmentLabel":        shopFulfillmentLabel,
 		"shopOrderHasFulfillment":     shopOrderHasFulfillment,
 		"shopOrderFulfillmentSummary": shopOrderFulfillmentSummary,
@@ -724,47 +729,26 @@ func showTicketPriceIncreaseDate(conf *types.Conf, tix *types.ConfTicket) bool {
 }
 
 func conferenceArtwork(conf *types.Conf, base string) string {
-	if conf == nil {
-		return ""
+	src := artwork.Resolve(conf, base).Web()
+	if src == "" && conf != nil && base == "leading" {
+		return artwork.Placeholder
 	}
-	switch base {
-	case "leading":
-		if conf.LeadingImageURL != "" {
-			return conf.LeadingImageURL
-		}
-	case "logo-black":
-		if conf.LogoBlackURL != "" {
-			return conf.LogoBlackURL
-		}
-	case "logo-white":
-		if conf.LogoWhiteURL != "" {
-			return conf.LogoWhiteURL
-		}
-	}
-	return confImagePath(conf.Tag, base)
+	return src
 }
-
 func confImagePath(tag, base string) string {
-	tag = strings.Trim(strings.TrimSpace(tag), "/")
-	base = strings.Trim(strings.TrimSpace(base), "/")
-	if tag == "" || base == "" {
-		return ""
-	}
-
-	for _, ext := range []string{"avif", "png", "jpg", "jpeg", "webp"} {
-		path := filepath.Join("static", "img", tag, base+"."+ext)
-		if _, err := os.Stat(path); err == nil {
-			return "/" + filepath.ToSlash(path)
+	return conferenceArtwork(&types.Conf{Tag: tag}, base)
+}
+func conferenceForArtwork(ctx *config.AppContext, tag string) *types.Conf {
+	if ctx != nil && ctx.DB != nil {
+		if confs, err := cachedConfs(ctx); err == nil {
+			for _, conf := range confs {
+				if conf.Tag == tag {
+					return conf
+				}
+			}
 		}
 	}
-
-	if base == "leading" {
-		if fallback := confHeroFallback(tag); fallback != "" {
-			return fallback
-		}
-		return "/static/img/rebrand/light-sketch-bg.avif"
-	}
-	return ""
+	return &types.Conf{Tag: tag}
 }
 
 func confVenueImages(tag string) []string {
@@ -775,28 +759,6 @@ func confVenueImages(tag string) []string {
 		}
 	}
 	return images
-}
-
-func confHeroFallback(tag string) string {
-	switch tag {
-	case "atx22":
-		return "/static/img/atx22/leading.png"
-	case "atx24":
-		return "/static/img/atx24.png"
-	case "atx25":
-		return "/static/img/atx25_promo.png"
-	case "cdmx22":
-		return "/static/img/cdmx22/leading.png"
-	case "berlin24":
-		return "/static/img/berlin24/leading.png"
-	case "berlin25":
-		return "/static/img/berlin/leading.png"
-	case "floripa":
-		return "/static/img/floripa/exterior_one.avif"
-	case "istanbul":
-		return "/static/img/istanbul/leading.png"
-	}
-	return ""
 }
 
 // Routes sets up the routes for the application
@@ -6066,7 +6028,7 @@ func CheckInGet(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		page.AttendeeEmail = checkInDetails.Email
 		page.TShirtSize = checkInDetails.TShirtSize
 		page.ConferenceTag = checkInDetails.ConferenceTag
-		page.ConferenceImage = confImagePath(checkInDetails.ConferenceTag, "leading")
+		page.ConferenceImage = conferenceArtwork(conferenceForArtwork(ctx, checkInDetails.ConferenceTag), "leading")
 		page.CheckInComplete = checkInDetails.CheckedInAt != nil && !checkInDetails.Revoked
 		page.ShirtPickedUp = checkInDetails.ShirtPickedUpAt != nil
 	}
@@ -6228,7 +6190,7 @@ func DevCheckInPreview(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		AttendeeEmail:   details.Email,
 		TShirtSize:      details.TShirtSize,
 		ConferenceTag:   details.ConferenceTag,
-		ConferenceImage: confImagePath(details.ConferenceTag, "leading"),
+		ConferenceImage: conferenceArtwork(conferenceForArtwork(ctx, details.ConferenceTag), "leading"),
 		CheckInComplete: details.CheckedInAt != nil && !details.Revoked,
 		ShirtPickedUp:   details.ShirtPickedUpAt != nil,
 		MerchPickups:    pickups,

@@ -1,7 +1,9 @@
 package emails
 
 import (
+	"btcpp-web/internal/artwork"
 	"btcpp-web/internal/ics"
+	"btcpp-web/internal/types"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -39,7 +41,7 @@ var antarcticaBookingTemplate = template.Must(template.New("antarctica-booking")
 // AntarcticaBookingMail replaces the first payment receipt with a welcome only
 // after successful berth fulfillment. Later payments get an expedition receipt.
 // It retains the shared order job key so delivery retries remain idempotent.
-func AntarcticaBookingMail(order *getters.ServiceOrderView, b *getters.ExpeditionBooking, recipient, baseURI string) (*Mail, error) {
+func AntarcticaBookingMail(order *getters.ServiceOrderView, b *getters.ExpeditionBooking, recipient, baseURI string, conference ...*types.Conf) (*Mail, error) {
 	m, err := ServiceReceiptMail(order, recipient, baseURI)
 	if err != nil {
 		return nil, err
@@ -61,7 +63,11 @@ func AntarcticaBookingMail(order *getters.ServiceOrderView, b *getters.Expeditio
 		return nil, errors.New("payment has not been applied to this booking")
 	}
 	base := strings.TrimRight(baseURI, "/")
-	d := antarcticaMailData{Base: base, Image: base + "/static/img/antarctica/leading.png", BookingURL: base + "/expeditions/bookings/" + url.PathEscape(b.ID), ReceiptURL: base + "/services/orders/" + url.PathEscape(order.PublicID), Welcome: f.Installment == 1}
+	conf := &types.Conf{Tag: "antarctica"}
+	if len(conference) > 0 && conference[0] != nil {
+		conf = conference[0]
+	}
+	d := antarcticaMailData{Base: base, Image: artwork.Email(base, conf), BookingURL: base + "/expeditions/bookings/" + url.PathEscape(b.ID), ReceiptURL: base + "/services/orders/" + url.PathEscape(order.PublicID), Welcome: f.Installment == 1}
 	noun := "passengers"
 	if b.Quantity == 1 {
 		noun = "passenger"

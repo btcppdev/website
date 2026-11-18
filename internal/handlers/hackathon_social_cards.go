@@ -23,7 +23,7 @@ func publicHackathonCardProject(page *HackathonPage, project *types.HackathonPro
 func projectSocialCard(ctx *config.AppContext, page *HackathonPage, project *types.HackathonProject) imgproc.SiteSocialCard {
 	card := imgproc.SiteSocialCard{Kind: "project", Eyebrow: "hackathon project", Title: project.Title}
 	applySiteSocialCardPalette(&card, page.Conf)
-	if image := confImagePath(page.Conf.Tag, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
+	if image := conferenceArtwork(page.Conf, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
 		card.HeroImage = image
 	}
 	card.Location = page.ConferenceLabel()

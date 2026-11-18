@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/types"
 	"context"
 	"encoding/json"
 	"errors"
@@ -36,19 +37,20 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 	}
 	p.AnnualPostLibrary = &postLibrary
 	// Fetch the roster first and close it before opening reading each event.
-	rows, err := tx.Query(ctx, `SELECT id::text,tag,coalesce(nullif(description,''),tag),location,timezone,date_desc,start_date,end_date FROM conferences WHERE publication_status='published' ORDER BY start_date,tag`)
+	rows, err := tx.Query(ctx, `SELECT id::text,tag,coalesce(nullif(description,''),tag),location,timezone,date_desc,start_date,end_date,leading_image_url,leading_image_avif_url FROM conferences WHERE publication_status='published' ORDER BY start_date,tag`)
 	if err != nil {
 		return err
 	}
 	var roster, previous []reportEvent
 	for rows.Next() {
 		var e reportEvent
-		if err = rows.Scan(&e.ID, &e.Tag, &e.Title, &e.Location, &e.Timezone, &e.DateDesc, &e.Start, &e.End); err != nil {
+		var original, avif string
+		if err = rows.Scan(&e.ID, &e.Tag, &e.Title, &e.Location, &e.Timezone, &e.DateDesc, &e.Start, &e.End, &original, &avif); err != nil {
 			break
 		}
 		if e.Start != nil && e.Start.In(reportEventLocation(e)).Year() == p.Year {
 			e.Period = reportEventPeriod(e)
-			e.LeadImage = confImagePath(e.Tag, "leading")
+			e.LeadImage = conferenceArtwork(&types.Conf{Tag: e.Tag, LeadingImageURL: original, LeadingImageAVIFURL: avif}, "leading")
 			roster = append(roster, e)
 		}
 		if e.Start != nil && e.Start.In(reportEventLocation(e)).Year() == p.Year-1 {

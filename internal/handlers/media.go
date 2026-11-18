@@ -532,8 +532,8 @@ func ServeTalkPng(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	w.Write(png)
 }
 
-func findSponsorBackground(confTag string) string {
-	return "/static/img/" + confTag + "/leading.png"
+func findSponsorBackground(ctx *config.AppContext, confTag string) string {
+	return conferenceArtwork(conferenceForArtwork(ctx, confTag), "leading")
 }
 
 func PreviewSponsorCard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -541,7 +541,7 @@ func PreviewSponsorCard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	confTag := params["conf"]
 	card := params["card"]
 
-	bgImg := findSponsorBackground(confTag)
+	bgImg := findSponsorBackground(ctx, confTag)
 
 	tmplName := fmt.Sprintf("media/sponsor_%s.tmpl", card)
 	err := ctx.TemplateCache.ExecuteTemplate(w, tmplName, &SponsorCard{
@@ -595,7 +595,7 @@ func MakeSponsorCard(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		logo = "/static/img/sponsors/" + logo
 	}
 
-	bgImg := findSponsorBackground(confTag)
+	bgImg := findSponsorBackground(ctx, confTag)
 
 	tmplName := fmt.Sprintf("media/sponsor_%s.tmpl", card)
 	if ctx.TemplateCache.Lookup(tmplName) == nil {

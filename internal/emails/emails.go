@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/artwork"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/mtypes"
@@ -34,6 +35,7 @@ type EmailTmpl struct {
 	URI     string
 	CSS     string
 	ConfTag string
+	HeroURL string
 }
 
 type Mail struct {
@@ -151,9 +153,15 @@ func SendMail(ctx *config.AppContext, rez *types.Registration) error {
 func TicketCheck(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	confTag, _ := helpers.GetSessionKey("tag", r)
 
+	conf, err := getters.GetConfByTag(ctx, confTag)
+	if err != nil || conf == nil {
+		http.NotFound(w, r)
+		return
+	}
 	tmplTag := fmt.Sprintf("emails/%s.tmpl", confTag)
-	err := ctx.TemplateCache.ExecuteTemplate(w, tmplTag, &EmailTmpl{
-		URI: ctx.Env.GetURI(),
+	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, &EmailTmpl{
+		URI: ctx.Env.GetURI(), ConfTag: conf.Tag,
+		HeroURL: artwork.Email(ctx.Env.GetURI(), conf),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -178,6 +186,7 @@ func SendTickets(ctx *config.AppContext, tickets []*types.Ticket, confRef, email
 		URI:     ctx.Env.GetURI(),
 		CSS:     helpers.MiniCss(),
 		ConfTag: conf.Tag,
+		HeroURL: artwork.Email(ctx.Env.GetURI(), conf),
 	})
 	if err != nil {
 		return err
@@ -192,6 +201,7 @@ func SendTickets(ctx *config.AppContext, tickets []*types.Ticket, confRef, email
 	err = ctx.TemplateCache.ExecuteTemplate(io.Writer(&textBody), tmpl, &EmailTmpl{
 		URI:     ctx.Env.GetURI(),
 		ConfTag: conf.Tag,
+		HeroURL: artwork.Email(ctx.Env.GetURI(), conf),
 	})
 	if err != nil {
 		return err

@@ -158,6 +158,7 @@ type (
 		VolunteerApplicationsOpen  *time.Time
 		VolunteerApplicationsClose *time.Time
 		LeadingImageURL            string
+		LeadingImageAVIFURL        string
 		LogoBlackURL               string
 		LogoWhiteURL               string
 		Location                   string

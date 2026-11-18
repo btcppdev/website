@@ -6,8 +6,8 @@
       <source srcset="{{ talkClipart .ClipartAvif }}" type="image/avif"/>
       <img src="{{ talkClipart .Clipart }}" alt="" class="absolute inset-0 h-full w-full rounded-2xl bg-gray-50 object-cover"/>
       {{ else }}
-      <source srcset="/static/img/{{ .Event }}/leading.avif" type="image/avif"/>
-      <img src="/static/img/{{ .Event }}/leading.png" alt="" class="absolute inset-0 h-full w-full rounded-2xl bg-gray-50 object-cover"/>
+      {{ with confAVIF .Event "leading" }}<source srcset="{{ . }}" type="image/avif">{{ end }}
+      <img src="{{ confOriginal .Event "leading" }}" alt="" class="absolute inset-0 h-full w-full rounded-2xl bg-gray-50 object-cover"/>
       {{ end }}
     </picture>
     <div class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-gray-900/10"></div>

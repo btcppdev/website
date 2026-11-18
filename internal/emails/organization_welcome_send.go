@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/artwork"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
@@ -53,7 +54,7 @@ func SendOrganizationWelcomeEmail(ctx *config.AppContext, organizationID, person
 	if err != nil {
 		ctx.Err.Printf("organization welcome conference image: %s", err)
 	} else if conf := nextOrganizationWelcomeConference(confs, time.Now()); conf != nil {
-		heroURL = baseURI + "/static/img/" + url.PathEscape(conf.Tag) + "/leading.png"
+		heroURL = artwork.Email(baseURI, conf)
 	}
 	organizationURL := baseURI + "/dashboard/orgs/" + url.PathEscape(organizationWelcomePathRef(membership.Organization))
 	addedByName := ""

@@ -89,6 +89,27 @@ func TestEventWizardAccessAndStudentPricing(t *testing.T) {
 	if w := request(path, `{"section":"readiness","revision":0,"data":{"tasks":[{"title":"Legacy task","status":"todo"}]}}`, "test-token"); w.Code != 400 {
 		t.Fatal("retired task editor accepted", w.Code, w.Body.String())
 	}
+	data, err := eventWizardData(app, &types.Conf{Ref: confID, Tag: "seoul", Timezone: "UTC"}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := data["artwork"].(map[string]string)["leading"]; got != "/static/img/seoul/leading.avif" {
+		t.Fatalf("wizard lost bundled artwork: %s", got)
+	}
+	if _, err := app.DB.Exec(c, `UPDATE conferences SET leading_image_url='https://images.example/replacement.png', leading_image_avif_url='https://images.example/replacement.avif' WHERE id=$1`, confID); err != nil {
+		t.Fatal(err)
+	}
+	conf, err := getters.GetConfByTag(app, b.Tag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = eventWizardData(app, conf, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := data["artwork"].(map[string]string)["leading"]; got != conf.LeadingImageAVIFURL || got == "" {
+		t.Fatal("wizard missed optimized upload", got)
+	}
 	body := `{"section":"merch","revision":0,"data":{"product_ids":[]}}`
 	if w := request(path, body, "wrong"); w.Code != 403 {
 		t.Fatal("CSRF bypass", w.Code)

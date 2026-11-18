@@ -21,8 +21,8 @@
       <div class="dashboard-ledger-card__hero-wrap">
         <a href="/{{ .Conf.Tag }}" class="dashboard-ledger-card__hero">
           <picture>
-            <source srcset="/static/img/{{ .Conf.Tag }}/leading.avif" type="image/avif" />
-            <img src="/static/img/{{ .Conf.Tag }}/leading.png" alt="{{ .Conf.Desc }}" />
+            {{ with confAVIF .Conf.Tag "leading" }}<source srcset="{{ . }}" type="image/avif">{{ end }}
+            <img src="{{ confOriginal .Conf.Tag "leading" }}" alt="{{ .Conf.Desc }}" />
           </picture>
           <div class="dashboard-ledger-card__scrim"></div>
           <div class="dashboard-ledger-card__hero-copy">

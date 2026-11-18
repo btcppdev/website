@@ -417,6 +417,18 @@ func RenderSocialCardHTML(productImageURL, productName, productPrice string) ([]
 // When `size <= 0`, the original aspect ratio is preserved — used by
 // talk cliparts which aren't all square.
 func MakeAVIF(data []byte, size int) ([]byte, error) {
+	filter := ""
+	if size > 0 {
+		filter = fmt.Sprintf("scale=%d:%d:flags=lanczos", size, size)
+	}
+	return makeAVIF(data, filter, false)
+}
+
+// MakeArtworkAVIF bounds both dimensions without upscaling or cropping.
+func MakeArtworkAVIF(data []byte) ([]byte, error) {
+	return makeAVIF(data, "scale=w='min(1920,iw)':h='min(1920,ih)':force_original_aspect_ratio=decrease:flags=lanczos", true)
+}
+func makeAVIF(data []byte, filter string, artwork bool) ([]byte, error) {
 	in, err := os.CreateTemp("", "imgproc-in-*")
 	if err != nil {
 		return nil, fmt.Errorf("tempfile: %w", err)
@@ -443,8 +455,11 @@ func MakeAVIF(data []byte, size int) ([]byte, error) {
 		"-hide_banner", "-loglevel", "error", "-y",
 		"-i", in.Name(),
 	}
-	if size > 0 {
-		args = append(args, "-vf", fmt.Sprintf("scale=%d:%d:flags=lanczos", size, size))
+	if filter != "" {
+		args = append(args, "-vf", filter)
+	}
+	if artwork {
+		args = append(args, "-frames:v", "1", "-crf", "28")
 	}
 	args = append(args,
 		"-c:v", "libaom-av1",
@@ -457,9 +472,6 @@ func MakeAVIF(data []byte, size int) ([]byte, error) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		if size > 0 {
-			return nil, fmt.Errorf("ffmpeg %dx%d: %w (stderr: %s)", size, size, err, stderr.String())
-		}
 		return nil, fmt.Errorf("ffmpeg avif: %w (stderr: %s)", err, stderr.String())
 	}
 	return os.ReadFile(outName)

@@ -11,6 +11,7 @@ import (
 
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
+	"btcpp-web/internal/artwork"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
@@ -179,7 +180,7 @@ func conferenceEmailHeroURL(ctx *config.AppContext, conf *types.Conf) (string, e
 		return "", fmt.Errorf("conference email hero is not configured")
 	}
 	baseURI := strings.TrimRight(ctx.Env.GetURI(), "/")
-	fallback := baseURI + "/static/img/" + url.PathEscape(conf.Tag) + "/leading.png"
+	fallback := artwork.Email(baseURI, conf)
 	clipart, err := getters.LatestConferenceTalkClipart(ctx, conf.Ref)
 	if err != nil {
 		return "", err

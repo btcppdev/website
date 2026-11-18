@@ -182,7 +182,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			map_embed_url,
 			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side,
 			youtube_playlist_id, youtube_playlist_title, accent_color,
-			volunteer_self_schedule, speaker_applications_close, speaker_applications_open, volunteer_applications_open, volunteer_applications_close, leading_image_url, logo_black_url, logo_white_url, student_ticket_body
+			volunteer_self_schedule, speaker_applications_close, speaker_applications_open, volunteer_applications_open, volunteer_applications_close, leading_image_url, leading_image_avif_url, logo_black_url, logo_white_url, student_ticket_body
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -259,7 +259,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.AccentColor,
 			&conf.VolunteerSelfSchedule,
 			&conf.SpeakerApplicationsClose,
-			&conf.SpeakerApplicationsOpen, &conf.VolunteerApplicationsOpen, &conf.VolunteerApplicationsClose, &conf.LeadingImageURL, &conf.LogoBlackURL, &conf.LogoWhiteURL, &conf.StudentTicketBody,
+			&conf.SpeakerApplicationsOpen, &conf.VolunteerApplicationsOpen, &conf.VolunteerApplicationsClose, &conf.LeadingImageURL, &conf.LeadingImageAVIFURL, &conf.LogoBlackURL, &conf.LogoWhiteURL, &conf.StudentTicketBody,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)

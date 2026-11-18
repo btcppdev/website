@@ -8,8 +8,8 @@
     <main class="checkout-shell checkout-shell--success">
       <aside class="checkout-hero">
         <picture>
-          <source srcset="/static/img/{{ .Conf.Tag }}/leading.avif" type="image/avif">
-          <img src="/static/img/{{ .Conf.Tag }}/leading.png" alt="">
+          {{ with confAVIF .Conf.Tag "leading" }}<source srcset="{{ . }}" type="image/avif">{{ end }}
+          <img src="{{ confOriginal .Conf.Tag "leading" }}" alt="">
         </picture>
         <div class="checkout-hero__shade"></div>
         <div class="checkout-hero__content">

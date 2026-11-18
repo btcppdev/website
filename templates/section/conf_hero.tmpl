@@ -15,8 +15,8 @@
 {{ $conf := . }}
 <a href="/{{ $conf.Tag }}" class="block relative h-36 sm:h-40 group bg-gray-200 rounded-lg overflow-hidden shadow">
   <picture>
-    <source srcset="/static/img/{{ $conf.Tag }}/leading.avif" type="image/avif" />
-    <img src="{{ confImage $conf.Tag "leading" }}" alt="{{ $conf.Desc }}"
+    {{ with confAVIF $conf.Tag "leading" }}<source srcset="{{ . }}" type="image/avif">{{ end }}
+    <img src="{{ confOriginal $conf.Tag "leading" }}" alt="{{ $conf.Desc }}"
          class="absolute inset-0 w-full h-full object-cover" />
   </picture>
   <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>

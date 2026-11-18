@@ -411,7 +411,7 @@ func homeSocialCard(ctx *config.AppContext, confs []*types.Conf) imgproc.SiteSoc
 			seenImages[image] = true
 		}
 		for _, tag := range []string{"toronto", "vienna", "floripa26", "taipei", "berlin25", "istanbul", "riga", "atx25", "nairobi", "seoul", "vegas", "durham"} {
-			image := confImagePath(tag, "leading")
+			image := conferenceArtwork(conferenceForArtwork(ctx, tag), "leading")
 			if image == "" || image == "/static/img/rebrand/light-sketch-bg.avif" || seenImages[image] {
 				continue
 			}
@@ -504,7 +504,7 @@ func eventsSocialCard(ctx *config.AppContext, confs []*types.Conf) imgproc.SiteS
 			seenImages = make(map[string]bool)
 		}
 		for _, fallback := range fallbacks {
-			image := confImagePath(fallback.tag, "leading")
+			image := conferenceArtwork(conferenceForArtwork(ctx, fallback.tag), "leading")
 			if image == "" || image == "/static/img/rebrand/light-sketch-bg.avif" || seenImages[image] {
 				continue
 			}

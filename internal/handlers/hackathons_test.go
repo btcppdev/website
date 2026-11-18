@@ -27,6 +27,7 @@ func TestHackathonAdminPageHackathonURLUsesLoadedConference(t *testing.T) {
 }
 
 func TestHackathonPageCompetitionImageUsesLoadedConference(t *testing.T) {
+	t.Chdir("../..")
 	competition := &types.HackathonCompetition{ConferenceID: "conf-toronto"}
 	page := &HackathonPage{
 		Competition: competition,
@@ -38,6 +39,19 @@ func TestHackathonPageCompetitionImageUsesLoadedConference(t *testing.T) {
 	}
 	if got := page.CompetitionImageAVIF(competition); got != "/static/img/toronto/leading.avif" {
 		t.Fatalf("CompetitionImageAVIF() = %q, want Toronto leading image", got)
+	}
+}
+
+func TestHackathonUploadedArtwork(t *testing.T) {
+	conf := &types.Conf{Ref: "conf", Tag: "seoul", LeadingImageURL: "https://btcpp.dev/new.png", LeadingImageAVIFURL: "https://btcpp.dev/new.avif"}
+	competition := &types.HackathonCompetition{ID: "competition", ConferenceID: "conf"}
+	page := &HackathonPage{Conf: conf, Competition: competition}
+	if page.CompetitionImagePNG(competition) != conf.LeadingImageURL || page.CompetitionImageAVIF(competition) != conf.LeadingImageAVIFURL {
+		t.Fatal("hackathon gallery ignored upload")
+	}
+	card := projectSocialCard(nil, page, &types.HackathonProject{Title: "Example"})
+	if card.HeroImage != conf.LeadingImageAVIFURL {
+		t.Fatal("project unfurl ignored upload", card.HeroImage)
 	}
 }
 

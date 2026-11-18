@@ -2,9 +2,15 @@ package handlers
 
 import (
 	"archive/zip"
+	"btcpp-web/internal/artwork"
+	"bytes"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"btcpp-web/external/getters"
@@ -124,10 +130,10 @@ func AdminGiftsClipartZip(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	// CSV already names every staff row's photo as "leading.png",
 	// so one file in the zip covers the whole staff cohort.
 	if len(staffSpeakersForConf(ctx, conf.Tag)) > 0 && !seen["leading.png"] {
-		path := "static/img/" + conf.Tag + "/leading.png"
-		data, err := os.ReadFile(path)
+		imageURL := artwork.Resolve(conf, "leading").Original
+		data, err := giftArtworkPNG(imageURL)
 		if err != nil {
-			ctx.Infos.Printf("/%s/admin/gifts/clipart.zip skip staff leading.png (%s): %s", conf.Tag, path, err)
+			ctx.Infos.Printf("/%s/admin/gifts/clipart.zip skip staff leading.png (%s): %s", conf.Tag, imageURL, err)
 			skipped++
 		} else {
 			f, err := zw.Create("leading.png")
@@ -142,4 +148,36 @@ func AdminGiftsClipartZip(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 
 	ctx.Infos.Printf("/%s/admin/gifts/clipart.zip: %d entries, %d skipped", conf.Tag, added, skipped)
+}
+
+// Gift CSVs refer to leading.png, so JPEG uploads are decoded and re-encoded.
+func giftArtworkPNG(imageURL string) ([]byte, error) {
+	var data []byte
+	var err error
+	if strings.HasPrefix(imageURL, "/static/") {
+		clean := filepath.Clean(strings.TrimPrefix(imageURL, "/"))
+		if !strings.HasPrefix(clean, "static/") {
+			return nil, fmt.Errorf("invalid artwork path")
+		}
+		data, err = os.ReadFile(clean)
+	} else {
+		u, parseErr := url.Parse(imageURL)
+		base, _ := url.Parse(spaces.PublicURL(""))
+		if parseErr != nil || u.Host == "" || u.Host != base.Host || u.Scheme != base.Scheme {
+			return nil, fmt.Errorf("artwork is not in configured image storage")
+		}
+		data, err = spaces.Get(strings.TrimPrefix(u.Path, "/"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	if err = png.Encode(&out, img); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }

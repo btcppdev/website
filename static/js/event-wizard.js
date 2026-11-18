@@ -380,7 +380,7 @@
       note(
         s,
         key === "leading"
-          ? "PNG or JPEG, up to 10 MB. Use landscape artwork."
+          ? "PNG or JPEG, up to 10 MB. Use landscape artwork. We create a smaller web version when possible and keep your original."
           : "Transparent PNG recommended. Up to 10 MB.",
       );
       g.append(s);

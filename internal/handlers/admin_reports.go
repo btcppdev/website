@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/types"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -130,18 +131,20 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "Invalid event", 400)
 		return
 	}
-	rows, err := app.DB.Query(ctx, `SELECT id::text,tag,coalesce(nullif(description,''),tag),location,timezone,date_desc,start_date,end_date FROM conferences WHERE publication_status='published' ORDER BY start_date DESC NULLS LAST,tag`)
+	rows, err := app.DB.Query(ctx, `SELECT id::text,tag,coalesce(nullif(description,''),tag),location,timezone,date_desc,start_date,end_date,leading_image_url,leading_image_avif_url FROM conferences WHERE publication_status='published' ORDER BY start_date DESC NULLS LAST,tag`)
 	if err != nil {
 		http.Error(w, "Unable to load events", 503)
 		return
 	}
 	for rows.Next() {
 		var e reportEvent
-		if err = rows.Scan(&e.ID, &e.Tag, &e.Title, &e.Location, &e.Timezone, &e.DateDesc, &e.Start, &e.End); err != nil {
+		var original, avif string
+		if err = rows.Scan(&e.ID, &e.Tag, &e.Title, &e.Location, &e.Timezone, &e.DateDesc, &e.Start, &e.End, &original, &avif); err != nil {
 			rows.Close()
 			http.Error(w, "Unable to read events", 500)
 			return
 		}
+		e.LeadImage = conferenceArtwork(&types.Conf{Tag: e.Tag, LeadingImageURL: original, LeadingImageAVIFURL: avif}, "leading")
 		e.Period = reportEventPeriod(e)
 		page.Options = append(page.Options, e)
 		if e.Tag == event {

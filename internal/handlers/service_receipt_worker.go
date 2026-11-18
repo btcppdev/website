@@ -87,7 +87,7 @@ func processServiceReceiptWithSender(ctx context.Context, app *config.AppContext
 		if order.ExpeditionState == "pending" {
 			return finish("retry", errors.New("awaiting installment fulfillment"))
 		}
-		message, err = emails.AntarcticaBookingMail(order, booking, job.Recipient, app.Env.GetURI())
+		message, err = emails.AntarcticaBookingMail(order, booking, job.Recipient, app.Env.GetURI(), conferenceForArtwork(app, "antarctica"))
 	}
 	if err != nil {
 		return finish("review", err)

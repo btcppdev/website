@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/artwork"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
@@ -232,7 +233,7 @@ func (p *HackathonPage) CompetitionImagePNG(competition *types.HackathonCompetit
 	if conf == nil || strings.TrimSpace(conf.Tag) == "" {
 		return "/static/img/berlin_hack_day.png"
 	}
-	return "/static/img/" + url.PathEscape(conf.Tag) + "/leading.png"
+	return artwork.Resolve(conf, "leading").Original
 }
 
 func (p *HackathonPage) CompetitionImageAVIF(competition *types.HackathonCompetition) string {
@@ -240,7 +241,7 @@ func (p *HackathonPage) CompetitionImageAVIF(competition *types.HackathonCompeti
 	if conf == nil || strings.TrimSpace(conf.Tag) == "" {
 		return ""
 	}
-	return "/static/img/" + url.PathEscape(conf.Tag) + "/leading.avif"
+	return artwork.Resolve(conf, "leading").AVIF
 }
 
 func publicHackathonConferenceName(name string) string {
