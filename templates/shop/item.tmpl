@@ -33,7 +33,8 @@
           <strong>SOLD OUT</strong>
           <span>This item is out of stock right now.</span>
         </div>
-        {{ else if .Product.Variants }}
+        {{ else if not .Product.CanSellOnline }}<p>Available at selected bitcoin++ events.</p>
+{{ else if .Product.Variants }}
         <form method="POST" action="/shop/cart/add" class="shop-buy-box">
           <input type="hidden" name="redirect" value="/shop/cart">
           {{ if eq .Product.ProductType "badge_canvas" }}

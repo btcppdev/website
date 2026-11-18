@@ -37,7 +37,11 @@
         <div class="shop-actions"><a class="shop-button" href="/shop/all">← Keep shopping</a></div>
         {{ end }}
       </section>
-      {{ template "shop_summary" . }}
+      <section><form method="POST" action="/shop/discount" class="shop-summary">
+      <input type="hidden" name="csrf" value="{{.ShopCSRF}}">
+      <label>Discount code <input name="code" value="{{.DiscountCode}}" maxlength="40"></label><button class="shop-button">Apply</button>
+      {{if .DiscountCode}}<button class="shop-button" name="remove" value="1">Remove code</button>{{end}}
+      </form>{{ template "shop_summary" . }}</section>
     </main>
     {{ template "shop_footer" . }}
   </body>
@@ -46,6 +50,7 @@
 {{ define "shop_summary" }}
 <aside class="shop-summary">
   <div><span>Subtotal</span><b>{{ merchMoney .SubtotalCents nil }}</b></div>
+  {{if .DiscountCents}}<div><span>Discount included · {{.DiscountCode}}</span><b>−{{merchMoney .DiscountCents nil}}</b></div>{{end}}
   <div><span>Tax (calculated at checkout)</span><b>{{ merchMoney .TaxCents nil }}</b></div>
   <div><span>Shipping</span><b>{{ if eq .ShippingCents 0 }}free{{ else }}{{ merchMoney .ShippingCents nil }}{{ end }}</b></div>
   <div class="is-total"><span>Total</span><b>{{ template "shop_amount" (dict "Cents" .TotalCents "Product" nil) }}</b></div>

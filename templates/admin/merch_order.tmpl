@@ -97,7 +97,7 @@
           <span>Pickup items should be handed over at event check-in or the merch desk. Use the item-level “Mark picked up” button.</span>
           {{ end }}
           {{ if shopOrderHasFulfillment .Order "ship" }}
-          <span>Shipping items need tracking details once mailed. The form below marks all shippable pending items fulfilled.</span>
+          <span>Shipping items need tracking details once mailed. Choose the organization whose items were shipped. Other items stay unfulfilled.</span>
           {{ end }}
           {{ if shopOrderHasFulfillment .Order "pos_takeaway" }}
           <span>Point-of-sale takeaway items were handed over at purchase time.</span>
@@ -157,10 +157,11 @@
         <details class="shop-refund-details">
           <summary>Record an externally purchased shipment instead</summary>
         <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/ship" class="shop-form-grid">
-          <label>courier<input name="courier_name" placeholder="USPS"></label>
-          <label>tracking number<input name="tracking_number"></label>
+          <label>Ships from<select name="fulfillment_organization_id">{{range .ShippingGroups}}{{if gt .Remaining 0}}<option value="{{.OrganizationID}}">{{.Name}} · {{.Remaining}} items remaining</option>{{end}}{{end}}</select></label>
+          <label>courier<input name="courier_name" placeholder="USPS" required></label>
+          <label>tracking number<input name="tracking_number" required></label>
           <label>tracking URL<input name="tracking_url"></label>
-          <label>shipment note<input name="notes"></label>
+
           <button class="shop-button is-primary" type="submit">Mark shipped</button>
         </form>
         </details>

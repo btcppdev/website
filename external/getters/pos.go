@@ -17,7 +17,7 @@ func POSProducts(ctx *config.AppContext, confID string) ([]types.POSProduct, boo
 	if err != nil {
 		return nil, false, err
 	}
-	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `SELECT v.id::text,p.name,v.label,v.sku,coalesce(s.enabled,false) AND v.status='active' AND p.status<>'archived',coalesce(s.price_sats,0),coalesce(s.available,0),coalesce((SELECT sum(quantity_delta) FROM merch_inventory_events WHERE variant_id=v.id),0) FROM merch_variants v JOIN merch_products p ON p.id=v.product_id LEFT JOIN conference_pos_stock s ON s.variant_id=v.id AND s.conference_id=$1 WHERE (v.status='active' AND p.status <> 'archived') OR s.variant_id IS NOT NULL ORDER BY p.name,v.label,v.id`, confID)
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `SELECT v.id::text,p.name,v.label,v.sku,coalesce(s.enabled,false) AND v.status='active' AND p.status<>'archived' AND (p.fulfillment_organization_id IS NULL OR EXISTS(SELECT 1 FROM merch_product_events pe WHERE pe.product_id=p.id AND pe.conference_id=$1)),coalesce(s.price_sats,0),coalesce(s.available,0),coalesce((SELECT sum(quantity_delta) FROM merch_inventory_events WHERE variant_id=v.id),0) FROM merch_variants v JOIN merch_products p ON p.id=v.product_id LEFT JOIN conference_pos_stock s ON s.variant_id=v.id AND s.conference_id=$1 WHERE (v.status='active' AND p.status <> 'archived' AND (p.fulfillment_organization_id IS NULL OR EXISTS(SELECT 1 FROM merch_product_events pe WHERE pe.product_id=p.id AND pe.conference_id=$1))) OR s.variant_id IS NOT NULL ORDER BY p.name,v.label,v.id`, confID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -89,6 +89,15 @@ func posConfigureItem(ctx *config.AppContext, tx pgx.Tx, confID, variantID, acto
 	}
 	if applied {
 		return nil
+	}
+	if enabled || transfer > 0 {
+		var eligible bool
+		if err = tx.QueryRow(ctx.DatabaseContext(), `SELECT p.fulfillment_organization_id IS NULL OR EXISTS(SELECT 1 FROM merch_product_events pe WHERE pe.product_id=p.id AND pe.conference_id=$1) FROM merch_products p JOIN merch_variants v ON v.product_id=p.id WHERE v.id=$2`, confID, variantID).Scan(&eligible); err != nil {
+			return err
+		}
+		if !eligible {
+			return fmt.Errorf("the organization has not made this item available at this event")
+		}
 	}
 	// Serialize against online reservations and other event transfers.
 	var central int
@@ -210,7 +219,7 @@ func POSCreateSale(ctx *config.AppContext, confID, operator, requestID, currency
 		var item types.POSSaleItem
 		var available int
 		var sellable bool
-		err = tx.QueryRow(ctx.DatabaseContext(), `SELECT s.available,s.price_sats,s.enabled AND v.status='active' AND p.status<>'archived',p.name,v.label FROM conference_pos_stock s JOIN merch_variants v ON v.id=s.variant_id JOIN merch_products p ON p.id=v.product_id WHERE s.conference_id=$1 AND s.variant_id=$2 FOR UPDATE OF s`, confID, l.VariantID).Scan(&available, &item.PriceSats, &sellable, &item.Name, &item.Label)
+		err = tx.QueryRow(ctx.DatabaseContext(), `SELECT s.available,s.price_sats,s.enabled AND v.status='active' AND p.status<>'archived' AND (p.fulfillment_organization_id IS NULL OR EXISTS(SELECT 1 FROM merch_product_events pe WHERE pe.product_id=p.id AND pe.conference_id=$1)),p.name,v.label FROM conference_pos_stock s JOIN merch_variants v ON v.id=s.variant_id JOIN merch_products p ON p.id=v.product_id WHERE s.conference_id=$1 AND s.variant_id=$2 FOR UPDATE OF s`, confID, l.VariantID).Scan(&available, &item.PriceSats, &sellable, &item.Name, &item.Label)
 		if err != nil {
 			return nil, false, fmt.Errorf("item is not configured for this event")
 		}
@@ -235,7 +244,7 @@ func POSCreateSale(ctx *config.AppContext, confID, operator, requestID, currency
 		if err != nil {
 			return nil, false, err
 		}
-		_, err = tx.Exec(ctx.DatabaseContext(), `INSERT INTO conference_pos_sale_items(sale_id,variant_id,product_name,variant_label,quantity,price_sats) VALUES($1,$2,$3,$4,$5,$6)`, id, item.VariantID, item.Name, item.Label, item.Quantity, item.PriceSats)
+		_, err = tx.Exec(ctx.DatabaseContext(), `INSERT INTO conference_pos_sale_items(sale_id,variant_id,product_name,variant_label,quantity,price_sats,fulfillment_organization_id) SELECT $1,$2,$3,$4,$5,$6,p.fulfillment_organization_id FROM merch_variants v JOIN merch_products p ON p.id=v.product_id WHERE v.id=$2`, id, item.VariantID, item.Name, item.Label, item.Quantity, item.PriceSats)
 		if err != nil {
 			return nil, false, err
 		}

@@ -123,6 +123,7 @@
 
       <aside class="shop-summary">
         <div><span>Subtotal</span><b>{{ merchMoney .SubtotalCents nil }}</b></div>
+{{if .DiscountCents}}<div><span>Discount included · {{.DiscountCode}}</span><b>−{{merchMoney .DiscountCents nil}}</b></div>{{end}}
         <div><span>Tax</span><b data-summary-tax>{{ merchMoney .TaxCents nil }}</b></div>
         <div><span>Shipping</span><b data-summary-shipping>{{ if eq .ShippingCents 0 }}free{{ else }}{{ merchMoney .ShippingCents nil }}{{ end }}</b></div>
         <div class="is-total"><span>Total</span><b data-summary-total data-btc-usd="{{ merchUSDQuote }}" data-subtotal-cents="{{ .SubtotalCents }}" data-tax-cents="{{ .TaxCents }}">{{ template "shop_amount" (dict "Cents" .TotalCents "Product" nil) }}</b></div>

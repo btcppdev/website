@@ -16,7 +16,7 @@
       {{ template "organization_workspace_header" (dict "Page" . "Active" "organization") }}
 
       <nav class="organization-dashboard-local-nav" aria-label="Organization sections">
-        {{ if .CanManage }}<a href="#profile">/profile</a>{{ end }}
+        {{ if .CanManage }}<a href="#profile">/profile</a><a href="/dashboard/orgs/{{ .Organization.Ref }}/shop">/shop</a>{{ end }}
         <a href="#members">/members</a>
         {{ if .CanManage }}<a href="#requests">/join requests{{ if .PendingRequests }} ({{ len .PendingRequests }}){{ end }}</a>{{ end }}
         {{ if and .CanManage .SponsorEvents }}<a href="/dashboard/sponsor/{{ .Organization.Ref }}">/sponsorships</a>{{ end }}

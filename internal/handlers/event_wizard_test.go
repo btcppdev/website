@@ -134,6 +134,15 @@ func TestEventWizardPreview(t *testing.T) {
 	}
 	root := mux.NewRouter()
 	registerEventWizard(root, app)
+	registerOrganizationShops(root, app)
+	var org string
+	if e = app.DB.QueryRow(c, `INSERT INTO organizations(id,name) VALUES('00000000-0000-4000-8000-000000008117','Tokyo merch demo') ON CONFLICT(id) DO UPDATE SET name=excluded.name RETURNING id::text`).Scan(&org); e != nil {
+		t.Fatal(e)
+	}
+	root.HandleFunc("/shop/cart", func(w http.ResponseWriter, r *http.Request) { ShopCart(w, r, app) }).Methods("GET")
+	root.HandleFunc("/shop/cart/add", func(w http.ResponseWriter, r *http.Request) { ShopCartAdd(w, r, app) }).Methods("POST")
+	root.HandleFunc("/shop/checkout", func(w http.ResponseWriter, r *http.Request) { ShopCheckout(w, r, app) }).Methods("GET")
+	root.HandleFunc("/shop/shipping-rates", func(w http.ResponseWriter, r *http.Request) { ShopShippingRates(w, r, app) }).Methods("POST")
 	root.HandleFunc("/preview/login", func(w http.ResponseWriter, r *http.Request) {
 		if e := auth.LoginPerson(app, r, person, auth.MethodEmailLink); e != nil {
 			http.Error(w, e.Error(), 500)

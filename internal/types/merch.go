@@ -54,32 +54,34 @@ const (
 )
 
 type MerchProduct struct {
-	ID               string
-	Tag              string
-	Slug             string
-	Name             string
-	Subtitle         string
-	Description      string
-	Status           string
-	ProductType      string
-	BasePriceCents   uint
-	Currency         string
-	Symbol           string
-	PostSymbol       string
-	StripeTaxCode    string
-	EasyshipCategory string
-	HSCode           string
-	CountryOfOrigin  string
-	RequiresShipping bool
-	AllowEventPickup bool
-	AvailableFrom    *time.Time
-	AvailableUntil   *time.Time
-	PublishedAt      *time.Time
-	Images           []*MerchProductImage
-	Options          []*MerchProductOption
-	Variants         []*MerchVariant
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	FulfillmentOrganizationID string
+	OnlineEnabled             bool
+	ID                        string
+	Tag                       string
+	Slug                      string
+	Name                      string
+	Subtitle                  string
+	Description               string
+	Status                    string
+	ProductType               string
+	BasePriceCents            uint
+	Currency                  string
+	Symbol                    string
+	PostSymbol                string
+	StripeTaxCode             string
+	EasyshipCategory          string
+	HSCode                    string
+	CountryOfOrigin           string
+	RequiresShipping          bool
+	AllowEventPickup          bool
+	AvailableFrom             *time.Time
+	AvailableUntil            *time.Time
+	PublishedAt               *time.Time
+	Images                    []*MerchProductImage
+	Options                   []*MerchProductOption
+	Variants                  []*MerchVariant
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
 }
 
 type MerchProductImage struct {
@@ -431,4 +433,8 @@ func (o ShopOrder) FulfillmentLabel() string {
 func (o ShopOrder) NeedsFulfillment() bool {
 	s := o.FulfillmentStatus()
 	return s == "partial" || s == "unfulfilled"
+}
+
+func (p *MerchProduct) CanSellOnline() bool {
+	return p != nil && (p.FulfillmentOrganizationID == "" || p.OnlineEnabled)
 }

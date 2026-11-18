@@ -1,0 +1,77 @@
+.org-shop {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 45px 28px 90px;
+}
+.org-shop-nav {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #bdb5a8;
+  margin: 32px 0;
+  padding-bottom: 18px;
+}
+.org-shop-nav a {
+  padding: 10px 16px;
+  text-decoration: none;
+  border: 1px solid #d6d0c6;
+}
+.org-shop-nav a[aria-current] {
+  background: #f9af5e;
+  border-color: #ba864f;
+  font-weight: bold;
+}
+.org-shop-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 24px 0;
+  flex-wrap: wrap;
+}
+.org-shop-detail {
+  border: 1px solid #d6d0c6;
+  background: #fffdf8;
+  margin: 16px 0;
+  padding: 20px;
+}
+.org-shop-detail summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 8px 0;
+}
+.org-shop-detail form {
+  margin-top: 20px;
+}
+.org-product-image {
+  height: 180px;
+  max-width: 100%;
+  object-fit: contain;
+  margin: 18px 0;
+}
+.org-shop .ew-field {
+  margin-bottom: 8px;
+}
+.org-shop .ew-event-card h2 {
+  font-size: 24px;
+}
+.org-shop .ew-event-card .org-product-image {
+  width: 100%;
+}
+@media (max-width: 650px) {
+  .org-shop {
+    padding: 28px 18px 70px;
+  }
+  .org-shop-nav {
+    gap: 8px;
+  }
+  .org-shop-nav a {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .org-shop-detail {
+    padding: 15px;
+  }
+  .org-shop .ew-header {
+    height: auto;
+  }
+}

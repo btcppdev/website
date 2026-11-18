@@ -57,15 +57,25 @@ type shopCartLine struct {
 }
 
 type shopCartItem struct {
-	BadgeCanvas    *types.BadgeCanvas
-	Product        *types.MerchProduct
-	Variant        *types.MerchVariant
-	Qty            uint
-	UnitPriceCents uint
-	LineTotalCents uint
+	OriginalUnitPriceCents uint
+	DiscountAmountCents    uint
+	OriginRevision         int64
+	ShipFrom               *types.EasyshipSettings
+	OriginLabel            string
+	EligibleEvents         []string
+	BadgeCanvas            *types.BadgeCanvas
+	Product                *types.MerchProduct
+	Variant                *types.MerchVariant
+	Qty                    uint
+	UnitPriceCents         uint
+	LineTotalCents         uint
 }
 
 type shopPage struct {
+	ShippingGroups            []getters.ShopFulfillmentGroup
+	DiscountCents             uint
+	DiscountCode              string
+	ShopCSRF                  string
 	ServiceRefunds            getters.ServiceOrderRefundSummary
 	ActiveCategory            string
 	CollectionHeading         string
@@ -346,7 +356,7 @@ func ShopCart(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	page := baseShopPage(ctx, r, "cart")
 	cart, err := loadShopCart(ctx, r)
 	if err != nil {
-		page.Error = "Some items are unavailable. Sign in again or set their quantity to zero to remove them."
+		page.Error = err.Error()
 	}
 	page.Cart = cart
 	fillCartTotals(page)
@@ -367,6 +377,10 @@ func ShopCartAdd(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	variant, product, err := getters.GetMerchVariant(ctx, variantID)
 	if err != nil {
 		http.Error(w, "unknown variant", http.StatusBadRequest)
+		return
+	}
+	if product.Status != types.MerchProductStatusPublished || !product.CanSellOnline() {
+		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape("This item is not available online."), 303)
 		return
 	}
 	grantID := strings.TrimSpace(r.PostFormValue("badge_ref"))
@@ -445,7 +459,11 @@ func ShopCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	page.PendingCheckout = pendingShopCheckout(ctx, r, page.Email)
 	cart, err := loadShopCart(ctx, r)
 	if err != nil || len(cart) == 0 {
-		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape("Your cart is empty."), http.StatusSeeOther)
+		message := "Your cart is empty."
+		if err != nil {
+			message = err.Error()
+		}
+		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape(message), http.StatusSeeOther)
 		return
 	}
 	shopRate.refresh()
@@ -561,7 +579,8 @@ func ShopTaxQuote(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
-	quote, err := shopStripeTaxQuote(cart, address, shippingCents, "USD")
+	quotes, taxCents, err := shopCheckoutTaxQuotes(ctx, r, cart, address, shippingCents, fulfillment)
+	_ = quotes
 	if err != nil {
 		ctx.Err.Printf("/shop/tax-quote: %s", err)
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -569,8 +588,8 @@ func ShopTaxQuote(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"tax_cents":   quote.SalesTaxAmountCents,
-		"total_cents": shopCartSubtotal(cart) + shippingCents + quote.SalesTaxAmountCents,
+		"tax_cents":   taxCents,
+		"total_cents": shopCartSubtotal(cart) + shippingCents + taxCents,
 	})
 }
 
@@ -590,7 +609,11 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	cart, err := loadShopCart(ctx, r)
 	if err != nil || len(cart) == 0 {
-		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape("Your cart is empty."), http.StatusSeeOther)
+		message := "Your cart is empty."
+		if err != nil {
+			message = err.Error()
+		}
+		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape(message), http.StatusSeeOther)
 		return
 	}
 	page := baseShopPage(ctx, r, "checkout")
@@ -666,14 +689,14 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		renderShopTemplate(w, r, ctx, "shop/checkout.tmpl", page)
 		return
 	}
-	taxQuote, err := shopStripeTaxQuote(cart, taxAddress, page.ShippingCents, "USD")
+	taxQuotes, taxCents, err := shopCheckoutTaxQuotes(ctx, r, cart, taxAddress, page.ShippingCents, fulfillment)
 	if err != nil {
 		ctx.Err.Printf("/shop/checkout tax quote: %s", err)
 		page.Error = "Tax could not be calculated for this order. Please verify the delivery details."
 		renderShopTemplate(w, r, ctx, "shop/checkout.tmpl", page)
 		return
 	}
-	page.TaxCents = taxQuote.SalesTaxAmountCents
+	page.TaxCents = taxCents
 	page.TotalCents = page.SubtotalCents + page.ShippingCents + page.TaxCents
 
 	buyerPersonID := ""
@@ -699,7 +722,8 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 			ProductID:            item.Product.ID,
 			VariantID:            item.Variant.ID,
 			Quantity:             item.Qty,
-			UnitPriceCents:       item.UnitPriceCents,
+			UnitPriceCents:       item.OriginalUnitPriceCents,
+			DiscountAmountCents:  item.DiscountAmountCents,
 			LineTotalCents:       item.LineTotalCents,
 			ProductTagSnapshot:   item.Product.Tag,
 			ProductNameSnapshot:  item.Product.Name,
@@ -718,7 +742,8 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		CheckoutKind:        types.ShopCheckoutKindMerch,
 		PaymentProvider:     paymentMethod,
 		Currency:            "USD",
-		SubtotalCents:       page.SubtotalCents,
+		SubtotalCents:       page.SubtotalCents + page.DiscountCents,
+		DiscountAmountCents: page.DiscountCents, DiscountCode: page.DiscountCode, ShopOriginRevisions: shopOriginRevisions(cart),
 		ShippingAmountCents: page.ShippingCents,
 		SalesTaxAmountCents: page.TaxCents,
 		TotalCents:          page.TotalCents,
@@ -742,8 +767,7 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 			return
 		}
 	}
-	taxQuote.OrderID = order.ID
-	if err := getters.CreateTaxQuote(ctx, *taxQuote); err != nil {
+	if err := persistShopTaxQuotes(ctx, order.ID, taxQuotes); err != nil {
 		ctx.Err.Printf("/shop/checkout tax quote persist: %s", err)
 		if cancelErr := getters.CancelShopOrder(ctx, order.ID, "", "tax quote could not be saved"); cancelErr != nil {
 			ctx.Err.Printf("/shop/checkout release order after tax quote failure %s: %s", order.ID, cancelErr)
@@ -974,32 +998,30 @@ func sendShopReceiptEmail(ctx *config.AppContext, order *types.ShopOrder) error 
 }
 
 func finalizeShopTaxTransaction(ctx *config.AppContext, orderID string) error {
-	recorded, err := getters.HasRecordedShopTaxTransaction(ctx, orderID)
-	if err != nil || recorded {
-		return err
-	}
-	calculationID, err := getters.GetShopTaxCalculationID(ctx, orderID)
-	if err != nil || calculationID == "" {
-		return err
-	}
-	params := &stripe.TaxTransactionCreateFromCalculationParams{
-		Calculation: stripe.String(calculationID),
-		Reference:   stripe.String("shop-order-" + orderID),
-	}
-	params.SetIdempotencyKey("shop-tax-transaction:" + orderID)
-	transaction, err := stripeTaxTransaction.CreateFromCalculation(params)
-	if err != nil {
-		return fmt.Errorf("finalize Stripe Tax calculation: %w", err)
-	}
-	raw, err := json.Marshal(transaction)
-	if err != nil {
-		return fmt.Errorf("encode Stripe Tax transaction: %w", err)
-	}
-	order, err := getters.GetShopOrderByID(ctx, orderID)
+	quotes, err := getters.PendingShopTaxCalculations(ctx, orderID)
 	if err != nil {
 		return err
 	}
-	return getters.RecordShopTaxTransaction(ctx, orderID, transaction.ID, order.SalesTaxAmountCents, string(raw))
+	for _, q := range quotes {
+		suffix := ""
+		if q.OriginKey != "" {
+			suffix = ":" + q.OriginKey
+		}
+		params := &stripe.TaxTransactionCreateFromCalculationParams{Calculation: stripe.String(q.ProviderQuoteID), Reference: stripe.String("shop-order-" + orderID + suffix)}
+		params.SetIdempotencyKey("shop-tax-transaction:" + orderID + suffix)
+		transaction, e := stripeTaxTransaction.CreateFromCalculation(params)
+		if e != nil {
+			return fmt.Errorf("finalize Stripe Tax calculation: %w", e)
+		}
+		raw, e := json.Marshal(transaction)
+		if e != nil {
+			return e
+		}
+		if e = getters.RecordShopTaxTransaction(ctx, orderID, transaction.ID, q.SalesTaxAmountCents, string(raw), q.OriginKey); e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 func AdminMerch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1566,7 +1588,12 @@ func AdminMerchOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		}
 	}
 	page.EasyshipRateQuote, _ = getters.GetLatestEasyshipRateQuote(ctx, order.ID)
-	page.CanCreateEasyshipShipment = canPrepareEasyshipShipmentOrder(order)
+	page.ShippingGroups, err = getters.ShopOrderFulfillmentGroups(ctx, order.ID)
+	if err != nil {
+		http.Error(w, "Unable to load fulfillment groups", 500)
+		return
+	}
+	page.CanCreateEasyshipShipment = len(page.ShippingGroups) <= 1 && canPrepareEasyshipShipmentOrder(order)
 	page.ManualRefund = !shopOrderUsesAutomatedStripeRefund(order)
 	if page.ManualRefund {
 		page.RefundContact, err = getters.GetShopRefundContactByEmail(ctx, order.BuyerEmail)
@@ -1621,7 +1648,7 @@ func AdminMerchOrderAction(w http.ResponseWriter, r *http.Request, ctx *config.A
 	case "cancel":
 		actionErr = getters.CancelShopOrder(ctx, order.ID, id.Email, r.FormValue("notes"))
 	case "ship":
-		actionErr = getters.MarkShopOrderShipped(ctx, order.ID, id.Email, r.FormValue("courier_name"), r.FormValue("tracking_number"), r.FormValue("tracking_url"), r.FormValue("notes"))
+		actionErr = getters.ShipOrganizationOrder(ctx, r.FormValue("fulfillment_organization_id"), order.ID, id.Email, r.FormValue("courier_name"), r.FormValue("tracking_number"), r.FormValue("tracking_url"))
 	case "easyship-create":
 		actionErr = updateEasyshipDestinationPhone(ctx, order, r.FormValue("contact_phone"))
 		if actionErr == nil {
@@ -1681,7 +1708,7 @@ func adminRefreshEasyshipRate(requestContext context.Context, ctx *config.AppCon
 	if order == nil || order.ShippingAddress == nil {
 		return fmt.Errorf("order has no shipping address")
 	}
-	settings, err := getters.GetEasyshipSettings(ctx)
+	settings, err := getters.ShopOrderShippingOrigin(ctx, order.ID)
 	if err != nil {
 		return err
 	}
@@ -1741,7 +1768,7 @@ func adminCreateEasyshipShipment(requestContext context.Context, ctx *config.App
 	if err != nil {
 		return err
 	}
-	settings, err := getters.GetEasyshipSettings(ctx)
+	settings, err := getters.ShopOrderShippingOrigin(ctx, order.ID)
 	if err != nil {
 		return err
 	}
@@ -1942,6 +1969,8 @@ func baseShopPage(ctx *config.AppContext, r *http.Request, title string) *shopPa
 		Email:         strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey)),
 		IsDevelopment: !ctx.Env.Prod,
 	}
+	page.DiscountCode = ctx.Session.GetString(r.Context(), shopDiscountSessionKey)
+	page.ShopCSRF, _ = ensureAuthMethodsCSRF(ctx, r)
 	cart, _ := loadShopCart(ctx, r)
 	page.CartCount = uint(len(cart))
 	for _, item := range cart {
@@ -1992,6 +2021,8 @@ func loadShopCart(ctx *config.AppContext, r *http.Request) ([]*shopCartItem, err
 	lines := readShopCart(ctx, r)
 	var out []*shopCartItem
 	var selectionError error
+	profiles := map[string]*types.OrganizationShopProfile{}
+	labels := map[string]string{}
 	for _, line := range lines {
 		if line.Qty == 0 {
 			continue
@@ -2007,15 +2038,51 @@ func loadShopCart(ctx *config.AppContext, r *http.Request) ([]*shopCartItem, err
 				canvas = &types.BadgeCanvas{Reference: line.BadgeReference, BadgeName: "Unavailable badge"}
 			}
 		}
+		var origin *types.EasyshipSettings
+		var revision int64
+		label := "bitcoin++"
+		var events []string
+		if org := product.FulfillmentOrganizationID; org != "" {
+			profile := profiles[org]
+			if profile == nil {
+				profile, err = getters.GetOrganizationShopProfile(ctx, org)
+				if err != nil {
+					return out, err
+				}
+				profiles[org] = profile
+				organization, e := getters.GetOrg(ctx, org)
+				if e != nil {
+					return out, e
+				}
+				labels[org] = organization.Name
+			}
+			origin = &profile.ShipFrom
+			revision = profile.Revision
+			label = labels[org]
+			events, err = getters.OrganizationProductEvents(ctx, product.ID)
+			if err != nil {
+				return out, err
+			}
+		}
 		unit := merchVariantPrice(product, variant)
 		out = append(out, &shopCartItem{
-			Product:        product,
+			Product:                product,
+			OriginalUnitPriceCents: unit, OriginRevision: revision, ShipFrom: origin, OriginLabel: label, EligibleEvents: events,
 			BadgeCanvas:    canvas,
 			Variant:        variant,
 			Qty:            line.Qty,
 			UnitPriceCents: unit,
 			LineTotalCents: unit * line.Qty,
 		})
+	}
+	if code := ctx.Session.GetString(r.Context(), shopDiscountSessionKey); code != "" {
+		d, e := getters.FindOrganizationDiscount(ctx, code)
+		if e == nil {
+			e = applyShopDiscount(out, d)
+		}
+		if e != nil && selectionError == nil {
+			selectionError = fmt.Errorf("Discount unavailable. Remove the code or apply another one before checking out.")
+		}
 	}
 	return out, selectionError
 }
@@ -2038,6 +2105,7 @@ func saveShopCart(ctx *config.AppContext, r *http.Request, lines []shopCartLine)
 	ctx.Session.Remove(r.Context(), shopShippingRatesSessionKey)
 	if len(lines) == 0 {
 		ctx.Session.Remove(r.Context(), shopCartSessionKey)
+		ctx.Session.Remove(r.Context(), shopDiscountSessionKey)
 		return
 	}
 	raw, _ := json.Marshal(lines)
@@ -2176,6 +2244,15 @@ func pendingShopCheckout(ctx *config.AppContext, r *http.Request, email string) 
 }
 
 func fillCartTotals(page *shopPage) {
+	page.DiscountCents = 0
+	for _, item := range page.Cart {
+		if item != nil {
+			page.DiscountCents += item.DiscountAmountCents
+			if page.PickupConf != nil && !shopItemPickupEligible(item, page.PickupConf.Ref) {
+				page.PickupConf = nil
+			}
+		}
+	}
 	for _, item := range page.Cart {
 		if item != nil && item.Product != nil && item.Product.ProductType == types.MerchProductTypeBadgeCanvas && !item.Product.AllowEventPickup {
 			page.PickupConf = nil
@@ -2244,6 +2321,9 @@ func validateShopCartInventory(cart []*shopCartItem) error {
 	for _, item := range cart {
 		if item == nil || item.Product == nil || item.Variant == nil {
 			return fmt.Errorf("One of those items is no longer available.")
+		}
+		if item.Product.Status != types.MerchProductStatusPublished || !item.Product.CanSellOnline() {
+			return fmt.Errorf("%s is unavailable online", item.Product.Name)
 		}
 		if !merchVariantAvailable(item.Variant, item.Qty) {
 			if item.Variant.Stock <= 0 {
@@ -2356,13 +2436,13 @@ func shopShippingCartKey(cart []*shopCartItem) string {
 		}
 		lines = append(lines, fmt.Sprintf("%s:%d:%d:%d:%d:%d:%d", item.Key(), item.Qty,
 			item.UnitPriceCents, item.Variant.WeightGrams, item.Variant.LengthMM,
-			item.Variant.WidthMM, item.Variant.HeightMM))
+			item.Variant.WidthMM, item.Variant.HeightMM)+fmt.Sprintf(":%s:%d", item.Product.FulfillmentOrganizationID, item.OriginRevision))
 	}
 	sort.Strings(lines)
 	return strings.Join(lines, "|")
 }
 
-func shopAvailableShippingRates(ctx *config.AppContext, r *http.Request, cart []*shopCartItem, fulfillment string, fallbackCents uint) ([]easyship.Rate, easyship.Address, error) {
+func shopSingleOriginShippingRates(ctx *config.AppContext, r *http.Request, cart []*shopCartItem, fulfillment string, fallbackCents uint) ([]easyship.Rate, easyship.Address, error) {
 	if fulfillment != types.ShopFulfillmentShip {
 		return nil, easyship.Address{}, nil
 	}
@@ -2405,7 +2485,7 @@ func shopAvailableShippingRates(ctx *config.AppContext, r *http.Request, cart []
 	if len(items) == 0 {
 		return nil, dest, nil
 	}
-	settings, err := getters.GetEasyshipSettings(ctx)
+	settings, err := shopCartShippingOrigin(ctx, cart)
 	if err != nil {
 		ctx.Err.Printf("/shop/checkout easyship origin load failed: %s", err)
 		return nil, dest, fmt.Errorf("Shipping configuration could not be loaded. Please try again.")
@@ -2462,8 +2542,8 @@ func validateShopVariantParcel(product *types.MerchProduct, variant *types.Merch
 	return nil
 }
 
-func shopStripeTaxQuote(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint, currency string) (*getters.TaxQuoteInput, error) {
-	params, err := shopStripeTaxParams(cart, address, shippingCents, currency)
+func shopStripeTaxQuote(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint, currency string, origin ...*types.EasyshipSettings) (*getters.TaxQuoteInput, error) {
+	params, err := shopStripeTaxParams(cart, address, shippingCents, currency, origin...)
 	if err != nil {
 		return nil, err
 	}
@@ -2495,7 +2575,7 @@ func shopStripeTaxQuote(cart []*shopCartItem, address *types.ShopAddress, shippi
 	}, nil
 }
 
-func shopStripeTaxParams(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint, currency string) (*stripe.TaxCalculationParams, error) {
+func shopStripeTaxParams(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint, currency string, origin ...*types.EasyshipSettings) (*stripe.TaxCalculationParams, error) {
 	if address == nil || strings.TrimSpace(address.Line1) == "" || strings.TrimSpace(address.City) == "" || strings.TrimSpace(address.Country) == "" {
 		return nil, fmt.Errorf("a complete shipping address is required to calculate tax")
 	}
@@ -2515,6 +2595,10 @@ func shopStripeTaxParams(cart []*shopCartItem, address *types.ShopAddress, shipp
 			Address:       stripeAddress,
 			AddressSource: stripe.String(string(stripe.TaxCalculationCustomerDetailsAddressSourceShipping)),
 		},
+	}
+	if len(origin) > 0 && origin[0] != nil {
+		o := origin[0]
+		params.ShipFromDetails = &stripe.TaxCalculationShipFromDetailsParams{Address: &stripe.AddressParams{Line1: stripe.String(o.Line1), Line2: stripe.String(o.Line2), City: stripe.String(o.City), State: stripe.String(o.Region), PostalCode: stripe.String(o.PostalCode), Country: stripe.String(o.CountryAlpha2)}}
 	}
 	for _, item := range cart {
 		if item == nil || item.Product == nil || item.Variant == nil || item.Qty == 0 {

@@ -531,6 +531,7 @@ func loadTemplates(ctx *config.AppContext) error {
 			}
 			return SponsorBannerForConf(ctx, conf.Ref)
 		},
+		"merchPrimaryImage":           merchPrimaryImage,
 		"merchImage":                  merchImage,
 		"merchSocialImage":            merchSocialImage,
 		"merchSocialImageWidth":       merchSocialImageWidth,
@@ -1692,6 +1693,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		AdminSubscribers(w, r, app)
 	}).Methods("GET")
 	registerEventWizard(r, app)
+	registerOrganizationShops(r, app)
 	r.HandleFunc("/admin/discounts", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminDiscounts(w, r, app)
 	}).Methods("GET", "POST")

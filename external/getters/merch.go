@@ -47,6 +47,8 @@ type MerchVariantInput struct {
 }
 
 type ShopOrderInput struct {
+	ShopOriginRevisions map[string]int64
+	DiscountCode        string
 	BuyerPersonID       string
 	BuyerEmail          string
 	BuyerName           string
@@ -99,6 +101,7 @@ type ShippingRateQuoteInput struct {
 }
 
 type TaxQuoteInput struct {
+	OriginKey             string
 	OrderID               string
 	Provider              string
 	ProviderQuoteID       string
@@ -178,7 +181,7 @@ func UpdateMerchProduct(ctx *config.AppContext, id string, in MerchProductInput)
 }
 
 func ListMerchProducts(ctx *config.AppContext, includeUnpublished bool) ([]*types.MerchProduct, error) {
-	where := "WHERE status = 'published'"
+	where := "WHERE status = 'published' AND (fulfillment_organization_id IS NULL OR online_enabled)"
 	if includeUnpublished {
 		where = ""
 	}
@@ -197,6 +200,7 @@ func ListConferenceMerchUpsells(ctx *config.AppContext, confID string) ([]*types
 		JOIN conference_merch_upsells cmu ON cmu.product_id = merch_products.id
 		WHERE cmu.conference_id = $1::uuid
 			AND merch_products.status = 'published'
+ AND (merch_products.fulfillment_organization_id IS NULL OR EXISTS(SELECT 1 FROM merch_product_events mpe WHERE mpe.product_id=merch_products.id AND mpe.conference_id=$1))
 		ORDER BY cmu.display_order, cmu.created_at, merch_products.name
 	`, []any{confID})
 }
@@ -646,6 +650,9 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 	if err != nil {
 		return nil, fmt.Errorf("create shop order: %w", err)
 	}
+	if err = reserveOrganizationDiscount(ctx.DatabaseContext(), tx, order.ID, in.DiscountCode, items, in.DiscountAmountCents); err != nil {
+		return nil, err
+	}
 	if in.ShippingAddress != nil {
 		address := in.ShippingAddress
 		if _, err := tx.Exec(ctx.DatabaseContext(), `
@@ -661,6 +668,8 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 
 	for _, item := range items {
 		var canvas *types.BadgeCanvas
+		var fulfillmentOrg string
+		var originSnapshot []byte
 		if item.VariantID != "" {
 			var productID string
 			if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT product_id::text FROM merch_variants WHERE id=$1`, item.VariantID).Scan(&productID); err != nil {
@@ -675,8 +684,48 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 			var allowPickup bool
 			var price int
 			var currency string
-			if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT product_type,status,allow_event_pickup,base_price_cents,currency FROM merch_products WHERE id=$1 FOR SHARE`, item.ProductID).Scan(&productType, &productStatus, &allowPickup, &price, &currency); err != nil {
+			if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT product_type,status,allow_event_pickup,base_price_cents,currency,coalesce(fulfillment_organization_id::text,'') FROM merch_products WHERE id=$1 FOR SHARE`, item.ProductID).Scan(&productType, &productStatus, &allowPickup, &price, &currency, &fulfillmentOrg); err != nil {
 				return nil, err
+			}
+			if fulfillmentOrg != "" {
+				if productStatus != "published" {
+					return nil, fmt.Errorf("this organization product is unavailable")
+				}
+				switch item.FulfillmentMethod {
+				case types.ShopFulfillmentShip:
+					var online bool
+					if err = tx.QueryRow(ctx.DatabaseContext(), `SELECT online_enabled FROM merch_products WHERE id=$1`, item.ProductID).Scan(&online); err != nil {
+						return nil, err
+					}
+					if !online {
+						return nil, fmt.Errorf("this product is only available at selected events")
+					}
+					var revision int64
+					if err = tx.QueryRow(ctx.DatabaseContext(), `SELECT revision FROM organization_shop_profiles WHERE organization_id=$1 FOR SHARE`, fulfillmentOrg).Scan(&revision); err != nil {
+						return nil, err
+					}
+					if in.ShopOriginRevisions[fulfillmentOrg] != revision {
+						return nil, fmt.Errorf("shipping origin changed; refresh delivery rates")
+					}
+					originSnapshot, err = organizationShipFromTx(ctx.DatabaseContext(), tx, fulfillmentOrg)
+					if err != nil {
+						return nil, err
+					}
+				case types.ShopFulfillmentEventPickup, types.ShopFulfillmentPOSTakeaway:
+					eventID := item.PickupConferenceID
+					if eventID == "" {
+						eventID = item.SaleConferenceID
+					}
+					var eligible bool
+					if err = tx.QueryRow(ctx.DatabaseContext(), `SELECT EXISTS(SELECT 1 FROM merch_product_events WHERE product_id=$1 AND conference_id=$2)`, item.ProductID, nullableUUID(eventID)).Scan(&eligible); err != nil {
+						return nil, err
+					}
+					if !eligible {
+						return nil, fmt.Errorf("this product is not available at that event")
+					}
+				default:
+					return nil, fmt.Errorf("invalid fulfillment method for organization merchandise")
+				}
 			}
 			if productType == types.MerchProductTypeBadgeCanvas {
 				if productStatus != types.MerchProductStatusPublished || in.Source != types.ShopOrderSourceOnline {
@@ -719,6 +768,16 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 				FOR UPDATE
 			`, item.VariantID).Scan(&inventoryPolicy, &variantStatus); err != nil {
 				return nil, fmt.Errorf("check merch inventory: %w", err)
+			}
+			if fulfillmentOrg != "" {
+				var currentPrice int64
+				var currency string
+				if err = tx.QueryRow(ctx.DatabaseContext(), `SELECT p.base_price_cents+v.price_delta_cents,p.currency FROM merch_variants v JOIN merch_products p ON p.id=v.product_id WHERE v.id=$1`, item.VariantID).Scan(&currentPrice, &currency); err != nil {
+					return nil, err
+				}
+				if currentPrice < 1 || uint(currentPrice) != item.UnitPriceCents || currency != in.Currency {
+					return nil, fmt.Errorf("product price changed; review the cart again")
+				}
 			}
 			// Read the ledger after acquiring the variant lock so a concurrent
 			// event transfer or online reservation is visible in this snapshot.
@@ -763,6 +822,14 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 		)
 		if err != nil {
 			return nil, fmt.Errorf("create shop order item: %w", err)
+		}
+		if fulfillmentOrg != "" {
+			if len(originSnapshot) == 0 {
+				originSnapshot = []byte("{}")
+			}
+			if _, err = tx.Exec(ctx.DatabaseContext(), `UPDATE shop_order_items SET fulfillment_organization_id=$2,ship_from_snapshot=$3 WHERE id=$1`, row.ID, fulfillmentOrg, originSnapshot); err != nil {
+				return nil, err
+			}
 		}
 		if canvas != nil {
 			raw, err := json.Marshal(canvas)
@@ -2130,11 +2197,11 @@ func CreateTaxQuote(ctx *config.AppContext, in TaxQuoteInput) error {
 		INSERT INTO tax_quotes (
 			order_id, sales_tax_provider, provider_quote_id, sales_tax_amount_cents,
 			destination_country, destination_region, destination_postal_code,
-			raw_tax_response, expires_at
-		) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+			raw_tax_response, expires_at, origin_key
+		) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
 	`, strings.TrimSpace(in.OrderID), firstNonEmpty(strings.TrimSpace(in.Provider), types.TaxProviderStripe),
 		strings.TrimSpace(in.ProviderQuoteID), int64(in.SalesTaxAmountCents), strings.TrimSpace(in.DestinationCountry),
-		strings.TrimSpace(in.DestinationRegion), strings.TrimSpace(in.DestinationPostalCode), raw, in.ExpiresAt)
+		strings.TrimSpace(in.DestinationRegion), strings.TrimSpace(in.DestinationPostalCode), raw, in.ExpiresAt, in.OriginKey)
 	if err != nil {
 		return fmt.Errorf("create tax quote: %w", err)
 	}
@@ -2172,17 +2239,21 @@ func HasRecordedShopTaxTransaction(ctx *config.AppContext, orderID string) (bool
 	return exists, err
 }
 
-func RecordShopTaxTransaction(ctx *config.AppContext, orderID, providerTransactionID string, amountCents uint, rawResponse string) error {
+func RecordShopTaxTransaction(ctx *config.AppContext, orderID, providerTransactionID string, amountCents uint, rawResponse string, origin ...string) error {
+	key := ""
+	if len(origin) > 0 {
+		key = origin[0]
+	}
 	rawResponse = strings.TrimSpace(rawResponse)
 	if rawResponse == "" {
 		rawResponse = "{}"
 	}
 	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO tax_transactions (
-			order_id, provider, provider_transaction_id, sales_tax_amount_cents, status, raw_response
-		) VALUES ($1::uuid, 'stripe', $2, $3, 'recorded', $4::jsonb)
-		ON CONFLICT (order_id, provider) WHERE status = 'recorded' DO NOTHING
-	`, strings.TrimSpace(orderID), strings.TrimSpace(providerTransactionID), int64(amountCents), rawResponse)
+			order_id, provider, provider_transaction_id, sales_tax_amount_cents, status, raw_response,origin_key
+		) VALUES ($1::uuid, 'stripe', $2, $3, 'recorded', $4::jsonb,$5)
+		ON CONFLICT (order_id, provider, origin_key) WHERE status = 'recorded' DO NOTHING
+	`, strings.TrimSpace(orderID), strings.TrimSpace(providerTransactionID), int64(amountCents), rawResponse, key)
 	if err != nil {
 		return fmt.Errorf("record shop tax transaction: %w", err)
 	}
@@ -2205,7 +2276,7 @@ func queryMerchProducts(ctx *config.AppContext, whereSQL string, args []any) ([]
 			merch_products.easyship_category, merch_products.hs_code, merch_products.country_of_origin,
 			merch_products.requires_shipping, merch_products.allow_event_pickup,
 			merch_products.available_from, merch_products.available_until,
-			merch_products.published_at, merch_products.created_at, merch_products.updated_at
+			merch_products.published_at, merch_products.created_at, merch_products.updated_at,coalesce(merch_products.fulfillment_organization_id::text,''),merch_products.online_enabled
 		FROM merch_products
 		`+whereSQL+`
 		`+orderSQL+`
@@ -2224,7 +2295,7 @@ func queryMerchProducts(ctx *config.AppContext, whereSQL string, args []any) ([]
 			&p.ProductType, &p.BasePriceCents, &p.Currency, &p.Symbol, &p.PostSymbol,
 			&p.StripeTaxCode, &p.EasyshipCategory, &p.HSCode, &p.CountryOfOrigin,
 			&p.RequiresShipping, &p.AllowEventPickup, &p.AvailableFrom, &p.AvailableUntil,
-			&p.PublishedAt, &p.CreatedAt, &p.UpdatedAt,
+			&p.PublishedAt, &p.CreatedAt, &p.UpdatedAt, &p.FulfillmentOrganizationID, &p.OnlineEnabled,
 		); err != nil {
 			return nil, fmt.Errorf("scan merch product: %w", err)
 		}
