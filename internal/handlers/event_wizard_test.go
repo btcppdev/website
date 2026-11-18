@@ -96,7 +96,21 @@ func TestEventWizardAccessAndStudentPricing(t *testing.T) {
 	if w := request(path, body, "test-token"); w.Code != 409 {
 		t.Fatal("stale write", w.Code, w.Body.String())
 	}
+	searchPath := path + "/people?q=Wizard"
+	if w := request(searchPath, "", ""); w.Code != 200 || !strings.Contains(w.Body.String(), person) || strings.Contains(w.Body.String(), b.Tag+"@example.test") {
+		t.Fatalf("scoped people search %d %s", w.Code, w.Body.String())
+	}
+	if w := request(path, `{"section":"add-team-member","data":{"person_id":"`+person+`","role":"steering"}}`, "wrong"); w.Code != 403 {
+		t.Fatal("team CSRF bypass", w.Code)
+	}
 	app.DB.Exec(c, `UPDATE people_roles SET position='staff' WHERE person_id=$1`, person)
+	if w := request(searchPath, "", ""); w.Code != 403 {
+		t.Fatal("staff searched private accounts", w.Code)
+	}
+	if w := request(path, `{"section":"add-team-member","data":{"person_id":"`+person+`","role":"admin"}}`, "test-token"); w.Code != 403 {
+		t.Fatal("staff granted access", w.Code)
+	}
+
 	if w := request(path, body, "test-token"); w.Code != 403 {
 		t.Fatal("staff wrote settings", w.Code)
 	}

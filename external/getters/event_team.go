@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"net/mail"
 	"strings"
@@ -25,7 +26,7 @@ type EventTeamMember struct {
 }
 
 func ListEventTeam(ctx *config.AppContext, confID string) ([]EventTeamMember, error) {
-	rows, e := ctx.DB.Query(ctx.DatabaseContext(), `SELECT id::text,email::text,name,responsibility,role,coalesce(person_id::text,''),accepted_at,expires_at FROM event_team_members WHERE conference_id=$1 ORDER BY role,name,email`, confID)
+	rows, e := ctx.DB.Query(ctx.DatabaseContext(), `SELECT id::text,coalesce(email::text,''),name,responsibility,role,coalesce(person_id::text,''),accepted_at,expires_at FROM event_team_members WHERE conference_id=$1 ORDER BY role,name,email`, confID)
 	if e != nil {
 		return nil, e
 	}
@@ -130,6 +131,63 @@ func RevokeEventTeamInvite(ctx *config.AppContext, confID, id string) error {
 	}
 	if _, e = tx.Exec(c, `DELETE FROM event_team_members WHERE id=$1`, id); e != nil {
 		return e
+	}
+	return tx.Commit(c)
+}
+
+// AddEventTeamMember assigns an existing account directly. Identity fields are
+// always loaded from the account, never from the submitted display text.
+func AddEventTeamMember(app *config.AppContext, confID, actor string, m EventTeamMember) error {
+	if _, e := uuid.Parse(m.PersonID); e != nil {
+		return fmt.Errorf("choose an existing account from the search results")
+	}
+	switch m.Role {
+	case "steering", "staff", "volcoord", "admin":
+	default:
+		return fmt.Errorf("choose a valid event role")
+	}
+	m.Responsibility = strings.TrimSpace(m.Responsibility)
+	if len(m.Responsibility) > 2000 {
+		return fmt.Errorf("keep responsibilities under 2,000 characters")
+	}
+	c := app.DatabaseContext()
+	tx, e := app.DB.Begin(c)
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback(c)
+	// Serializing additions also keeps retries from adding duplicate members.
+	var tag string
+	if e = tx.QueryRow(c, `SELECT tag FROM conferences WHERE id=$1 FOR UPDATE`, confID).Scan(&tag); e != nil {
+		return e
+	}
+	var name, email string
+	if e = tx.QueryRow(c, `SELECT p.name,coalesce((SELECT email::text FROM person_emails WHERE person_id=p.id ORDER BY is_primary DESC,created_at,id LIMIT 1),'') FROM people p WHERE p.id=$1 AND NOT p.is_deleted_account FOR SHARE OF p`, m.PersonID).Scan(&name, &email); e != nil {
+		return fmt.Errorf("this account is no longer available")
+	}
+	var exists bool
+	if e = tx.QueryRow(c, `SELECT EXISTS(SELECT 1 FROM event_team_members WHERE conference_id=$1 AND person_id=$2)`, confID, m.PersonID).Scan(&exists); e != nil {
+		return e
+	}
+	if exists {
+		return fmt.Errorf("this person is already on the team")
+	}
+	var memberID string
+	e = tx.QueryRow(c, `INSERT INTO event_team_members(conference_id,person_id,email,name,responsibility,role,invited_by,accepted_at) VALUES($1,$2,NULLIF($3,'')::citext,$4,$5,$6,$7,now()) ON CONFLICT(conference_id,email) DO UPDATE SET person_id=excluded.person_id,name=excluded.name,responsibility=excluded.responsibility,role=excluded.role,invited_by=excluded.invited_by,accepted_at=now(),token_hash='',expires_at=NULL WHERE event_team_members.accepted_at IS NULL RETURNING id::text`, confID, m.PersonID, email, name, m.Responsibility, m.Role, nullableUUID(actor)).Scan(&memberID)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return fmt.Errorf("this email already belongs to a team member")
+	}
+	if e != nil {
+		return e
+	}
+	if m.Role != "steering" {
+		result, e := tx.Exec(c, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, m.PersonID, tag, m.Role)
+		if e != nil {
+			return e
+		}
+		if _, e = tx.Exec(c, `UPDATE event_team_members SET role_granted=$2 WHERE id=$1`, memberID, result.RowsAffected() > 0); e != nil {
+			return e
+		}
 	}
 	return tx.Commit(c)
 }

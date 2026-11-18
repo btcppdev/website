@@ -29,7 +29,7 @@
       "team",
       "People & committee",
       "Bring your people together.",
-      "Invite staff and an optional steering committee. Invitations are tied to each person’s verified email.",
+      "Choose staff and an optional steering committee from existing bitcoin++ users.",
     ],
     [
       "sponsors",
@@ -191,7 +191,10 @@
     nav.append(a);
   });
   side.append(nav);
-  if (window.matchMedia("(max-width: 650px)").matches) { const active = nav.querySelector(".active"); if (active) nav.scrollLeft = active.offsetLeft - nav.offsetLeft; }
+  if (window.matchMedia("(max-width: 650px)").matches) {
+    const active = nav.querySelector(".active");
+    if (active) nav.scrollLeft = active.offsetLeft - nav.offsetLeft;
+  }
   if (!data.new) {
     const links = el("div", "ew-side-links");
     links.append(
@@ -476,13 +479,13 @@
         text = el("div");
       text.append(
         el("strong", "", p.name || p.email),
-        el("small", "", p.role + " · " + p.email),
+        el("small", "", [p.role, p.email].filter(Boolean).join(" · ")),
         el("small", "", p.responsibility),
       );
       li.append(text);
       const status = el("div");
       status.append(
-        el("span", "ew-pill", p.accepted_at ? "Joined" : "Invited"),
+        el("span", "ew-pill", p.accepted_at ? "On team" : "Invited"),
       );
       status.append(
         button(
@@ -502,64 +505,249 @@
       list.append(li);
     });
     s.append(list);
-    const invite = {},
-      g = grid(section("Invite someone"));
-    field(g, invite, "name", "Name");
-    field(g, invite, "email", "Email", "email");
-    field(
-      g,
-      invite,
-      "role",
-      "Role",
-      "text",
-      "Steering members can view the plan. Staff and coordinators receive event-scoped access.",
-      [
-        ["steering", "Steering committee — planning view"],
-        ["staff", "Event staff"],
-        ["volcoord", "Volunteer coordinator"],
-        ["admin", "Event administrator"],
-      ],
-    );
-    invite.role = "steering";
-    field(
-      g,
-      invite,
-      "responsibility",
-      "Responsibility",
-      "text",
-      "Example: venue lead, program chair, sponsor contact",
-    );
-    main.append(
-      button(
-        "Create invitation link",
-        async () => {
+    if (!readonly) {
+      const member = { role: "steering" },
+        form = section("Add an existing user"),
+        picker = el("div", "ew-person-picker"),
+        label = el("label", "ew-field"),
+        search = el("input"),
+        results = el("ul", "ew-person-results"),
+        hint = el(
+          "p",
+          "ew-note",
+          "Type at least 3 characters to search by name or email.",
+        ),
+        selection = el("div", "ew-person-selection");
+      let chosen = null,
+        timer,
+        controller,
+        generation = 0,
+        options = [],
+        active = -1;
+      search.type = "search";
+      search.id = "event-team-person";
+      search.placeholder = "Search existing users…";
+      search.autocomplete = "off";
+      search.setAttribute("role", "combobox");
+      search.setAttribute("aria-autocomplete", "list");
+      search.setAttribute("aria-expanded", "false");
+      search.setAttribute("aria-controls", "event-team-results");
+      search.setAttribute("aria-describedby", "event-team-search-hint");
+      results.id = "event-team-results";
+      results.setAttribute("role", "listbox");
+      results.setAttribute("aria-label", "Matching users");
+      results.hidden = true;
+      hint.id = "event-team-search-hint";
+      hint.setAttribute("role", "status");
+      selection.hidden = true;
+      label.append(el("span", "", "Person"), search);
+      picker.append(label, hint, results, selection);
+      form.append(picker);
+      function closeResults() {
+        results.hidden = true;
+        search.setAttribute("aria-expanded", "false");
+        search.removeAttribute("aria-activedescendant");
+        active = -1;
+        options = [];
+      }
+      function identity(person) {
+        const row = el("div", "ew-person-identity"),
+          copy = el("div");
+        const initials = el(
+          "span",
+          "ew-person-avatar",
+          (person.name || "?")
+            .trim()
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join("")
+            .toUpperCase(),
+        );
+        initials.setAttribute("aria-hidden", "true");
+        if (
+          person.photoUrl &&
+          !person.photoUrl.endsWith("/speakers/default.avif")
+        ) {
+          const photo = el("img");
+          photo.src = person.photoUrl;
+          photo.alt = "";
+          photo.addEventListener("error", () => photo.replaceWith(initials), {
+            once: true,
+          });
+          row.append(photo);
+        } else row.append(initials);
+        copy.append(
+          el(
+            "strong",
+            "",
+            person.name || person.maskedEmail || "Unnamed account",
+          ),
+        );
+        const detail = [person.maskedEmail, person.company]
+          .filter(Boolean)
+          .join(" · ");
+        if (detail) copy.append(el("small", "", detail));
+        row.append(copy);
+        return row;
+      }
+      function choose(person) {
+        chosen = person;
+        member.person_id = person.id;
+        search.value = person.name || person.maskedEmail || "Unnamed account";
+        dirty = true;
+        closeResults();
+        selection.replaceChildren(
+          identity(person),
+          button("Change", () => {
+            chosen = null;
+            delete member.person_id;
+            selection.hidden = true;
+            add.disabled = true;
+            search.value = "";
+            search.focus();
+            hint.textContent =
+              "Type at least 3 characters to search by name or email.";
+          }),
+        );
+        selection.hidden = false;
+        hint.textContent = "Account selected. Choose their event role below.";
+        add.disabled = false;
+      }
+      search.addEventListener("input", () => {
+        const requestID = ++generation;
+        clearTimeout(timer);
+        controller?.abort();
+        chosen = null;
+        delete member.person_id;
+        add.disabled = true;
+        selection.hidden = true;
+        closeResults();
+        const q = search.value.trim();
+        if (q.length < 3) {
+          hint.textContent =
+            "Type at least 3 characters to search by name or email.";
+          return;
+        }
+        hint.textContent = "Searching…";
+        timer = setTimeout(async () => {
+          controller = new AbortController();
           try {
-            const out = await request("team", invite);
-            const s = section("Invitation ready"),
-              input = el("input");
-            input.value = out.invite_url;
-            input.readOnly = true;
-            input.style.width = "100%";
-            input.setAttribute("aria-label", "Invitation link");
-            s.append(input);
-            note(
-              s,
-              "Send this link to " +
-                invite.email +
-                ". It expires in 14 days and can only be accepted by that verified email.",
+            const response = await fetch(
+              location.pathname + "/people?q=" + encodeURIComponent(q),
+              { signal: controller.signal },
             );
-            show("Invitation created.");
+            if (
+              !response.ok ||
+              !response.headers
+                .get("content-type")
+                ?.includes("application/json")
+            )
+              throw Error("Search unavailable. Reload the page and try again.");
+            const hits = await response.json();
+            if (requestID !== generation) return;
+            results.replaceChildren();
+            options = [];
+            hits.forEach((person, index) => {
+              const existing = people.some((p) => p.person_id === person.id),
+                li = el("li"),
+                option = button("", () => choose(person), "ew-person-option");
+              li.setAttribute("role", "presentation");
+              option.id = "event-team-result-" + index;
+              option.setAttribute("role", "option");
+              option.setAttribute("aria-selected", "false");
+              option.disabled = existing;
+              option.append(identity(person));
+              if (existing)
+                option.append(el("small", "ew-pill", "Already on team"));
+              else options.push(option);
+              li.append(option);
+              results.append(li);
+            });
+            results.hidden = hits.length === 0;
+            search.setAttribute("aria-expanded", String(hits.length > 0));
+            hint.textContent = hits.length
+              ? "Choose an account from the results."
+              : "No users found. Try a different name or email.";
+          } catch (error) {
+            if (error.name !== "AbortError" && requestID === generation)
+              hint.textContent = error.message;
+          }
+        }, 200);
+      });
+      search.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          ++generation;
+          clearTimeout(timer);
+          controller?.abort();
+          closeResults();
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          if (active >= 0) options[active]?.click();
+          return;
+        }
+        if (!options.length || !["ArrowDown", "ArrowUp"].includes(event.key))
+          return;
+        event.preventDefault();
+        active =
+          (active + (event.key === "ArrowDown" ? 1 : -1) + options.length) %
+          options.length;
+        options.forEach((option, index) =>
+          option.setAttribute("aria-selected", String(index === active)),
+        );
+        search.setAttribute("aria-activedescendant", options[active].id);
+        options[active].scrollIntoView({ block: "nearest" });
+      });
+      const g = grid(form);
+      field(
+        g,
+        member,
+        "role",
+        "Role",
+        "text",
+        "Steering members can view the plan. Staff and coordinators receive event-scoped access.",
+        [
+          ["steering", "Steering committee — planning view"],
+          ["staff", "Event staff"],
+          ["volcoord", "Volunteer coordinator"],
+          ["admin", "Event administrator"],
+        ],
+      );
+      field(
+        g,
+        member,
+        "responsibility",
+        "Responsibility",
+        "text",
+        "Example: venue lead, program chair, sponsor contact",
+      );
+      const add = button(
+        "Add to team",
+        async () => {
+          if (busy || !chosen) return;
+          busy = true;
+          add.disabled = true;
+          try {
+            await request("add-team-member", member);
             dirty = false;
-          } catch (e) {
-            show(e.message, true);
+            location.reload();
+          } catch (error) {
+            show(error.message, true);
+            busy = false;
+            add.disabled = !chosen;
           }
         },
         "ew-primary",
-      ),
-    );
+      );
+      add.disabled = true;
+      form.append(add);
+      note(form, "Existing users receive their event access immediately.");
+    }
     note(
       main,
-      "Removing a team member revokes access granted by this invitation. Independently assigned roles remain in place.",
+      "Removing a team member revokes access granted here. Independently assigned roles remain in place.",
     );
   }
   if (current[0] === "sponsors") {
@@ -907,7 +1095,10 @@
       "Publication and reminder campaigns remain explicit controls in event settings. Saving a plan keeps the current publication state.",
     );
   }
-  const footer = el("div", "ew-footer");
+  const footer = el(
+    "div",
+    "ew-footer" + (current[0] === "team" ? " ew-footer--inline" : ""),
+  );
   footer.append(message);
   if (!["artwork", "team"].includes(current[0])) {
     const save = button(

@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -42,6 +43,7 @@ func registerEventWizard(r *mux.Router, app *config.AppContext) {
 	r.HandleFunc("/admin/events", func(w http.ResponseWriter, r *http.Request) { EventWizardIndex(w, r, app) }).Methods("GET")
 	r.HandleFunc("/admin/events/new", func(w http.ResponseWriter, r *http.Request) { EventWizardNew(w, r, app) }).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/admin/setup", func(w http.ResponseWriter, r *http.Request) { EventWizard(w, r, app) }).Methods("GET", "POST")
+	r.HandleFunc("/{conf}/admin/setup/people", func(w http.ResponseWriter, r *http.Request) { EventWizardPeople(w, r, app) }).Methods("GET")
 	r.HandleFunc("/{conf}/admin/setup/artwork", func(w http.ResponseWriter, r *http.Request) { EventWizardArtwork(w, r, app) }).Methods("POST")
 	r.HandleFunc("/event-invites/{token}", func(w http.ResponseWriter, r *http.Request) { EventWizardInvite(w, r, app) }).Methods("GET", "POST")
 }
@@ -161,6 +163,19 @@ func EventWizard(w http.ResponseWriter, r *http.Request, app *config.AppContext)
 		}
 		if e := json.NewDecoder(r.Body).Decode(&in); e != nil {
 			wizardError(w, fmt.Errorf("invalid setup form"))
+			return
+		}
+		if in.Section == "add-team-member" {
+			var m getters.EventTeamMember
+			if e := json.Unmarshal(in.Data, &m); e != nil {
+				wizardError(w, fmt.Errorf("choose an existing account"))
+				return
+			}
+			if e := getters.AddEventTeamMember(app, conf.Ref, id.PersonID, m); e != nil {
+				wizardError(w, e)
+				return
+			}
+			wizardJSON(w, 200, map[string]bool{"saved": true})
 			return
 		}
 		if in.Section == "team" {
@@ -359,4 +374,41 @@ func eventWizardStaffing(w http.ResponseWriter, r *http.Request, app *config.App
 		return
 	}
 	wizardJSON(w, 200, map[string]any{"changes": changes, "applied": apply})
+}
+
+// Search remains restricted to administrators of this event, even though the
+// plan itself is readable by staff and steering members.
+func EventWizardPeople(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	id, _, edit := wizardIdentity(w, r, app)
+	if id == nil {
+		return
+	}
+	if !edit {
+		http.Error(w, "Only event administrators can search accounts", 403)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len([]rune(q)) < 3 {
+		wizardJSON(w, 200, []any{})
+		return
+	}
+	if len(q) > 200 {
+		wizardError(w, fmt.Errorf("search is too long"))
+		return
+	}
+	people, e := getters.SearchPeopleByNameEmailOrPhone(app, q, 10)
+	if e != nil {
+		app.Err.Printf("event team search: %s", e)
+		wizardError(w, fmt.Errorf("could not search accounts"))
+		return
+	}
+	out := []map[string]string{}
+	for _, person := range people {
+		if person.IsDeletedAccount {
+			continue
+		}
+		out = append(out, map[string]string{"id": person.ID, "name": person.Name, "maskedEmail": maskEmailForPicker(person.Email), "company": person.Company, "photoUrl": personPickerPhotoURL(person.Photo)})
+	}
+	wizardJSON(w, 200, out)
 }
