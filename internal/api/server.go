@@ -213,6 +213,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/me/newsletters", s.newsletters).Methods(http.MethodGet, http.MethodPut)
 	r.HandleFunc("/me/entitlements", s.entitlements).Methods(http.MethodGet)
 	r.HandleFunc("/me/identity", s.identity).Methods(http.MethodGet)
+	r.HandleFunc("/me/insider", s.insiderIdentity).Methods(http.MethodGet)
 	r.HandleFunc("/me/organizations", s.myOrganizations).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.me).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.patchMe).Methods(http.MethodPatch)
