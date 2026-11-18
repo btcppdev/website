@@ -51,6 +51,10 @@ func RecordingsAdminScheduleXBroadcast(w http.ResponseWriter, r *http.Request, c
 		redirectWithErr(w, r, conf.Tag, rec.ID, "Set a future PublishAt before scheduling an X broadcast")
 		return
 	}
+	if err := refreshRecordingScheduleDurations(ctx, []*RecordingRow{row}); err != nil {
+		redirectWithErr(w, r, conf.Tag, rec.ID, err.Error())
+		return
+	}
 	if rec.PublishAt == nil || !rec.PublishAt.Equal(*publishAt) {
 		if err := getters.UpdateRecordingPublishAt(ctx, rec.ID, publishAt); err != nil {
 			redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't update PublishAt: "+err.Error())

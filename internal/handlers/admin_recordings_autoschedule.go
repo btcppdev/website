@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -21,6 +22,8 @@ type RecordingAutoscheduleItem struct {
 	Row                *RecordingRow
 	PublishAt          time.Time
 	SlotLabel          string
+	DurationLabel      string
+	ReservedUntil      time.Time
 	SkipReason         string
 	XBroadcastEligible bool
 	XBroadcastLabel    string
@@ -36,6 +39,7 @@ type RecordingAutoschedulePreviewPage struct {
 	XStudioEnabled        bool
 	XEligibleCount        int
 	FlashError            string
+	ScheduleFingerprint   string
 	Year                  uint
 }
 
@@ -60,7 +64,7 @@ func RecordingsAdminAutoschedulePreview(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	rescheduleExisting := r.URL.Query().Get("reschedule") == "1"
-	preview, skipped, slots, err := buildRecordingAutoschedulePreview(ctx, conf, rescheduleExisting)
+	preview, skipped, slots, err := buildRecordingAutoschedulePreview(ctx, conf, rescheduleExisting, strings.Split(r.FormValue("recording_order"), ","))
 	page := &RecordingAutoschedulePreviewPage{
 		Conf:                  conf,
 		Items:                 preview,
@@ -71,6 +75,8 @@ func RecordingsAdminAutoschedulePreview(w http.ResponseWriter, r *http.Request, 
 		XStudioEnabled:        ctx.Env.Recordings.X.Enabled,
 		XEligibleCount:        recordingAutoscheduleXEligibleCount(preview),
 		Year:                  uint(time.Now().Year()),
+		ScheduleFingerprint:   recordingScheduleFingerprint(preview),
+		FlashError:            r.URL.Query().Get("err"),
 	}
 	if err != nil {
 		page.FlashError = err.Error()
@@ -92,17 +98,32 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		return
 	}
 	rescheduleExisting := r.FormValue("reschedule") == "1"
-	items, _, _, err := buildRecordingAutoschedulePreview(ctx, conf, rescheduleExisting)
+	items, _, _, err := buildRecordingAutoschedulePreview(ctx, conf, rescheduleExisting, strings.Split(r.FormValue("recording_order"), ","))
 	if err != nil {
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?err="+url.QueryEscape(err.Error())), http.StatusSeeOther)
 		return
 	}
-	items = reorderRecordingAutoscheduleItems(items, strings.Split(r.FormValue("recording_order"), ","))
+	if r.FormValue("preview_schedule") != recordingScheduleFingerprint(items) {
+		values := url.Values{"err": {"The schedule changed. Review the updated times before applying."}, "recording_order": {r.FormValue("recording_order")}}
+		if rescheduleExisting {
+			values.Set("reschedule", "1")
+		}
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/autoschedule?"+values.Encode()), http.StatusSeeOther)
+		return
+	}
 	for _, item := range items {
 		decorateRecordingAutoscheduleX(ctx, conf, item)
 	}
 	if len(items) == 0 {
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape("No eligible YouTube recordings to autoschedule")), http.StatusSeeOther)
+		return
+	}
+	updates := make([]getters.RecordingScheduleUpdate, 0, len(items))
+	for _, item := range items {
+		updates = append(updates, getters.RecordingScheduleUpdate{RecordingID: item.Row.Recording.ID, PublishAt: &item.PublishAt})
+	}
+	if err := getters.SaveRecordingSchedule(ctx, updates); err != nil {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?err="+url.QueryEscape(err.Error())), http.StatusSeeOther)
 		return
 	}
 
@@ -117,13 +138,6 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		}
 		rec := item.Row.Recording
 		publishAt := item.PublishAt
-		if err := getters.UpdateRecordingPublishAt(ctx, rec.ID, &publishAt); err != nil {
-			failed++
-			if firstErr == "" {
-				firstErr = err.Error()
-			}
-			continue
-		}
 		rec.PublishAt = &publishAt
 		saved++
 		result, err := updateRecordingYouTubeSchedule(ctx, rec, &publishAt)
@@ -204,6 +218,16 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		}
 	}
 	http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape(flash)), http.StatusSeeOther)
+}
+
+func recordingScheduleFingerprint(items []*RecordingAutoscheduleItem) string {
+	var text strings.Builder
+	for _, item := range items {
+		if item != nil && item.Row != nil && item.Row.Recording != nil {
+			fmt.Fprintf(&text, "%s:%d:%d|", item.Row.Recording.ID, item.PublishAt.Unix(), item.Row.Recording.DurationSeconds)
+		}
+	}
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(text.String())))
 }
 
 // reorderRecordingAutoscheduleItems assigns the existing configured slot
@@ -335,9 +359,11 @@ func recordingsYouTubeSlotsSave(w http.ResponseWriter, r *http.Request, ctx *con
 	http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/youtube-slots?flash="+url.QueryEscape("YouTube publish slots saved")), http.StatusSeeOther)
 }
 
-func buildRecordingAutoschedulePreview(ctx *config.AppContext, conf *types.Conf, rescheduleExisting bool) ([]*RecordingAutoscheduleItem, []*RecordingAutoscheduleItem, []*types.YouTubePublishSlot, error) {
+func buildRecordingAutoschedulePreview(ctx *config.AppContext, conf *types.Conf, rescheduleExisting bool, requestedIDs []string) ([]*RecordingAutoscheduleItem, []*RecordingAutoscheduleItem, []*types.YouTubePublishSlot, error) {
 	rows := recordingRowsForConf(ctx, conf.Tag)
-	enrichRowsWithYouTubeStatus(ctx, rows)
+	if err := refreshRecordingScheduleDurations(ctx, rows); err != nil {
+		return nil, nil, nil, err
+	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		return recordingAutoscheduleSortKey(rows[i]) < recordingAutoscheduleSortKey(rows[j])
 	})
@@ -353,6 +379,14 @@ func buildRecordingAutoschedulePreview(ctx *config.AppContext, conf *types.Conf,
 		eligible = append(eligible, row)
 	}
 
+	orderItems := make([]*RecordingAutoscheduleItem, len(eligible))
+	for i, row := range eligible {
+		orderItems[i] = &RecordingAutoscheduleItem{Row: row}
+	}
+	for i, item := range reorderRecordingAutoscheduleItems(orderItems, requestedIDs) {
+		eligible[i] = item.Row
+	}
+
 	slots, err := getters.ListYouTubePublishSlots(ctx)
 	if err != nil {
 		return nil, skipped, nil, err
@@ -361,9 +395,13 @@ func buildRecordingAutoschedulePreview(ctx *config.AppContext, conf *types.Conf,
 	if len(active) == 0 {
 		return nil, skipped, slots, fmt.Errorf("no active YouTube publish slots configured")
 	}
-	occupied := occupiedYouTubePublishTimes(ctx, rows, rescheduleExisting)
+	reservations, err := getters.ListRecordingPublishReservations(ctx)
+	if err != nil {
+		return nil, skipped, slots, err
+	}
+	occupied := occupiedYouTubePublishTimes(reservations, eligible, rescheduleExisting)
 	startAfter := time.Now().Add(10 * time.Minute)
-	assignments, err := nextYouTubePublishTimes(active, occupied, startAfter, len(eligible))
+	assignments, err := nextRecordingPublishTimes(active, occupied, startAfter, eligible)
 	if err != nil {
 		return nil, skipped, slots, err
 	}
@@ -371,9 +409,11 @@ func buildRecordingAutoschedulePreview(ctx *config.AppContext, conf *types.Conf,
 	items := make([]*RecordingAutoscheduleItem, 0, len(eligible))
 	for i, row := range eligible {
 		item := &RecordingAutoscheduleItem{
-			Row:       row,
-			PublishAt: assignments[i],
-			SlotLabel: youtubeSlotLabel(assignments[i], active),
+			Row:           row,
+			PublishAt:     assignments[i],
+			SlotLabel:     youtubeSlotLabel(assignments[i], active),
+			DurationLabel: (time.Duration(row.Recording.DurationSeconds) * time.Second).String(),
+			ReservedUntil: assignments[i].Add(time.Duration(row.Recording.DurationSeconds)*time.Second + getters.RecordingBroadcastGap),
 		}
 		decorateRecordingAutoscheduleX(ctx, conf, item)
 		items = append(items, item)
@@ -447,6 +487,9 @@ func recordingAutoscheduleSkipReason(row *RecordingRow, rescheduleExisting bool)
 			return "already scheduled on YouTube"
 		}
 	}
+	if row.Recording.DurationSeconds <= 0 {
+		return "runtime unavailable; wait for YouTube processing, then refresh"
+	}
 	return ""
 }
 
@@ -494,38 +537,21 @@ func activeYouTubePublishSlots(slots []*types.YouTubePublishSlot) []*types.YouTu
 	return out
 }
 
-func occupiedYouTubePublishTimes(ctx *config.AppContext, currentRows []*RecordingRow, rescheduleExisting bool) map[int64]bool {
-	occupied := map[int64]bool{}
-	all, err := getters.ListRecordings(ctx)
-	if err != nil {
-		ctx.Err.Printf("autoschedule list recordings for occupied slots: %s", err)
-		return occupied
-	}
-	for _, rec := range all {
-		if rec == nil || rec.PublishAt == nil || rec.PublishAt.Before(time.Now()) {
-			continue
-		}
-		occupied[rec.PublishAt.UTC().Unix()] = true
-	}
-	posts, err := getters.ListSocialPosts(ctx)
-	if err == nil {
-		for _, post := range posts {
-			if post == nil || post.ScheduledAt == nil || post.ScheduledAt.Before(time.Now()) {
-				continue
-			}
-			if post.PostedTo == recordingPlatformYouTube || post.PostedTo == youtubeAutoscheduleChannel {
-				occupied[post.ScheduledAt.UTC().Unix()] = true
-			}
-		}
-	} else {
-		ctx.Err.Printf("autoschedule list social posts for occupied slots: %s", err)
-	}
+func occupiedYouTubePublishTimes(reservations []getters.RecordingPublishReservation, eligibleRows []*RecordingRow, rescheduleExisting bool) []getters.RecordingPublishReservation {
+	var occupied []getters.RecordingPublishReservation
+	moving := map[string]bool{}
 	if rescheduleExisting {
-		for _, row := range currentRows {
-			if row == nil || row.Recording == nil || row.Recording.PublishAt == nil {
-				continue
+		for _, row := range eligibleRows {
+			if row != nil && row.Recording != nil {
+				moving[row.Recording.ID] = true
 			}
-			delete(occupied, row.Recording.PublishAt.UTC().Unix())
+		}
+	}
+	// Exclude reservations by owner, never by timestamp: another event (or a
+	// skipped recording in this event) may still own the same slot.
+	for _, reservation := range reservations {
+		if !moving[reservation.RecordingID] || reservation.Persistent {
+			occupied = append(occupied, reservation)
 		}
 	}
 	return occupied

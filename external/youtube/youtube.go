@@ -19,9 +19,12 @@ import (
 	"image/jpeg"
 	_ "image/png"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -268,11 +271,12 @@ type UploadParams struct {
 }
 
 type VideoStatus struct {
-	ID            string
-	PrivacyStatus string
-	UploadStatus  string
-	Embeddable    bool
-	PublishAt     *time.Time
+	DurationSeconds int64
+	ID              string
+	PrivacyStatus   string
+	UploadStatus    string
+	Embeddable      bool
+	PublishAt       *time.Time
 }
 
 type Playlist struct {
@@ -408,6 +412,18 @@ func GetVideoStatus(ctx context.Context, videoID string) (*VideoStatus, error) {
 	if videoID == "" {
 		return nil, fmt.Errorf("youtube video status: videoID is required")
 	}
+	statuses, err := GetVideoStatuses(ctx, []string{videoID})
+	if err != nil {
+		return nil, err
+	}
+	if statuses[videoID] == nil {
+		return nil, fmt.Errorf("youtube video %s not found", videoID)
+	}
+	return statuses[videoID], nil
+}
+
+// GetVideoStatuses reads status and runtime together, in batches of 50.
+func GetVideoStatuses(ctx context.Context, videoIDs []string) (map[string]*VideoStatus, error) {
 	client, err := httpClient(ctx)
 	if err != nil {
 		return nil, err
@@ -416,26 +432,65 @@ func GetVideoStatus(ctx context.Context, videoID string) (*VideoStatus, error) {
 	if err != nil {
 		return nil, fmt.Errorf("youtube: new service: %w", err)
 	}
-	resp, err := svc.Videos.List([]string{"status"}).Id(videoID).Context(ctx).Do()
-	if err != nil {
-		return nil, fmt.Errorf("youtube videos.list: %w", err)
+	out := make(map[string]*VideoStatus, len(videoIDs))
+	for start := 0; start < len(videoIDs); start += 50 {
+		end := min(start+50, len(videoIDs))
+		resp, err := svc.Videos.List([]string{"status", "contentDetails"}).Id(videoIDs[start:end]...).Context(ctx).Do()
+		if err != nil {
+			return nil, fmt.Errorf("youtube videos.list: %w", err)
+		}
+		if resp != nil {
+			for _, video := range resp.Items {
+				if video != nil && video.Status != nil {
+					out[video.Id] = videoStatusFromResource(video)
+				}
+			}
+		}
 	}
-	if resp == nil || len(resp.Items) == 0 || resp.Items[0].Status == nil {
-		return nil, fmt.Errorf("youtube video %s not found", videoID)
-	}
-	st := resp.Items[0].Status
+	return out, nil
+}
+
+func videoStatusFromResource(video *youtubeapi.Video) *VideoStatus {
+	st := video.Status
 	out := &VideoStatus{
-		ID:            videoID,
+		ID:            video.Id,
 		PrivacyStatus: st.PrivacyStatus,
 		UploadStatus:  st.UploadStatus,
 		Embeddable:    st.Embeddable,
+	}
+	if video.ContentDetails != nil {
+		out.DurationSeconds = videoDurationSeconds(video.ContentDetails.Duration)
 	}
 	if strings.TrimSpace(st.PublishAt) != "" {
 		if t, err := time.Parse(time.RFC3339, st.PublishAt); err == nil {
 			out.PublishAt = &t
 		}
 	}
-	return out, nil
+	return out
+}
+
+var videoDurationPattern = regexp.MustCompile(`^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$`)
+
+func videoDurationSeconds(raw string) int64 {
+	parts := videoDurationPattern.FindStringSubmatch(raw)
+	if parts == nil {
+		return 0
+	}
+	seconds := float64(0)
+	for i, multiplier := range []float64{86400, 3600, 60, 1} {
+		if parts[i+1] == "" {
+			continue
+		}
+		value, err := strconv.ParseFloat(parts[i+1], 64)
+		if err != nil {
+			return 0
+		}
+		seconds += value * multiplier
+	}
+	if seconds <= 0 || seconds > 31536000 {
+		return 0
+	}
+	return int64(math.Ceil(seconds))
 }
 
 func ScheduleExistingVideo(ctx context.Context, videoID string, publishAt time.Time) error {

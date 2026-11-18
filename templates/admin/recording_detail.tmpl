@@ -47,6 +47,10 @@
             <dd class="mt-1 text-gray-900">{{ if .Row.Recording.PublishAt }}{{ .Row.Recording.PublishAt.Format "Jan 2, 2006 3:04 PM MST" }}{{ else }}—{{ end }}</dd>
           </div>
           <div>
+            <dt class="font-medium text-gray-500">Runtime</dt>
+            <dd class="mt-1 text-gray-900">{{ if .Row.Recording.DurationSeconds }}{{ .Row.Recording.DurationSeconds }} seconds; scheduling includes a five-minute gap{{ else }}Unknown; refresh after YouTube finishes processing{{ end }}</dd>
+          </div>
+          <div>
             <dt class="font-medium text-gray-500">YouTube status</dt>
             <dd class="mt-1 text-gray-900">
               {{ if .Row.YTStatus }}{{ .Row.YTStatus }}{{ else if .Row.YTPrivacyStatus }}{{ .Row.YTPrivacyStatus }}{{ else }}—{{ end }}

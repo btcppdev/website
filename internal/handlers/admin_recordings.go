@@ -435,26 +435,47 @@ func enrichRowsWithYouTubeStatus(ctx *config.AppContext, rows []*RecordingRow) {
 	if !youtubepkg.IsConfigured() || !youtubepkg.IsConnected() {
 		return
 	}
+	var ids []string
+	seen := map[string]bool{}
+	for _, row := range rows {
+		if row == nil || row.Recording == nil {
+			continue
+		}
+		id := youtubeVideoID(row.Recording.YTLink)
+		if id != "" && !seen[id] {
+			ids = append(ids, id)
+			seen[id] = true
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	statusCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	statuses, err := youtubepkg.GetVideoStatuses(statusCtx, ids)
 	for _, row := range rows {
 		if row == nil || row.Recording == nil || strings.TrimSpace(row.Recording.YTLink) == "" {
 			continue
 		}
-		videoID := youtubeVideoID(row.Recording.YTLink)
-		if videoID == "" {
-			row.YTStatusError = "could not parse video ID"
-			continue
-		}
-		statusCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		status, err := youtubepkg.GetVideoStatus(statusCtx, videoID)
-		cancel()
 		if err != nil {
 			row.YTStatusError = err.Error()
-			ctx.Err.Printf("recording youtube status recording=%s video=%s: %s", row.Recording.ID, videoID, err)
+			continue
+		}
+		status := statuses[youtubeVideoID(row.Recording.YTLink)]
+		if status == nil {
+			row.YTStatusError = "YouTube video not found"
 			continue
 		}
 		row.YTPrivacyStatus = status.PrivacyStatus
 		row.YTUploadStatus = status.UploadStatus
 		row.YTPublishAt = status.PublishAt
+		if row.Recording.DurationSeconds == 0 && status.DurationSeconds > 0 {
+			if err := getters.CacheRecordingYouTubeDuration(ctx, row.Recording.ID, row.Recording.YTLink, row.Recording.FileURI, status.DurationSeconds); err != nil {
+				row.YTStatusError = "couldn't save runtime: " + err.Error()
+			} else {
+				row.Recording.DurationSeconds = status.DurationSeconds
+			}
+		}
 	}
 }
 
@@ -959,7 +980,7 @@ func RecordingsAdminUploadYT(w http.ResponseWriter, r *http.Request, ctx *config
 }
 
 func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	conf, rec, _, ok := scopedRecordingFromRequest(w, r, ctx)
+	conf, rec, row, ok := scopedRecordingFromRequest(w, r, ctx)
 	if !ok {
 		return
 	}
@@ -989,6 +1010,12 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 		publishAt = &when
 	}
 
+	if publishAt != nil && publishAt.After(time.Now()) {
+		if err := refreshRecordingScheduleDurations(ctx, []*RecordingRow{row}); err != nil {
+			redirectWithErr(w, r, conf.Tag, recordingID, err.Error())
+			return
+		}
+	}
 	if err := getters.UpdateRecordingPublishAt(ctx, recordingID, publishAt); err != nil {
 		ctx.Err.Printf("schedule recording=%s: %s", recordingID, err)
 		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update PublishAt: "+err.Error())

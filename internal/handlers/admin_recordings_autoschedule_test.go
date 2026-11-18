@@ -1,13 +1,53 @@
 package handlers
 
 import (
+	"bytes"
+	"html/template"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
+
+func TestRecordingAutoscheduleReschedulePreservesOtherOwners(t *testing.T) {
+	at := time.Date(2030, time.June, 3, 10, 5, 0, 0, time.UTC)
+	ownOnly := at.Add(time.Hour)
+	skippedAt := at.Add(2 * time.Hour)
+	postAt := at.Add(3 * time.Hour)
+	row := autoscheduleTestRow("seoul", "one", at)
+	row.Recording.PublishAt = &at
+	reservations := []getters.RecordingPublishReservation{
+		{RecordingID: "seoul", PublishAt: at},
+		{RecordingID: "berlin26", PublishAt: at},
+		{RecordingID: "seoul", PublishAt: ownOnly},
+		{RecordingID: "skipped-seoul-recording", PublishAt: skippedAt},
+		{PublishAt: postAt},
+	}
+	toTimes := func(items []getters.RecordingPublishReservation) map[int64]bool {
+		times := map[int64]bool{}
+		for _, item := range items {
+			times[item.PublishAt.Unix()] = true
+		}
+		return times
+	}
+	occupied := toTimes(occupiedYouTubePublishTimes(reservations, []*RecordingRow{row}, true))
+	for _, reserved := range []time.Time{at, skippedAt, postAt} {
+		if !occupied[reserved.Unix()] {
+			t.Errorf("rescheduling Seoul released another owner's slot: %s", reserved)
+		}
+	}
+	if occupied[ownOnly.Unix()] {
+		t.Fatal("eligible recording's own slot was not released")
+	}
+	occupied = toTimes(occupiedYouTubePublishTimes(reservations, []*RecordingRow{row}, false))
+	if !occupied[ownOnly.Unix()] {
+		t.Fatal("normal scheduling released an existing booking")
+	}
+}
 
 func TestRecordingAutoscheduleOrdersByStageThenAgendaTime(t *testing.T) {
 	base := time.Date(2026, time.July, 22, 9, 0, 0, 0, time.UTC)
@@ -97,7 +137,7 @@ func TestDecorateRecordingAutoscheduleXRecognizesScheduledAndUpdatedTimes(t *tes
 
 func autoscheduleTestRow(id, venue string, start time.Time) *RecordingRow {
 	return &RecordingRow{
-		Recording: &types.Recording{ID: id, TalkName: id},
+		Recording: &types.Recording{ID: id, TalkName: id, DurationSeconds: 1800},
 		ConfTalk:  &types.ConfTalk{Venue: venue, Sched: &types.Times{Start: start}},
 	}
 }
@@ -179,5 +219,70 @@ func TestSlotDayGroupsDefaultShape(t *testing.T) {
 	}
 	if groups[6].Times != "14:05" || groups[0].Times != "17:45" {
 		t.Fatalf("weekend times = Sunday %q Saturday %q", groups[0].Times, groups[6].Times)
+	}
+}
+
+func TestNextRecordingPublishTimesFitsRuntimesAcrossEvents(t *testing.T) {
+	start := time.Date(2030, 6, 3, 9, 0, 0, 0, time.UTC) // Monday
+	slots := []*types.YouTubePublishSlot{
+		{Weekday: time.Monday, TimeOfDay: "10:00", Timezone: "UTC"},
+		{Weekday: time.Monday, TimeOfDay: "11:00", Timezone: "UTC"},
+		{Weekday: time.Monday, TimeOfDay: "12:00", Timezone: "UTC"},
+		{Weekday: time.Monday, TimeOfDay: "13:00", Timezone: "UTC"},
+		{Weekday: time.Monday, TimeOfDay: "14:00", Timezone: "UTC"},
+	}
+	reserved := []getters.RecordingPublishReservation{{RecordingID: "berlin", PublishAt: start.Add(time.Hour), DurationSeconds: 5400}}
+	long := autoscheduleTestRow("seoul-workshop", "one", start)
+	long.Recording.DurationSeconds = 5400
+	short := autoscheduleTestRow("seoul-talk", "one", start)
+	times, err := nextRecordingPublishTimes(slots, reserved, start, []*RecordingRow{long, short})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !times[0].Equal(start.Add(3*time.Hour)) || !times[1].Equal(start.Add(5*time.Hour)) {
+		t.Fatalf("times = %v; want noon and 2pm", times)
+	}
+	// Reordering requires different slot assignments, not a swap of timestamps.
+	times, err = nextRecordingPublishTimes(slots, reserved, start, []*RecordingRow{short, long})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !times[1].Equal(start.Add(4 * time.Hour)) {
+		t.Fatalf("reordered workshop = %s, want 1pm", times[1])
+	}
+}
+
+func TestRecordingScheduleFingerprintChangesWithTimeOrDuration(t *testing.T) {
+	item := &RecordingAutoscheduleItem{Row: autoscheduleTestRow("seoul", "one", time.Now()), PublishAt: time.Now()}
+	items := []*RecordingAutoscheduleItem{item}
+	initial := recordingScheduleFingerprint(items)
+	item.Row.Recording.DurationSeconds++
+	if initial == recordingScheduleFingerprint(items) {
+		t.Fatal("runtime change retained preview fingerprint")
+	}
+	initial = recordingScheduleFingerprint(items)
+	item.PublishAt = item.PublishAt.Add(time.Hour)
+	if initial == recordingScheduleFingerprint(items) {
+		t.Fatal("time change retained preview fingerprint")
+	}
+}
+
+func TestRecordingAutoscheduleTemplateShowsRuntimeAndReviewToken(t *testing.T) {
+	tmpl, err := template.ParseFiles("../../templates/admin/recordings_autoschedule.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2030, 6, 3, 10, 0, 0, 0, time.UTC)
+	item := &RecordingAutoscheduleItem{Row: autoscheduleTestRow("seoul", "one", at), PublishAt: at, DurationLabel: "30m0s", ReservedUntil: at.Add(35 * time.Minute)}
+	items := []*RecordingAutoscheduleItem{item}
+	page := &RecordingAutoschedulePreviewPage{Conf: &types.Conf{Tag: "seoul"}, Items: items, ScheduleFingerprint: recordingScheduleFingerprint(items)}
+	var output bytes.Buffer
+	if err := tmpl.Execute(&output, page); err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"Runtime 30m0s", "reserved through", `name="preview_schedule" value="` + page.ScheduleFingerprint + `"`, "Refresh the preview before applying"} {
+		if !strings.Contains(output.String(), text) {
+			t.Errorf("missing %q in preview", text)
+		}
 	}
 }

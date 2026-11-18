@@ -29,6 +29,9 @@ func ClaimRecordingXBroadcastStep(ctx *config.AppContext, recordingID string, sc
 		return nil, "", fmt.Errorf("begin X broadcast claim: %w", err)
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
+	if err := lockAndValidateRecordingSchedule(ctx.DatabaseContext(), tx, []RecordingScheduleUpdate{{RecordingID: recordingID, PublishAt: &scheduledAt}}); err != nil {
+		return nil, "", err
+	}
 
 	row, err := scanRecordingXBroadcast(tx.QueryRow(ctx.DatabaseContext(), `
 		SELECT recording_id::text, status, scheduled_at, scheduled_broadcast_id,
