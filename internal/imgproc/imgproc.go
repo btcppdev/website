@@ -70,6 +70,11 @@ var socialCardFrontierFont []byte
 
 var socialCardFrontierURL = template.URL("data:font/ttf;base64," + base64.StdEncoding.EncodeToString(socialCardFrontierFont))
 
+//go:embed source_serif_4_regular.ttf
+var socialCardProfileFont []byte
+
+var socialCardProfileURL = template.URL("data:font/ttf;base64," + base64.StdEncoding.EncodeToString(socialCardProfileFont))
+
 //go:embed permanent_marker.ttf
 var socialCardChalkFont []byte
 
@@ -176,6 +181,7 @@ type siteSocialCardTemplateData struct {
 	SiteSocialCard
 	BrandFontURL           template.URL
 	FrontierFontURL        template.URL
+	ProfileFontURL         template.URL
 	ChalkFontURL           template.URL
 	ProjectSansFontURL     template.URL
 	ProjectMonoFontURL     template.URL
@@ -206,6 +212,10 @@ func SiteSocialCardID(card SiteSocialCard) string {
 	hash.Write(socialCardFrontierFont)
 	hash.Write([]byte{0})
 	hash.Write(socialCardChalkFont)
+	if card.Kind == "person" || card.Kind == "whois" {
+		hash.Write([]byte{0})
+		hash.Write(socialCardProfileFont)
+	}
 	if card.Kind == "conference" {
 		hash.Write([]byte{0})
 		hash.Write(socialCardPlexSansFont)
@@ -226,6 +236,10 @@ func SiteSocialCardID(card SiteSocialCard) string {
 }
 
 func renderSiteSocialCardHTML(card SiteSocialCard, brandFontURL, chalkFontURL template.URL) ([]byte, error) {
+	var profileFont template.URL
+	if card.Kind == "person" || card.Kind == "whois" {
+		profileFont = socialCardProfileURL
+	}
 	var projectSans, projectMono, projectMonoBold template.URL
 	if card.Kind == "project" || card.Kind == "award-winner" || card.Kind == "contact" || card.Kind == "api" {
 		projectSans, projectMono, projectMonoBold = socialCardPlexSansURL, socialCardPlexMonoURL, socialCardPlexMonoBoldURL
@@ -295,6 +309,7 @@ func renderSiteSocialCardHTML(card SiteSocialCard, brandFontURL, chalkFontURL te
 		SiteSocialCard:         card,
 		BrandFontURL:           brandFontURL,
 		FrontierFontURL:        socialCardFrontierURL,
+		ProfileFontURL:         profileFont,
 		ChalkFontURL:           chalkFontURL,
 		ProjectSansFontURL:     projectSans,
 		ProjectMonoFontURL:     projectMono,
