@@ -993,7 +993,23 @@
   }
   if (current[0] === "merch") {
     const chosen = new Set(data.product_ids || []),
-      s = section("Offer at ticket checkout");
+      s = section("Offer at ticket checkout"),
+      limit = 3,
+      inputs = [],
+      count = el("p", "ew-note");
+    count.id = "checkout-product-count";
+    count.setAttribute("role", "status");
+    s.append(count);
+    function updateChoices() {
+      count.textContent =
+        `${chosen.size} of ${limit} items selected.` +
+        (chosen.size >= limit
+          ? " Deselect an item to choose another."
+          : " Choose up to 3 items.");
+      inputs.forEach((input) => {
+        input.disabled = readonly || (!input.checked && chosen.size >= limit);
+      });
+    }
     if (!data.products.length)
       s.append(
         el(
@@ -1005,11 +1021,15 @@
     data.products.forEach((p) => {
       const model = { selected: chosen.has(p.id) },
         i = check(s, model, "selected", p.name);
+      inputs.push(i);
+      i.setAttribute("aria-describedby", count.id);
       i.addEventListener("change", () => {
         if (i.checked) chosen.add(p.id);
         else chosen.delete(p.id);
+        updateChoices();
       });
     });
+    updateChoices();
     payload = () => ({ product_ids: [...chosen] });
     main.append(
       link(
@@ -1020,7 +1040,7 @@
     );
     note(
       main,
-      "bitcoin++ is the seller. Organization ship-from profiles will be added in the shop phase.",
+      "bitcoin++ is the seller. Shipping origins are managed in each organization’s shop profile.",
     );
   }
   if (current[0] === "readiness") {
