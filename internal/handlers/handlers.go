@@ -201,6 +201,13 @@ func loadTemplates(ctx *config.AppContext) error {
 			return template.URL(recordingWatchPath(recordingID))
 		},
 		"confImage": func(tag, base string) template.URL {
+			if confs, err := cachedConfs(ctx); err == nil {
+				for _, conf := range confs {
+					if conf.Tag == tag {
+						return template.URL(conferenceArtwork(conf, base))
+					}
+				}
+			}
 			return template.URL(confImagePath(tag, base))
 		},
 		"confVenueImages":         confVenueImages,
@@ -645,8 +652,8 @@ func determineTixKind(tixSlug string) (string, string, error) {
 		return tixParts[0], types.TicketTypeGeneral, nil
 	}
 	switch tixParts[1] {
-	case types.TicketTypeLocal:
-		return tixParts[0], types.TicketTypeLocal, nil
+	case types.TicketTypeLocal, types.TicketTypeStudent:
+		return tixParts[0], tixParts[1], nil
 	case "sponsor", types.TicketTypeSponsored:
 		return tixParts[0], types.TicketTypeSponsored, nil
 	default:
@@ -670,6 +677,12 @@ func determineTixPrice(ctx *config.AppContext, tixSlug string) (*types.Conf, *ty
 	conf, tix, ticketKind, err := determineTixSelection(ctx, tixSlug)
 	if err != nil {
 		return nil, nil, 0, "", err
+	}
+	if ticketKind == types.TicketTypeStudent {
+		if tix.StudentPrice == nil || *tix.StudentPrice == 0 {
+			return nil, nil, 0, "", fmt.Errorf("student tickets are not available")
+		}
+		return conf, tix, *tix.StudentPrice, ticketKind, nil
 	}
 	if ticketKind == types.TicketTypeLocal {
 		return conf, tix, tix.Price(true), ticketKind, nil
@@ -707,6 +720,27 @@ func showTicketPriceIncreaseDate(conf *types.Conf, tix *types.ConfTicket) bool {
 		return false
 	}
 	return tix.SalesEndAt.Before(conf.StartDate)
+}
+
+func conferenceArtwork(conf *types.Conf, base string) string {
+	if conf == nil {
+		return ""
+	}
+	switch base {
+	case "leading":
+		if conf.LeadingImageURL != "" {
+			return conf.LeadingImageURL
+		}
+	case "logo-black":
+		if conf.LogoBlackURL != "" {
+			return conf.LogoBlackURL
+		}
+	case "logo-white":
+		if conf.LogoWhiteURL != "" {
+			return conf.LogoWhiteURL
+		}
+	}
+	return confImagePath(conf.Tag, base)
 }
 
 func confImagePath(tag, base string) string {
@@ -1657,6 +1691,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/subscribers", func(w http.ResponseWriter, r *http.Request) {
 		AdminSubscribers(w, r, app)
 	}).Methods("GET")
+	registerEventWizard(r, app)
 	r.HandleFunc("/admin/discounts", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminDiscounts(w, r, app)
 	}).Methods("GET", "POST")

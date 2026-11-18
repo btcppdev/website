@@ -182,7 +182,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			map_embed_url,
 			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side,
 			youtube_playlist_id, youtube_playlist_title, accent_color,
-			volunteer_self_schedule, speaker_applications_close
+			volunteer_self_schedule, speaker_applications_close, speaker_applications_open, volunteer_applications_open, volunteer_applications_close, leading_image_url, logo_black_url, logo_white_url, student_ticket_body
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -259,6 +259,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.AccentColor,
 			&conf.VolunteerSelfSchedule,
 			&conf.SpeakerApplicationsClose,
+			&conf.SpeakerApplicationsOpen, &conf.VolunteerApplicationsOpen, &conf.VolunteerApplicationsClose, &conf.LeadingImageURL, &conf.LogoBlackURL, &conf.LogoWhiteURL, &conf.StudentTicketBody,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -327,7 +328,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 		SELECT id::text, conference_id::text, tier, local_price, btc_price, usd_price,
 			base_price, card_surcharge_bps,
 			sales_end_at, expires_end, max_count, currency, symbol, post_symbol,
-			stripe_tax_code
+			stripe_tax_code, student_price
 		FROM conference_tickets
 		`+whereSQL+`
 		ORDER BY sales_end_at NULLS LAST, tier
@@ -358,7 +359,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 			&ticket.Currency,
 			&ticket.Symbol,
 			&ticket.PostSymbol,
-			&ticket.StripeTaxCode,
+			&ticket.StripeTaxCode, &ticket.StudentPrice,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)

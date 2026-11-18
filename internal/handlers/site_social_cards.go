@@ -397,7 +397,7 @@ func homeSocialCard(ctx *config.AppContext, confs []*types.Conf) imgproc.SiteSoc
 	imageConfs := append(append([]*types.Conf{}, upcoming...), homePastConfs(confs)...)
 	editionNumbers := conferenceEditionNumbers(confs)
 	for _, conf := range imageConfs {
-		if image := confImagePath(conf.Tag, "leading"); image != "" && image != "/static/img/rebrand/light-sketch-bg.avif" {
+		if image := conferenceArtwork(conf, "leading"); image != "" && image != "/static/img/rebrand/light-sketch-bg.avif" {
 			card.Images = append(card.Images, image)
 			card.ImageLabels = append(card.ImageLabels, conferenceArchiveCardLabel(conf, editionNumbers[conf.Tag]))
 			if len(card.Images) == 6 {
@@ -467,7 +467,7 @@ func eventsSocialCard(ctx *config.AppContext, confs []*types.Conf) imgproc.SiteS
 	imageConfs := append(append([]*types.Conf{}, upcoming...), homePastConfs(published)...)
 	seenImages := make(map[string]bool)
 	for _, conf := range imageConfs {
-		if image := confImagePath(conf.Tag, "leading"); image != "" && image != "/static/img/rebrand/light-sketch-bg.avif" {
+		if image := conferenceArtwork(conf, "leading"); image != "" && image != "/static/img/rebrand/light-sketch-bg.avif" {
 			if !seenImages[image] {
 				seenImages[image] = true
 				card.Images = append(card.Images, image)
@@ -604,7 +604,7 @@ func conferenceSocialCard(ctx *config.AppContext, conf *types.Conf, talkSets ...
 		card.Images = append(card.Images, image)
 		card.ImageLabels = append(card.ImageLabels, label)
 	}
-	addArtwork(confImagePath(conf.Tag, "leading"), "")
+	addArtwork(conferenceArtwork(conf, "leading"), "")
 	if len(talkSets) > 0 {
 		var speakerImages, speakerLabels, clipartImages, clipartLabels []string
 		seenSpeakers := make(map[string]bool)
@@ -713,7 +713,7 @@ func hackathonSocialCard(ctx *config.AppContext, page *HackathonPage) imgproc.Si
 		card.EventEdition = page.Conf.ArchiveEdition()
 		card.Location = page.ConferenceLabel()
 		card.EventDate = strings.Join(nonEmptyStrings(page.Conf.Location, date), " · ")
-		if image := confImagePath(page.Conf.Tag, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
+		if image := conferenceArtwork(page.Conf, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
 			card.HeroImage = image
 		}
 	}
@@ -796,7 +796,7 @@ func awardSocialCard(ctx *config.AppContext, page *HackathonPage, award *types.A
 	}
 	if page != nil && page.Conf != nil {
 		applySiteSocialCardPalette(&card, page.Conf)
-		if image := confImagePath(page.Conf.Tag, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
+		if image := conferenceArtwork(page.Conf, "leading"); image != "/static/img/rebrand/light-sketch-bg.avif" {
 			card.HeroImage = image
 		}
 		card.Footer = strings.TrimSpace(strings.Join(nonEmptyStrings(page.ConferenceLabel()+" hackathon", "btcpp.dev"), " · "))
@@ -1036,7 +1036,7 @@ func personSocialCard(ctx *config.AppContext, person *WhoIsPerson) imgproc.SiteS
 			eventName = edition.Tag
 		}
 		appendDetail("Event", eventName)
-		if image := confImagePath(edition.Tag, "leading"); image != "" && image != "/static/img/rebrand/light-sketch-bg.avif" {
+		if image := conferenceArtwork(edition, "leading"); image != "" && image != "/static/img/rebrand/light-sketch-bg.avif" {
 			eventArtifacts = append(eventArtifacts, image)
 		}
 	}

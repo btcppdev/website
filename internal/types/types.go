@@ -15,6 +15,7 @@ import (
 const (
 	TicketTypeGeneral            = "genpop"
 	TicketTypeLocal              = "local"
+	TicketTypeStudent            = "student"
 	TicketTypeSponsored          = "sponsored"
 	DefaultConferenceAccentColor = "#f9af5e"
 )
@@ -152,9 +153,15 @@ type (
 		StartDate         time.Time
 		EndDate           time.Time
 		// SpeakerApplicationsClose overrides the default deadline; nil restores the event rule.
-		SpeakerApplicationsClose *time.Time
-		Location                 string
-		Venue                    string
+		SpeakerApplicationsClose   *time.Time
+		SpeakerApplicationsOpen    *time.Time
+		VolunteerApplicationsOpen  *time.Time
+		VolunteerApplicationsClose *time.Time
+		LeadingImageURL            string
+		LogoBlackURL               string
+		LogoWhiteURL               string
+		Location                   string
+		Venue                      string
 		// VenueMap is a Google Maps / OpenStreetMap link to the
 		// venue's location; rendered in the ticket email.
 		VenueMap string
@@ -205,6 +212,7 @@ type (
 		VenueBody             string
 		HotelsIntro           string
 		LocalTicketBody       string
+		StudentTicketBody     string
 		SpeakersTitle         string
 		SpeakersBody          string
 		HackathonSectionLabel string
@@ -279,6 +287,7 @@ type (
 		ConfRef          string
 		Tier             string
 		Local            uint
+		StudentPrice     *uint
 		BTC              uint
 		USD              uint
 		BasePrice        uint
@@ -1292,16 +1301,17 @@ func (c *Conf) TalksOpen() bool {
 // TalksOpenAt is the deterministic form of TalksOpen. Applications close at
 // the configured due instant and remain closed even if a stale form is posted.
 func (c *Conf) TalksOpenAt(now time.Time) bool {
-	return c != nil && c.Active && c.IsPublished() && !c.HasEndedAt(now) && now.Before(c.TalksDueDate())
+	return c != nil && c.Active && c.IsPublished() && !c.HasEndedAt(now) && (c.SpeakerApplicationsOpen == nil || !now.Before(*c.SpeakerApplicationsOpen)) && now.Before(c.TalksDueDate())
 }
 
 // VolunteerOpen reports whether public volunteer applications should be
 // available for this conf.
-func (c *Conf) VolunteerOpen() bool {
-	if c.Tag == "nairobi" {
+func (c *Conf) VolunteerOpen() bool { return c.VolunteerOpenAt(time.Now()) }
+func (c *Conf) VolunteerOpenAt(now time.Time) bool {
+	if c == nil || c.Tag == "nairobi" {
 		return false
 	}
-	return c.IsCurrentlyActive() && c.InFuture()
+	return c.IsPublished() && c.StartDate.After(now) && (c.VolunteerApplicationsOpen == nil || !now.Before(*c.VolunteerApplicationsOpen)) && (c.VolunteerApplicationsClose == nil || now.Before(*c.VolunteerApplicationsClose))
 }
 
 // EmojiOrDefault returns the conf's emoji, or a sparkles fallback when

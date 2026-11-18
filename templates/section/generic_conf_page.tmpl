@@ -593,6 +593,18 @@
       </article>
       {{ end }}
 
+      {{ if $p.Tix.StudentPrice }}
+      <article class="event-redesign-ticket event-redesign-ticket--local">
+        <div class="event-redesign-ticket__price event-redesign-ticket__price--compact">
+          <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.StudentPrice }}{{ $p.Tix.PostSymbol }}</strong>
+          <span>{{ $p.Tix.Currency }} {{ msg "tickets.per_ticket" }}</span>
+        </div>
+        <div><p class="event-redesign-ticket__eyebrow">Students</p><h3>Student tickets</h3>
+          <p>{{ if $conf.StudentTicketBody }}{{ $conf.StudentTicketBody }}{{ else }}For currently enrolled students. Bring your student ID.{{ end }}</p>
+        </div>
+        <div class="event-redesign-ticket__actions"><a href="{{ checkoutURL (printf "/tix/%s+student/checkout" $p.Tix.ID) }}" class="redesign-button">Get a student ticket</a></div>
+      </article>
+      {{ end }}
       {{ template "generic_conf_ticket_features" $conf }}
     {{ else }}
       <article class="event-redesign-ticket is-featured event-redesign-ticket--sold-out">
