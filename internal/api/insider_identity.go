@@ -7,7 +7,7 @@ import "net/http"
 func (s *server) insiderIdentity(w http.ResponseWriter, r *http.Request) {
 	scope := r.URL.Query().Get("scope")
 	switch scope {
-	case "insider:read", "insider:write", "insider:review", "insider:schedule", "insider:analytics":
+	case "insider:read", "insider:write", "insider:review", "insider:schedule", "insider:analytics", "insider:subscriber:read", "insider:subscriber:write":
 	default:
 		s.writeError(w, r, http.StatusBadRequest, "invalid_scope", "Choose an Insider API scope.")
 		return

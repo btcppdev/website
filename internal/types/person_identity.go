@@ -25,6 +25,8 @@ var APITokenScopes = []string{
 	"insider:review",
 	"insider:schedule",
 	"insider:analytics",
+	"insider:subscriber:read",
+	"insider:subscriber:write",
 }
 
 func ValidAPITokenScopes(scopes []string) bool {

@@ -62,9 +62,29 @@ func TestInsiderIdentityRequiresExactScopeAndUsesCurrentRoles(t *testing.T) {
 }
 
 func TestInsiderScopesAreSupported(t *testing.T) {
-	for _, scope := range []string{"insider:read", "insider:write", "insider:review", "insider:schedule", "insider:analytics"} {
+	for _, scope := range []string{"insider:read", "insider:write", "insider:review", "insider:schedule", "insider:analytics", "insider:subscriber:read", "insider:subscriber:write"} {
 		if !types.ValidAPITokenScopes([]string{scope}) {
 			t.Fatalf("scope unavailable: %s", scope)
+		}
+	}
+}
+
+func TestInsiderSubscriberScopesNeedNoEditorialRole(t *testing.T) {
+	token := &types.PersonAPIToken{ID: "subscriber-token", PersonID: "reader", Scopes: []string{"insider:subscriber:read"}}
+	person := &types.Speaker{ID: "reader", Name: "Reader"}
+	router := protectedTestRouter(token, person, nil)
+	for _, tc := range []struct {
+		scope  string
+		status int
+	}{
+		{"insider:subscriber:read", 200}, {"insider:subscriber:write", 403}, {"insider:read", 403}, {"insider:write", 403},
+	} {
+		r := httptest.NewRequest("GET", "/api/v1/me/insider?scope="+tc.scope, nil)
+		r.Header.Set("Authorization", "Bearer test-secret")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		if w.Code != tc.status {
+			t.Fatalf("%s: %d %s", tc.scope, w.Code, w.Body.String())
 		}
 	}
 }
