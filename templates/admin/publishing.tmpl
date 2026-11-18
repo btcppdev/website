@@ -5,11 +5,11 @@
     {{ block "header" . }}{{ end }}
     <link
       rel="stylesheet"
-      href="/static/css/publishing.css?v=20261118-recordings-1"
+      href="/static/css/publishing.css?v=20261118-exclusions-1"
     />
     <script
       defer
-      src="/static/js/publishing.js?v=20261118-recordings-1"
+      src="/static/js/publishing.js?v=20261118-exclusions-1"
     ></script>
   </head>
   <body class="btcpp-admin-page publishing-page">
@@ -263,11 +263,23 @@
               >Include already scheduled recordings</span
             ></label
           >
+          <label class="pub-recording-check"
+            ><input type="checkbox" id="include-excluded" /><span
+              >Show excluded recordings</span
+            ></label
+          >
+          <p class="pub-legend">
+            Uncheck a talk or remove it from the preview to skip this batch.
+            Exclude from scheduling keeps this destination out of future batches
+            until you restore it. Excluding does not change YouTube visibility.
+          </p>
           <div class="pub-recording-selection">
             <button type="button" id="select-recordings">
               Select available</button
             ><button type="button" id="clear-recordings">Clear selection</button
-            ><button type="button" id="refresh-recording-status">Refresh recording status</button>
+            ><button type="button" id="refresh-recording-status">
+              Refresh recording status
+            </button>
             <span id="recording-selection-count" aria-live="polite"></span>
           </div>
           <div id="recording-options"></div>

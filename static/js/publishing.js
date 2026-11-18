@@ -38,6 +38,7 @@
     dragRecordingSlots = null,
     recordingPreview = [],
     recordingOrder = [],
+    recordingPreviewRequest = 0,
     recordingFocus = "",
     initialLoad = true;
   const initialParams = new URLSearchParams(location.search);
@@ -1421,16 +1422,19 @@
     };
   }
   function invalidateRecordingPreview() {
+    recordingPreviewRequest++;
     recordingPreview = [];
     recordingOrder = [];
     $("#recording-schedule-preview").replaceChildren();
     $("#apply-recording-schedule").disabled = true;
+    $("#preview-recording-schedule").disabled = false;
     const selected = [
       ...$("#recording-options").querySelectorAll("input:checked"),
     ];
     $("#recording-selection-count").textContent = selected.length + " selected";
   }
-  function renderRecordingOptions() {
+  function renderRecordingOptions(selectedIDs = []) {
+    const selected = new Set(selectedIDs);
     const box = $("#recording-options");
     box.replaceChildren();
     const event = $("#schedule-event").value,
@@ -1440,15 +1444,18 @@
         (!event || d.conference === event) &&
         (!destination || d.channel_id === destination) &&
         (!recordingFocus || d.recording_id === recordingFocus) &&
+        ($("#include-excluded").checked || !d.excluded) &&
         ($("#include-scheduled").checked || !d.at),
     );
     for (const d of items) {
+      const row = el("div", undefined, "pub-recording-option");
       const label = el("label", undefined, "pub-recording-check"),
         check = el("input"),
         text = el("span");
       check.type = "checkbox";
       check.value = d.id;
       check.disabled = !d.eligible;
+      check.checked = d.eligible && selected.has(d.id);
       text.append(
         el("strong", d.title),
         el(
@@ -1459,16 +1466,66 @@
             (d.at ? " · " + labelTime(d.at) : " · Not scheduled"),
         ),
       );
-      if (d.reason) text.append(el("small", d.reason, "pub-recording-error"));
+      if (
+        d.channel_id === "youtube" &&
+        ["private", "unlisted", "public"].includes(d.youtube_privacy)
+      )
+        text.append(el("small", "YouTube visibility: " + d.youtube_privacy));
+      if (d.reason)
+        text.append(
+          el(
+            "small",
+            d.reason,
+            d.excluded ? "pub-legend" : "pub-recording-error",
+          ),
+        );
       label.append(check, text);
-      box.append(label);
+      row.append(label);
+      if (d.excluded || (d.state === "draft" && !d.at && !d.confirmed_at)) {
+        const button = el(
+          "button",
+          d.excluded ? "Restore to scheduling" : "Exclude from scheduling",
+        );
+        button.type = "button";
+        button.setAttribute(
+          "aria-label",
+          button.textContent +
+            ": " +
+            d.title +
+            " · " +
+            channel(d.channel_id).name,
+        );
+        button.onclick = async () => {
+          const selected = [...box.querySelectorAll("input:checked")].map(
+            (x) => x.value,
+          );
+          invalidateRecordingPreview();
+          button.disabled = true;
+          $("#recording-schedule-error").textContent = "";
+          try {
+            await api({
+              action: "recording_exclusion",
+              id: d.id,
+              revision: d.revision,
+              excluded: !d.excluded,
+            });
+            await load();
+            renderRecordingOptions(selected.filter((id) => id !== d.id));
+          } catch (e) {
+            $("#recording-schedule-error").textContent = e.message;
+            button.disabled = false;
+          }
+        };
+        row.append(button);
+      }
+      box.append(row);
       check.onchange = invalidateRecordingPreview;
     }
     if (!items.length)
       box.append(
         el(
           "p",
-          "No recordings match. Choose another event or include scheduled recordings.",
+          "No recordings match. Choose another event, include scheduled recordings, or show excluded recordings.",
           "pub-empty",
         ),
       );
@@ -1488,17 +1545,29 @@
     event.value = $("#event").value;
     $("#schedule-destination").value = destination;
     $("#include-scheduled").checked = Boolean(recording);
+    $("#include-excluded").checked = Boolean(recording);
     $("#recording-schedule-error").textContent = "";
     renderRecordingOptions();
     $("#recording-scheduler").showModal();
   }
   async function previewRecordingSchedule(ids) {
+    if (!ids.length) {
+      invalidateRecordingPreview();
+      return;
+    }
+    const request = ++recordingPreviewRequest;
     const button = $("#preview-recording-schedule");
     button.disabled = true;
     $("#recording-schedule-error").textContent = "";
     $("#apply-recording-schedule").disabled = true;
+    recordingPreview = [];
+    $("#recording-schedule-preview").replaceChildren(
+      el("p", "Updating preview…"),
+    );
     try {
-      recordingPreview = await api({ action: "recording_preview", ids });
+      const preview = await api({ action: "recording_preview", ids });
+      if (request !== recordingPreviewRequest) return;
+      recordingPreview = preview;
       recordingOrder = ids.slice();
       const box = $("#recording-schedule-preview");
       box.replaceChildren(el("h3", "Review publication times"));
@@ -1527,7 +1596,9 @@
           button.disabled =
             index + direction < 0 ||
             index + direction >= recordingPreview.length;
-          button.onclick = () => {
+          button.onclick = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
             const order = recordingOrder.slice();
             [order[index], order[index + direction]] = [
               order[index + direction],
@@ -1537,22 +1608,47 @@
           };
           row.append(button);
         }
+        const remove = el("button", "Remove", "pub-recording-remove");
+        remove.type = "button";
+        remove.setAttribute(
+          "aria-label",
+          "Remove from this batch: " +
+            d.title +
+            " · " +
+            channel(d.channel_id).name,
+        );
+        remove.onclick = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          for (const check of $("#recording-options").querySelectorAll(
+            "input",
+          )) {
+            if (check.value === d.id) check.checked = false;
+          }
+          const remaining = recordingOrder.filter((id) => id !== d.id);
+          $("#recording-selection-count").textContent =
+            remaining.length + " selected";
+          previewRecordingSchedule(remaining);
+        };
+        row.append(remove);
         box.append(row);
       });
       box.append(
         el(
           "p",
-          "Each destination is independent. Broadcasts reserve their runtime plus five minutes. Times remain pending until the destination confirms.",
+          "Remove skips an item in this batch only. Use Exclude from scheduling above to keep it out of future batches. Times remain pending until the destination confirms.",
           "pub-legend",
         ),
       );
       $("#apply-recording-schedule").disabled = !recordingPreview.length;
       box.scrollIntoView({ block: "start" });
     } catch (e) {
+      if (request !== recordingPreviewRequest) return;
       recordingPreview = [];
+      $("#recording-schedule-preview").replaceChildren();
       $("#recording-schedule-error").textContent = e.message;
     } finally {
-      button.disabled = false;
+      if (request === recordingPreviewRequest) button.disabled = false;
     }
   }
   $("#refresh-recording-status").onclick = async () => {
@@ -1579,8 +1675,9 @@
     recordingFocus = "";
     renderRecordingOptions();
   };
-  $("#schedule-destination").onchange = renderRecordingOptions;
-  $("#include-scheduled").onchange = renderRecordingOptions;
+  $("#schedule-destination").onchange = () => renderRecordingOptions();
+  $("#include-scheduled").onchange = () => renderRecordingOptions();
+  $("#include-excluded").onchange = () => renderRecordingOptions();
   $("#select-recordings").onclick = () => {
     $("#recording-options")
       .querySelectorAll("input:not(:disabled)")

@@ -40,6 +40,12 @@ Click or keyboard-activate the move handle, or choose **Move to slot** in the it
 
 A successful move pins only that delivery to the selected slot. It does not reallocate the rest of its queue or reschedule other copies of the post. Sending, already published, uncertain, or partly published deliveries cannot be dragged. YouTube releases and recorded broadcasts use the same slot picker and drag controls, with independent channel slots and runtime/conflict checks. Their changes remain pending until confirmed by the destination.
 
+## Withholding a recording
+
+In **Schedule recordings**, uncheck an item or use **Remove** in the preview to skip it for this batch. Removing an item recalculates the remaining slots. Use **Exclude from scheduling** for a persistent hold on that destination; **Select available** and future batches leave it out. Enable **Show excluded recordings** to restore it. Restoring makes it available without scheduling it. YouTube and broadcast exclusions are independent.
+
+Exclusion does not change provider visibility and cannot cancel an existing or pending provider schedule. Resolve or clear that schedule first. YouTube's private visibility is shown separately because private videos can also be scheduled releases. Exclusions are checked by preview, individual moves, batch application, retries, and the provider worker. A stale preview cannot bypass a new exclusion.
+
 ## Recording schedules and provider synchronization
 
 Migration 156 adds durable requested schedule changes and initializes separate broadcast slots from the existing cadence. Migration 157 adds a video-identity-bound YouTube visibility cache. Neither migration changes existing confirmed release/broadcast times or calls a provider. Historical items are not replayed.

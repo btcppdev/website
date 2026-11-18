@@ -998,7 +998,19 @@
 }
 #recording-options .pub-recording-check {
   padding: 8px 0;
+  flex: 1;
+  min-width: 0;
+}
+.pub-recording-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
   border-bottom: 1px solid #e5e1d9;
+}
+.pub-recording-option > button {
+  flex: 0 0 auto;
+  min-height: 44px;
 }
 .pub-recording-selection {
   display: flex;
@@ -1022,11 +1034,25 @@
   flex: 0 0 44px;
   min-height: 44px;
 }
+.pub-recording-preview-row .pub-recording-remove {
+  flex-basis: auto;
+}
 .pub-recording-error,
 #recording-schedule-error {
   color: #b42318;
 }
 @media (max-width: 600px) {
+  .pub-recording-option,
+  .pub-recording-preview-row {
+    flex-wrap: wrap;
+  }
+  #recording-options .pub-recording-check,
+  .pub-recording-preview-row > div {
+    flex: 1 1 100%;
+  }
+  .pub-recording-option > button {
+    margin-left: 30px;
+  }
   .pub-recording-filters {
     grid-template-columns: 1fr;
     gap: 0;

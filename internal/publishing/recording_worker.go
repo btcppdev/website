@@ -187,6 +187,9 @@ func (s Store) RetryRecordingChange(ctx context.Context, id, revision string, co
 	if d.Revision != revision {
 		return ErrChanged
 	}
+	if d.Excluded {
+		return fmt.Errorf("Restore this item before retrying its schedule")
+	}
 	if d.State != "failed" && d.State != "needs_review" {
 		return fmt.Errorf("This schedule change is not awaiting retry")
 	}

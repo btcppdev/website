@@ -16,6 +16,8 @@ import (
 // RecordingItem is one destination of a recording, with its own schedule and
 // revision. ConfirmedAt remains reserved until the provider confirms a move.
 type RecordingItem struct {
+	Excluded          bool       `json:"excluded"`
+	ExclusionVersion  int        `json:"-"`
 	YouTubePrivacy    string     `json:"youtube_privacy"`
 	RetryConfirmation bool       `json:"retry_confirmation"`
 	ID                string     `json:"id"`
@@ -53,13 +55,15 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
  CASE WHEN ch.id='youtube' THEN r.publish_at ELSE xb.scheduled_at END,
  coalesce(j.state,''),j.target_at,j.previous_at,coalesce(j.error,''),coalesce(j.version,0),
  CASE WHEN ch.id='youtube' THEN coalesce(ys.privacy_status,(SELECT status FROM social_posts WHERE ref='recording:'||r.id::text||':youtube' ORDER BY updated_at DESC LIMIT 1),'') ELSE coalesce(xb.status,'') END,
- coalesce(rb.state,''),coalesce(xb.broadcast_id,''),r.updated_at,xb.updated_at
+ coalesce(rb.state,''),coalesce(xb.broadcast_id,''),r.updated_at,xb.updated_at,
+ coalesce(pref.excluded,false),coalesce(pref.version,0)
  FROM recordings r JOIN conf_talks ct ON ct.id=r.conf_talk_id JOIN conferences c ON c.id=ct.conference_id
  CROSS JOIN publishing_channels ch
  LEFT JOIN recording_x_broadcasts xb ON xb.recording_id=r.id
  LEFT JOIN recording_broadcasts rb ON rb.recording_id=r.id
  LEFT JOIN recording_youtube_status ys ON ys.recording_id=r.id AND ys.youtube_url=r.youtube_url
  LEFT JOIN recording_schedule_changes j ON j.recording_id=r.id AND j.channel_id=ch.id
+ LEFT JOIN recording_publication_preferences pref ON pref.recording_id=r.id AND pref.channel_id=ch.id
  WHERE ch.id IN ('youtube','broadcasts') ORDER BY c.start_date DESC NULLS LAST,r.talk_name,r.id,ch.id`)
 	if err != nil {
 		return nil, err
@@ -72,7 +76,7 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
 		var target, previous *time.Time
 		var updated time.Time
 		var xupdated *time.Time
-		if err = rows.Scan(&d.RecordingID, &d.ChannelID, &d.Conference, &d.Title, &d.DurationSeconds, &d.YouTubeURL, &d.FileURI, &d.ConfirmedAt, &jobState, &target, &previous, &d.Error, &d.Version, &sourceState, &live, &d.BroadcastID, &updated, &xupdated); err != nil {
+		if err = rows.Scan(&d.RecordingID, &d.ChannelID, &d.Conference, &d.Title, &d.DurationSeconds, &d.YouTubeURL, &d.FileURI, &d.ConfirmedAt, &jobState, &target, &previous, &d.Error, &d.Version, &sourceState, &live, &d.BroadcastID, &updated, &xupdated, &d.Excluded, &d.ExclusionVersion); err != nil {
 			return nil, err
 		}
 		d.Kind = "recording"
@@ -104,7 +108,7 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
 		if d.ChannelID == "broadcasts" && (live == "live" || live == "ended") {
 			d.State = live
 		}
-		encoded, _ := json.Marshal([]any{d.RecordingID, d.ChannelID, d.ConfirmedAt, jobState, target, d.Version, d.YouTubeURL, d.FileURI, d.DurationSeconds, sourceState, live, updated, xupdated})
+		encoded, _ := json.Marshal([]any{d.RecordingID, d.ChannelID, d.ConfirmedAt, jobState, target, d.Version, d.YouTubeURL, d.FileURI, d.DurationSeconds, sourceState, live, updated, xupdated, d.Excluded, d.ExclusionVersion})
 		d.Revision = fmt.Sprintf("%x", sha256.Sum256(encoded))
 		d.RetryConfirmation = d.ChannelID == "broadcasts" && d.State == "needs_review" && d.BroadcastID == ""
 		d.Reason = recordingUnavailable(d, time.Now())
@@ -114,6 +118,9 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
 	return out, rows.Err()
 }
 func recordingUnavailable(d RecordingItem, now time.Time) string {
+	if d.Excluded {
+		return "Excluded from scheduling. Restore this item before scheduling it."
+	}
 	if d.ChannelID == "youtube" && (d.YouTubePrivacy == "public" || d.YouTubePrivacy == "published") {
 		return "This video is already public on YouTube"
 	}
@@ -139,6 +146,40 @@ func recordingUnavailable(d RecordingItem, now time.Time) string {
 }
 func (s Store) RecordingItems(ctx context.Context) ([]RecordingItem, error) {
 	return recordingItems(ctx, s.DB)
+}
+
+// SetRecordingExcluded records intent for one destination. It never cancels an
+// existing provider schedule or changes visibility. The shared lock and revision
+// check keep a stale batch or a concurrent worker from bypassing the exclusion.
+func (s Store) SetRecordingExcluded(ctx context.Context, id, revision string, excluded bool) error {
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err = lockRecordings(ctx, tx); err != nil {
+		return err
+	}
+	items, err := recordingItems(ctx, tx)
+	if err != nil {
+		return err
+	}
+	d, err := recordingByID(items, id)
+	if err != nil {
+		return err
+	}
+	if revision != d.Revision {
+		return ErrChanged
+	}
+	if excluded && !d.Excluded && (d.State != "draft" || d.At != nil || d.ConfirmedAt != nil) {
+		return fmt.Errorf("Only unscheduled items can be excluded. Resolve any pending change and clear the existing schedule first; exclusion does not cancel a provider schedule")
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO recording_publication_preferences(recording_id,channel_id,excluded) VALUES($1,$2,$3)
+ ON CONFLICT(recording_id,channel_id) DO UPDATE SET excluded=EXCLUDED.excluded,version=recording_publication_preferences.version+1,updated_at=now()`, d.RecordingID, d.ChannelID, excluded)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 func recordingByID(items []RecordingItem, id string) (RecordingItem, error) {
 	for _, d := range items {

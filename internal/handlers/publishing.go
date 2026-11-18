@@ -66,6 +66,7 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 			Action              string
 			Event               string
 			Revision            string
+			Excluded            bool
 			IDs                 []string
 			Moves               []publishing.RecordingMove
 			ConfirmedNotCreated bool     `json:"confirmed_not_created"`
@@ -119,6 +120,8 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 			err = refreshPublishingRecordingStatus(app, input.Event)
 		case "recording_preview":
 			result, err = store.PreviewRecordingQueue(r.Context(), input.IDs)
+		case "recording_exclusion":
+			err = store.SetRecordingExcluded(r.Context(), input.ID, input.Revision, input.Excluded)
 		case "recording_apply":
 			err = store.SaveRecordingMoves(r.Context(), input.Moves)
 		case "recording_move":
