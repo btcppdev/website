@@ -3,45 +3,10 @@
     if (!form) return;
     const submit = form.querySelector('[data-social-submit]');
     const editors = [];
-    const carousel = form.querySelector('[data-carousel-preview]');
-    const carouselSummary = form.querySelector('[data-carousel-summary]');
-    function renderCarousel() {
-        if (!carousel) return;
-        const slides = [];
-        let videoPosts = 0;
-        // Editors follow the server's sponsor-level/name ordering in the page.
-        editors.filter(editor => editor.sponsor && editor.selected() && editor.copy.value !== '').forEach(editor => {
-            const nodes = editor.items();
-            if (nodes.some(node => node.dataset.kind === 'video')) { videoPosts++; return; }
-            nodes.forEach(node => {
-                const source = node.querySelector('img');
-                if (!source) return;
-                const slide = document.createElement('li');
-                const link = document.createElement('a');
-                link.href = source.src;
-                link.target = '_blank';
-                link.rel = 'noopener';
-                const image = document.createElement('img');
-                image.src = source.src;
-                image.alt = editor.name + ' — carousel image ' + (slides.length + 1);
-                image.loading = 'lazy';
-                link.append(image);
-                const caption = document.createElement('p');
-                caption.textContent = (slides.length + 1) + '. ' + editor.name;
-                slide.append(link, caption);
-                slides.push(slide);
-            });
-        });
-        carousel.replaceChildren(...slides);
-        carouselSummary.textContent = slides.length ? slides.length + ' image(s), shown in posting order. Edit media in the sponsor rows above; click an image to view it full size.' : 'Select sponsors with images above to preview the carousel.';
-        if (videoPosts) carouselSummary.textContent += ' ' + videoPosts + ' video sponsor(s) will be posted separately.';
-        if (slides.length && !form.querySelector('[name="text_sponsor_batch"]').value) carouselSummary.textContent += ' Add carousel post text to queue these images.';
-    }
     let pending = 0;
     let submitting = false;
     const updateSubmit = () => {
         submit.disabled = submitting || pending > 0 || editors.some(editor => editor.selected() && !editor.valid());
-        renderCarousel();
     };
 
     form.querySelectorAll('[data-social-media]').forEach(container => {
@@ -57,10 +22,10 @@
             const nodes = items();
             const media = nodes.map(node => ({ source: node.dataset.source, url: node.dataset.url, kind: node.dataset.kind }));
             value.value = JSON.stringify(media);
-            const mixedVideo = media.some(asset => asset.kind === 'video') && media.length > 1;
-            valid = !mixedVideo && media.length > 0 && media.length <= 20;
-            validation.textContent = mixedVideo ? 'A video must be the only attachment. Remove the images or remove the video.' :
-                media.length === 0 ? 'Add at least one attachment for Instagram.' : media.length > 20 ? 'Use at most 20 attachments.' : '';
+            const hasVideo = media.some(asset => asset.kind === 'video');
+            valid = !hasVideo && media.length <= 4;
+            validation.textContent = hasVideo ? 'Direct X posts currently support images only.' :
+                media.length > 4 ? 'Use at most four images.' : '';
             nodes.forEach((node, index) => {
                 node.querySelector('[data-media-position]').textContent = (index + 1) + '. ';
                 node.querySelector('[data-media-up]').disabled = index === 0;
@@ -111,14 +76,15 @@
             for (const file of files) {
                 status.textContent = 'Uploading ' + file.name + '…';
                 try {
-                    if (!file.size || file.size > 300000000) throw new Error('File must be between 1 byte and 300 MB.');
+                    if (!file.size || file.size > 5000000) throw new Error('Image must be between 1 byte and 5 MB.');
+                    if (!['image/jpeg','image/png'].includes(file.type)) throw new Error('Choose a JPEG or PNG image.');
                     const body = new FormData();
                     body.append('media', file);
                     const response = await fetch(form.dataset.mediaUploadUrl, { method: 'POST', body, credentials: 'same-origin' });
                     if (!response.ok) throw new Error(await response.text());
                     if (!(response.headers.get('content-type') || '').includes('application/json')) throw new Error('Sign in again and retry.');
                     const asset = await response.json();
-                    if (!asset.url || !['image', 'video'].includes(asset.kind)) throw new Error('Invalid upload response.');
+                    if (!asset.url || asset.kind !== 'image') throw new Error('Invalid upload response.');
                     const node = document.createElement('li');
                     node.dataset.mediaItem = '';
                     node.dataset.source = 'upload';
@@ -129,11 +95,10 @@
                     label.dataset.mediaLabel = '';
                     label.className = 'block text-xs';
                     label.textContent = file.name;
-                    const preview = document.createElement(asset.kind === 'video' ? 'video' : 'img');
+                    const preview = document.createElement('img');
                     preview.src = asset.url;
                     preview.className = 'w-32 rounded';
-                    if (asset.kind === 'video') { preview.controls = true; preview.preload = 'metadata'; }
-                    else preview.alt = file.name;
+                    preview.alt = file.name;
                     node.append(label, preview);
                     controls(node);
                     uploaded.push(node);
@@ -150,10 +115,9 @@
     });
     // Select All changes checkbox properties without emitting their change events.
     form.addEventListener('click', updateSubmit);
-    form.addEventListener('input', renderCarousel);
     form.addEventListener('submit', event => {
         updateSubmit();
-        if (submit.disabled || !window.confirm('Queue selected posts to Buffer?')) event.preventDefault();
+        if (submit.disabled || !window.confirm('Queue selected posts in Publishing?')) event.preventDefault();
         else {
             submitting = true;
             updateSubmit();

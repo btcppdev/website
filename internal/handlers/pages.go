@@ -1474,7 +1474,7 @@ type SocialAdminPage struct {
 	FlashMessage     string
 	FlashError       string
 	Year             uint
-	BufferOK         bool
+	PublishingOK     bool
 }
 
 type TalksGiftsPage struct {

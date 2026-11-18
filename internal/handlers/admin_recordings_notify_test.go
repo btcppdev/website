@@ -124,8 +124,8 @@ func TestBuildRecordingSpeakerCampaignOrdersDigestByRoomAndAgenda(t *testing.T) 
 	if got, wantAt := campaign.Reminders[0].ReminderAt, campaign.Reminders[0].PublishAt.Add(-24*time.Hour); !got.Equal(wantAt) {
 		t.Fatalf("reminder = %s, want %s", got, wantAt)
 	}
-	if got, wantAt := campaign.Talks[0].BufferAt, campaign.Talks[0].PublishAt.Add(5*time.Minute); !got.Equal(wantAt) {
-		t.Fatalf("Buffer time = %s, want %s", got, wantAt)
+	if got, wantAt := campaign.Talks[0].AnnouncementAt, campaign.Talks[0].PublishAt.Add(5*time.Minute); !got.Equal(wantAt) {
+		t.Fatalf("Announcement time = %s, want %s", got, wantAt)
 	}
 	if got := campaign.Talks[0].PublishUTCLabel; !strings.HasSuffix(got, " UTC") {
 		t.Fatalf("UTC publication label = %q", got)
@@ -156,13 +156,13 @@ func TestMergeRecordingDigestRecipientsAddsStaffAndDeduplicatesSpeakers(t *testi
 	}
 }
 
-func TestRecordingBufferXTextIncludesYouTubeAndFitsXLimit(t *testing.T) {
+func TestRecordingAnnouncementTextIncludesYouTubeAndFitsXLimit(t *testing.T) {
 	talk := &RecordingSpeakerCampaignTalk{
 		TalkTitle:     strings.Repeat("Long title ", 40),
 		SpeakerCredit: "Ada (@ada)",
 		YouTubeURL:    "https://youtu.be/example",
 	}
-	got := recordingBufferXText(talk)
+	got := recordingAnnouncementText(talk)
 	if !strings.Contains(got, talk.YouTubeURL) {
 		t.Fatalf("post does not include YouTube URL: %q", got)
 	}
@@ -171,18 +171,18 @@ func TestRecordingBufferXTextIncludesYouTubeAndFitsXLimit(t *testing.T) {
 	}
 }
 
-func TestSocialPostBlocksBufferSchedule(t *testing.T) {
-	if socialPostBlocksBufferSchedule(nil) {
-		t.Fatal("nil post blocked Buffer scheduling")
+func TestSocialPostBlocksAnnouncement(t *testing.T) {
+	if socialPostBlocksAnnouncement(nil) {
+		t.Fatal("nil post blocked announcement scheduling")
 	}
-	if !socialPostBlocksBufferSchedule(&types.SocialPost{Status: recordingStatusScheduled}) {
-		t.Fatal("existing scheduled X post did not block Buffer scheduling")
+	if !socialPostBlocksAnnouncement(&types.SocialPost{Status: recordingStatusScheduled}) {
+		t.Fatal("existing scheduled X post did not block announcement scheduling")
 	}
-	if !socialPostBlocksBufferSchedule(&types.SocialPost{URL: "https://x.com/btcplusplus/status/1"}) {
-		t.Fatal("published X URL did not block Buffer scheduling")
+	if !socialPostBlocksAnnouncement(&types.SocialPost{URL: "https://x.com/btcplusplus/status/1"}) {
+		t.Fatal("published X URL did not block announcement scheduling")
 	}
-	if socialPostBlocksBufferSchedule(&types.SocialPost{Status: recordingStatusFailed}) {
-		t.Fatal("failed X post should allow Buffer scheduling")
+	if socialPostBlocksAnnouncement(&types.SocialPost{Status: recordingStatusFailed}) {
+		t.Fatal("failed X post should allow announcement scheduling")
 	}
 }
 

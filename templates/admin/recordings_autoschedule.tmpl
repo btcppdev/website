@@ -15,7 +15,7 @@
               <div>
                 <a href="/{{ .Conf.Tag }}/admin/recordings" class="text-xs text-gray-500 hover:text-gray-700">&larr; Recordings</a>
                 <h1 class="text-xl font-bold text-gray-900">Autoschedule recordings</h1>
-                <p class="text-sm text-gray-500">Review the next available publishing slots before saving times. You can also create or update the matching X broadcasts after confirming the schedule.</p>
+                <p class="text-sm text-gray-500">All events share one broadcast schedule. Each recording reserves its full runtime plus a five-minute gap. You can also create or update the matching X broadcasts.</p>
               </div>
               <a href="/{{ .Conf.Tag }}/admin/recordings/youtube-slots" class="px-3 py-1.5 text-sm rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Publish slots</a>
             </div>
@@ -42,6 +42,7 @@
 
         <section class="mb-6">
           <form method="GET" action="/{{ .Conf.Tag }}/admin/recordings/autoschedule" class="bg-white shadow rounded-lg px-4 py-4 flex items-center justify-between gap-4">
+            <input type="hidden" id="preview-recording-order" name="recording_order" value="">
             <label class="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" name="reschedule" value="1" {{ if .RescheduleExisting }}checked{{ end }} class="rounded border-gray-300 text-indigo-600">
               Reschedule already scheduled unpublished videos
@@ -53,7 +54,7 @@
         <section class="mb-6">
           <div class="bg-white shadow rounded-lg overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-              <div><h2 class="text-sm font-semibold text-gray-900">Proposed schedule</h2><p class="text-xs text-gray-500 mt-0.5">Drag talks into the desired order. Configured publish slots stay fixed and are reassigned from top to bottom.</p></div>
+              <div><h2 class="text-sm font-semibold text-gray-900">Proposed schedule</h2><p class="text-xs text-gray-500 mt-0.5">Drag talks into the desired order, then refresh the preview to find slots that fit their runtimes.</p><p id="order-changed" class="hidden text-sm text-amber-700 mt-1">Order changed. Refresh the preview before applying the schedule.</p></div>
               <span class="text-xs text-gray-500">{{ len .Items }} eligible</span>
             </div>
             {{ if .Items }}
@@ -79,7 +80,7 @@
                       <span class="ml-auto inline-flex gap-1 sm:hidden"><button type="button" data-move="up" class="rounded border border-gray-200 px-2 py-1 text-xs">↑</button><button type="button" data-move="down" class="rounded border border-gray-200 px-2 py-1 text-xs">↓</button></span>
                     </div>
                   </td>
-                  <td class="autoschedule-publish px-4 py-3 text-sm text-gray-700">{{ .PublishAt.Format "Jan 2, 2006 3:04 PM MST" }}</td>
+                  <td class="autoschedule-publish px-4 py-3 text-sm text-gray-700">{{ .PublishAt.Format "Jan 2, 2006 3:04 PM MST" }}<div class="text-xs text-gray-500">Runtime {{ .DurationLabel }}; reserved through {{ .ReservedUntil.Format "Jan 2, 3:04 PM MST" }}</div></td>
                   <td class="autoschedule-slot px-4 py-3 text-sm text-gray-500">{{ .SlotLabel }}</td>
                   <td class="px-4 py-3 text-sm text-gray-500">{{ if .Row.YTPrivacyStatus }}{{ .Row.YTPrivacyStatus }}{{ else }}unknown{{ end }}</td>
                   <td class="autoschedule-x-status px-4 py-3 text-sm {{ if .XBroadcastEligible }}text-green-700{{ else }}text-gray-500{{ end }}">{{ .XBroadcastLabel }}</td>
@@ -90,6 +91,7 @@
             <form method="POST" action="/{{ .Conf.Tag }}/admin/recordings/autoschedule" class="px-4 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               {{ if .RescheduleExisting }}<input type="hidden" name="reschedule" value="1">{{ end }}
               <input type="hidden" id="recording-order" name="recording_order" value="">
+              <input type="hidden" name="preview_schedule" value="{{ .ScheduleFingerprint }}">
               <label class="flex items-start gap-2 text-sm text-gray-700">
                 <input id="create-x-broadcasts" type="checkbox" name="create_x_broadcasts" value="1" {{ if or (not .XStudioEnabled) (eq .XEligibleCount 0) }}disabled{{ end }} class="mt-0.5 rounded border-gray-300 text-orange-600">
                 <span><strong>Create or update X broadcasts</strong><span class="block text-xs text-gray-500"><span id="x-eligible-count">{{ .XEligibleCount }}</span> ready; requests run sequentially after the schedule is saved.</span></span>
@@ -136,38 +138,21 @@
       var applyButton = document.getElementById('apply-autoschedule');
       var xEligibleCount = document.getElementById('x-eligible-count');
       if (!body || !orderInput) return;
-      var slots = Array.from(body.querySelectorAll('.autoschedule-row')).map(function (row) {
-        return {
-          publish: row.querySelector('.autoschedule-publish').textContent,
-          slot: row.querySelector('.autoschedule-slot').textContent,
-          publishAt: row.dataset.publishAt
-        };
-      });
+      var previewOrder = document.getElementById('preview-recording-order');
+      var changedNotice = document.getElementById('order-changed');
+      var initialOrder = Array.from(body.querySelectorAll('.autoschedule-row')).map(function (row) { return row.dataset.recordingId; }).join(',');
       var dragged = null;
       function sync() {
         var rows = Array.from(body.querySelectorAll('.autoschedule-row'));
         rows.forEach(function (row, index) {
           row.querySelector('.autoschedule-position').textContent = (index + 1) + '. ';
-          row.querySelector('.autoschedule-publish').textContent = slots[index].publish;
-          row.querySelector('.autoschedule-slot').textContent = slots[index].slot;
-          row.dataset.publishAt = slots[index].publishAt;
-          if (row.dataset.xStatus === 'scheduled') {
-            var alreadyScheduled = row.dataset.xScheduledAt === row.dataset.publishAt;
-            var xStatus = row.querySelector('.autoschedule-x-status');
-            row.dataset.xEligible = alreadyScheduled ? 'false' : 'true';
-            xStatus.textContent = alreadyScheduled ? 'Already scheduled' : 'Ready to update time';
-            xStatus.classList.toggle('text-green-700', !alreadyScheduled);
-            xStatus.classList.toggle('text-gray-500', alreadyScheduled);
-          }
         });
         orderInput.value = rows.map(function (row) { return row.dataset.recordingId; }).join(',');
-        if (createX && xEligibleCount) {
-          var ready = rows.filter(function (row) { return row.dataset.xEligible === 'true'; }).length;
-          xEligibleCount.textContent = ready;
-          createX.disabled = ready === 0;
-          if (ready === 0) createX.checked = false;
-          if (!createX.checked && applyButton) applyButton.textContent = {{ if .YouTubeUpdatesEnabled }}'Apply schedule'{{ else }}'Save local schedule'{{ end }};
-        }
+        if (previewOrder) previewOrder.value = orderInput.value;
+        var changed = orderInput.value !== initialOrder;
+        if (applyButton) applyButton.disabled = changed;
+        if (changedNotice) changedNotice.classList.toggle('hidden', !changed);
+        rows.forEach(function (row) { row.querySelector('.autoschedule-publish').classList.toggle('opacity-50', changed); });
       }
       body.addEventListener('dragstart', function (event) {
         dragged = event.target.closest('.autoschedule-row');

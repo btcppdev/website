@@ -70,12 +70,12 @@ type (
 		HMACSecret                  string
 		HMACKey                     [32]byte
 		DatabaseURL                 string
-		BufferAPI                   string
 		Spaces                      SpacesConfig
 		CacheTTLSec                 int
 		YouTube                     YouTubeConfig
 		OAuth                       OAuthConfig
 		Recordings                  RecordingsConfig
+		Publishing                  PublishingConfig
 		TaxFormEncryptionKey        string
 		BadgeStudioURL              string
 		SignerAuthPrivateKey        string
@@ -87,6 +87,11 @@ type (
 		InsiderFulfillmentToken     string
 		InsiderAllowedReturnOrigins string
 		InsiderMerchantName         string
+	}
+
+	PublishingConfig struct {
+		Enabled                                bool
+		XClientID, XClientSecret, XRedirectURL string
 	}
 
 	OAuthConfig struct {
@@ -498,14 +503,15 @@ type (
 	// XLink is the X.com (Twitter) post URL — written back when the
 	// admin posts the recording to X. Empty until then.
 	Recording struct {
-		ID         string
-		ConfTalkID string
-		TalkName   string
-		YTLink     string
-		XLink      string
-		XReplyLink string
-		FileURI    string
-		PublishAt  *time.Time
+		DurationSeconds int64
+		ID              string
+		ConfTalkID      string
+		TalkName        string
+		YTLink          string
+		XLink           string
+		XReplyLink      string
+		FileURI         string
+		PublishAt       *time.Time
 	}
 
 	RecordingBroadcast struct {

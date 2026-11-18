@@ -88,7 +88,24 @@ func UpsertRecordingForConfTalk(ctx *config.AppContext, confTalkID string, up Re
 		add("publish_at", up.PublishAt)
 	}
 	if len(setParts) > 0 {
-		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE recordings SET `+strings.Join(setParts, ", ")+` WHERE id = $1::uuid`, args...); err != nil {
+		query := `UPDATE recordings SET ` + strings.Join(setParts, ", ") + ` WHERE id = $1::uuid`
+		if up.SetPublishAt {
+			dbctx := ctx.DatabaseContext()
+			tx, err := ctx.DB.BeginTx(dbctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+			if err != nil {
+				return nil, fmt.Errorf("begin recording update: %w", err)
+			}
+			defer tx.Rollback(ctx.DatabaseContext())
+			if err := lockAndValidateRecordingSchedule(dbctx, tx, []RecordingScheduleUpdate{{RecordingID: existing.ID, PublishAt: up.PublishAt}}); err != nil {
+				return nil, err
+			}
+			if _, err := tx.Exec(dbctx, query, args...); err != nil {
+				return nil, fmt.Errorf("update recording for talk %s: %w", confTalkID, err)
+			}
+			if err := tx.Commit(dbctx); err != nil {
+				return nil, fmt.Errorf("commit recording update: %w", err)
+			}
+		} else if _, err := ctx.DB.Exec(ctx.DatabaseContext(), query, args...); err != nil {
 			return nil, fmt.Errorf("update recording for talk %s: %w", confTalkID, err)
 		}
 	}
@@ -101,7 +118,7 @@ func ListRecordings(ctx *config.AppContext) ([]*types.Recording, error) {
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
-			x_reply_url, file_uri, publish_at
+			x_reply_url, file_uri, publish_at, duration_seconds
 		FROM recordings
 		ORDER BY publish_at NULLS LAST, talk_name, id
 	`)
@@ -134,7 +151,7 @@ func ListRecordingsForConf(ctx *config.AppContext, confTag string) ([]*types.Rec
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT r.id::text, r.conf_talk_id::text, r.talk_name, r.youtube_url, r.x_url,
-			r.x_reply_url, r.file_uri, r.publish_at
+			r.x_reply_url, r.file_uri, r.publish_at, r.duration_seconds
 		FROM recordings r
 		JOIN conf_talks ct ON ct.id = r.conf_talk_id
 		JOIN conferences c ON c.id = ct.conference_id
@@ -172,7 +189,7 @@ func ListRecordingsForConfTalks(ctx *config.AppContext, confTalkIDs []string) ([
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
-			x_reply_url, file_uri, publish_at
+			x_reply_url, file_uri, publish_at, duration_seconds
 		FROM recordings
 		WHERE conf_talk_id::text = ANY($1::text[])
 	`, confTalkIDs)
@@ -209,7 +226,7 @@ func queryRecordingPostgres(ctx *config.AppContext, label string, whereSQL strin
 	}
 	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
-			x_reply_url, file_uri, publish_at
+			x_reply_url, file_uri, publish_at, duration_seconds
 		FROM recordings
 		`+whereSQL+`
 	`, arg)
@@ -239,6 +256,7 @@ func scanRecording(row recordingScanner) (*types.Recording, error) {
 		&rec.XReplyLink,
 		&rec.FileURI,
 		&publishAt,
+		&rec.DurationSeconds,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan recording: %w", err)
@@ -274,10 +292,7 @@ func UpdateRecordingFileURI(ctx *config.AppContext, recordingID, fileURI string)
 }
 
 func UpdateRecordingPublishAt(ctx *config.AppContext, recordingID string, publishAt *time.Time) error {
-	if err := updateRecordingColumnPostgres(ctx, recordingID, "publish_at", publishAt); err != nil {
-		return err
-	}
-	return nil
+	return SaveRecordingSchedule(ctx, []RecordingScheduleUpdate{{RecordingID: recordingID, PublishAt: publishAt}})
 }
 
 func UpdateRecordingPublishing(ctx *config.AppContext, recordingID string, up RecordingPublishingUpdate) error {

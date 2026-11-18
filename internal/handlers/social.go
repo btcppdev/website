@@ -10,7 +10,6 @@ import (
 	"text/template"
 	"time"
 
-	"btcpp-web/external/buffer"
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
@@ -104,28 +103,6 @@ type selectedSponsor struct {
 	text    string
 	cardURL string
 	level   string
-}
-
-type channelFilter struct {
-	Service string
-	Name    string // if non-empty, channel name must contain this (case-insensitive)
-}
-
-var targetFilters = []channelFilter{
-	{"twitter", "btcplusplus"},
-	{"instagram", ""},
-	{"linkedin", ""},
-}
-
-func isTargetChannel(ch buffer.Channel) bool {
-	for _, f := range targetFilters {
-		if ch.Service == f.Service {
-			if f.Name == "" || strings.Contains(strings.ToLower(ch.Name), strings.ToLower(f.Name)) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -364,7 +341,7 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		FlashMessage:     r.URL.Query().Get("flash"),
 		FlashError:       r.URL.Query().Get("err"),
 		Year:             helpers.CurrentYear(),
-		BufferOK:         buffer.IsConfigured(),
+		PublishingOK:     eventPublishingConfigured(ctx),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -380,11 +357,6 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	conf, err := helpers.FindConf(r, ctx)
 	if err != nil {
 		handle404(w, r, ctx)
-		return
-	}
-
-	if !buffer.IsConfigured() {
-		http.Error(w, "Buffer API not configured", http.StatusBadRequest)
 		return
 	}
 
@@ -430,22 +402,17 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 
 	// Get target channels
-	allChannels, err := buffer.FetchChannels()
+	allChannels, err := eventPublishingChannels(ctx)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/social/post failed to fetch channels: %s", conf.Tag, err.Error())
-		http.Error(w, "Failed to fetch Buffer channels: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to load publishing accounts: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	var targetChannels []buffer.Channel
-	for _, ch := range allChannels {
-		if isTargetChannel(ch) {
-			targetChannels = append(targetChannels, ch)
-		}
-	}
+	targetChannels := allChannels
 
 	if len(targetChannels) == 0 {
-		http.Error(w, "No target channels found in Buffer", http.StatusBadRequest)
+		http.Error(w, "No publishing accounts found", http.StatusBadRequest)
 		return
 	}
 
@@ -466,20 +433,20 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 
 		queued := false
 		for _, ch := range targetChannels {
-			assets := selectedSocialAssets(r, "speaker_"+speakerID, ch.Service, media["speaker_"+speakerID])
-			_, err := createSocialPost(ch, postText, assets, socialTicketReplyFromForm(conf, r, "speaker_"+speakerID))
+			assets := selectedSocialAssets(r, "speaker_"+speakerID, ch.Platform, media["speaker_"+speakerID])
+			_, err := createEventSocialPost(ctx, conf.Tag, helpers.SpeakerSocialPostRef(conf.Tag, talkID, speakerID), ch, postText, assets, socialTicketReplyFromForm(conf, r, "speaker_"+speakerID))
 			if err != nil {
-				ctx.Err.Printf("Failed to post speaker %s to %s: %s", speakerID, ch.Service, err.Error())
-				postingErrors = append(postingErrors, fmt.Sprintf("speaker %s to %s: %s", speakerID, ch.Service, err))
+				ctx.Err.Printf("Failed to post speaker %s to %s: %s", speakerID, ch.Platform, err.Error())
+				postingErrors = append(postingErrors, fmt.Sprintf("speaker %s to %s: %s", speakerID, ch.Platform, err))
 				continue
 			}
 			posted++
 			queued = true
-			ctx.Infos.Printf("Queued speaker post for %s to %s", speakerID, ch.Service)
+			ctx.Infos.Printf("Queued speaker post for %s to %s", speakerID, ch.Platform)
 		}
 		if queued {
 			id := helpers.SpeakerSocialPostRef(conf.Tag, talkID, speakerID)
-			if err := recordQueuedBufferSocialPost(ctx, id, postText); err != nil {
+			if err := recordQueuedSocialPost(ctx, id, postText); err != nil {
 				ctx.Err.Printf("Failed to track queued speaker post %s: %s", speakerID, err)
 				trackingErrors = append(trackingErrors, speakerID)
 			} else {
@@ -498,19 +465,19 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 
 		queued := false
 		for _, ch := range targetChannels {
-			_, err := createSocialPost(ch, postText, selectedSocialAssets(r, "talk_"+talkID, ch.Service, media["talk_"+talkID]), socialTicketReplyFromForm(conf, r, "talk_"+talkID))
+			_, err := createEventSocialPost(ctx, conf.Tag, helpers.TalkSocialPostRef(conf.Tag, talkID), ch, postText, selectedSocialAssets(r, "talk_"+talkID, ch.Platform, media["talk_"+talkID]), socialTicketReplyFromForm(conf, r, "talk_"+talkID))
 			if err != nil {
-				ctx.Err.Printf("Failed to post talk %s to %s: %s", talkID, ch.Service, err.Error())
-				postingErrors = append(postingErrors, fmt.Sprintf("talk %s to %s: %s", talkID, ch.Service, err))
+				ctx.Err.Printf("Failed to post talk %s to %s: %s", talkID, ch.Platform, err.Error())
+				postingErrors = append(postingErrors, fmt.Sprintf("talk %s to %s: %s", talkID, ch.Platform, err))
 				continue
 			}
 			posted++
 			queued = true
-			ctx.Infos.Printf("Queued talk post for %s to %s", talkID, ch.Service)
+			ctx.Infos.Printf("Queued talk post for %s to %s", talkID, ch.Platform)
 		}
 		if queued {
 			postID := helpers.TalkSocialPostRef(conf.Tag, talkID)
-			if err := recordQueuedBufferSocialPost(ctx, postID, postText); err != nil {
+			if err := recordQueuedSocialPost(ctx, postID, postText); err != nil {
 				ctx.Err.Printf("Failed to track queued talk post %s: %s", talkID, err)
 				trackingErrors = append(trackingErrors, talkID)
 			} else {
@@ -537,26 +504,23 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return sponsorSortOrder(selectedSponsors[i].level) < sponsorSortOrder(selectedSponsors[j].level)
 	})
 
-	// Send individual sponsor posts, including video sponsors on Instagram.
+	// Queue each sponsor announcement in the selected direct accounts.
 	for _, sp := range selectedSponsors {
 		queued := false
 		for _, ch := range targetChannels {
-			if ch.Service == "instagram" && !socialSelectionHasVideo(media["sponsor_"+sp.ref]) {
-				continue
-			}
-			_, err := createSocialPost(ch, sp.text, selectedSocialAssets(r, "sponsor_"+sp.ref, ch.Service, media["sponsor_"+sp.ref]), socialTicketReplyFromForm(conf, r, "sponsor_"+sp.ref))
+			_, err := createEventSocialPost(ctx, conf.Tag, helpers.SponsorSocialPostRef(conf.Tag, sp.ref), ch, sp.text, selectedSocialAssets(r, "sponsor_"+sp.ref, ch.Platform, media["sponsor_"+sp.ref]), socialTicketReplyFromForm(conf, r, "sponsor_"+sp.ref))
 			if err != nil {
-				ctx.Err.Printf("Failed to post sponsor %s to %s: %s", sp.ref, ch.Service, err.Error())
-				postingErrors = append(postingErrors, fmt.Sprintf("sponsor %s to %s: %s", sp.ref, ch.Service, err))
+				ctx.Err.Printf("Failed to post sponsor %s to %s: %s", sp.ref, ch.Platform, err.Error())
+				postingErrors = append(postingErrors, fmt.Sprintf("sponsor %s to %s: %s", sp.ref, ch.Platform, err))
 				continue
 			}
 			posted++
 			queued = true
-			ctx.Infos.Printf("Queued sponsor post for %s to %s", sp.ref, ch.Service)
+			ctx.Infos.Printf("Queued sponsor post for %s to %s", sp.ref, ch.Platform)
 		}
 		if queued {
 			postID := helpers.SponsorSocialPostRef(conf.Tag, sp.ref)
-			if err := recordQueuedBufferSocialPost(ctx, postID, sp.text); err != nil {
+			if err := recordQueuedSocialPost(ctx, postID, sp.text); err != nil {
 				ctx.Err.Printf("Failed to track queued sponsor post %s: %s", sp.ref, err)
 				trackingErrors = append(trackingErrors, sp.ref)
 			} else {
@@ -565,66 +529,21 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		}
 	}
 
-	// Video sponsors have their own Instagram posts; batch the remaining images.
-	var batchSponsors []selectedSponsor
-	var batchAssets []buffer.Asset
-	for _, sp := range selectedSponsors {
-		if socialSelectionHasVideo(media["sponsor_"+sp.ref]) {
-			continue
-		}
-		batchSponsors = append(batchSponsors, sp)
-		batchAssets = append(batchAssets, selectedSocialAssets(r, "sponsor_"+sp.ref, "instagram", media["sponsor_"+sp.ref])...)
-	}
-	if len(batchSponsors) > 0 {
-		batchText := r.FormValue("text_sponsor_batch")
-		if batchText != "" && len(batchAssets) > 0 {
-			for _, ch := range targetChannels {
-				if ch.Service != "instagram" {
-					continue
-				}
-				_, err := createSocialPost(ch, batchText, batchAssets, "")
-				if err != nil {
-					ctx.Err.Printf("Failed to post sponsor batch to instagram: %s", err.Error())
-					postingErrors = append(postingErrors, "Instagram sponsor batch: "+err.Error())
-					continue
-				}
-				posted++
-
-				ctx.Infos.Printf("Queued sponsor batch post to instagram with %d images", len(batchAssets))
-				if err := RecordInstagramBatch(ctx, conf, batchSponsors, batchText, ch); err != nil {
-					ctx.Err.Printf("Failed to track Instagram sponsor batch: %s", err)
-					trackingErrors = append(trackingErrors, "Instagram sponsor batch")
-				}
-			}
-		}
-	}
-
 	if len(trackingErrors) > 0 {
-		msg := fmt.Sprintf("%d Buffer post(s) were queued, but %d item(s) could not be recorded locally (%s). Do not submit them again until the tracking issue is resolved.", posted, len(trackingErrors), strings.Join(trackingErrors, ", "))
+		msg := fmt.Sprintf("%d post(s) were queued, but %d item(s) could not be recorded locally (%s). Do not submit them again until the tracking issue is resolved.", posted, len(trackingErrors), strings.Join(trackingErrors, ", "))
 		http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape(msg), http.StatusSeeOther)
 		return
 	}
 	if len(postingErrors) > 0 {
-		msg := fmt.Sprintf("%d posts queued; %d failed (%s). Review the Buffer queue before retrying to avoid duplicates.", posted, len(postingErrors), strings.Join(postingErrors, "; "))
+		msg := fmt.Sprintf("%d posts queued; %d failed (%s). Review the Publishing queue before retrying to avoid duplicates.", posted, len(postingErrors), strings.Join(postingErrors, "; "))
 		http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape(msg), http.StatusSeeOther)
 		return
 	}
-	flash := fmt.Sprintf("%d posts queued to Buffer", posted)
+	flash := fmt.Sprintf("%d posts queued", posted)
 	if tracked > 0 {
 		flash += fmt.Sprintf("; %d selected item(s) recorded", tracked)
 	}
 	http.Redirect(w, r, "/"+conf.Tag+"/admin/social"+"?flash="+strings.ReplaceAll(flash, " ", "+"), http.StatusFound)
-}
-
-func RecordInstagramBatch(ctx *config.AppContext, conf *types.Conf, sponsors []selectedSponsor, text string, channel buffer.Channel) error {
-	var firstErr error
-	for _, sponsor := range sponsors {
-		postID := helpers.SponsorSocialPostRef(conf.Tag, sponsor.ref)
-		if err := recordQueuedBufferSocialPost(ctx, postID, text); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
 }
 
 func eligibleSocialTalks(talks []*types.Talk) []*types.Talk {
@@ -661,13 +580,13 @@ func selectedSocialIDs(form url.Values, field string) []string {
 	return out
 }
 
-func recordQueuedBufferSocialPost(ctx *config.AppContext, ref, text string) error {
+func recordQueuedSocialPost(ctx *config.AppContext, ref, text string) error {
 	status := "queued"
 	now := time.Now()
 	_, err := getters.UpsertSocialPost(ctx, getters.SocialPostUpdate{
 		Ref:      ref,
 		Text:     &text,
-		PostedTo: "buffer",
+		PostedTo: "publishing",
 		Status:   &status,
 		PostedAt: &now,
 	})
@@ -680,13 +599,6 @@ func socialTicketReply(conf *types.Conf) string {
 
 func (p *SocialAdminPage) XTicketReply() string {
 	return socialTicketReply(p.Conf)
-}
-
-func createSocialPost(channel buffer.Channel, text string, assets []buffer.Asset, reply string) (*buffer.PostResult, error) {
-	if channel.Service == "twitter" {
-		return buffer.CreateMediaPost(channel.ID, text, assets, channel.Service, reply)
-	}
-	return buffer.CreateMediaPost(channel.ID, text, assets, channel.Service)
 }
 
 func socialTicketReplyFromForm(conf *types.Conf, r *http.Request, field string) string {

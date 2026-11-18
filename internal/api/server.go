@@ -205,6 +205,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}", s.patchConferenceTalk).Methods(http.MethodPatch)
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}/schedule", s.updateConferenceTalkSchedule).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/recording-candidates", s.recordingCandidates).Methods(http.MethodGet)
+	r.HandleFunc("/publishing/streams", s.putPublishingStreams).Methods(http.MethodPut)
 	r.HandleFunc("/recording-broadcast-plans", s.recordingBroadcastPlans).Methods(http.MethodGet)
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}/recording", s.putTalkRecording).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/speakers", s.conferenceSpeakers).Methods(http.MethodGet)
@@ -1332,7 +1333,22 @@ func (s *server) putTalkRecording(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, http.StatusUnprocessableEntity, "validation_error", "published_at must be an RFC3339 timestamp or an empty string.")
 			return
 		}
+		if parsed.After(time.Now()) {
+			s.writeError(w, r, http.StatusUnprocessableEntity, "validation_error", "Schedule future releases in the Publishing calendar. published_at is historical publication metadata.")
+			return
+		}
 		publishAt = &parsed
+	}
+	if setPublishAt && s.app != nil && s.app.DB != nil {
+		current, err := getters.GetRecordingByConfTalk(s.app, confTalk.ID)
+		if err != nil {
+			s.internalError(w, r, "check recording schedule", err)
+			return
+		}
+		if current != nil && current.PublishAt != nil && current.PublishAt.After(time.Now()) {
+			s.writeError(w, r, http.StatusConflict, "schedule_managed_in_publishing", "Change or clear the future release in the Publishing calendar.")
+			return
+		}
 	}
 	if !validOptionalHTTPURL(input.YouTubeURL) || !validOptionalHTTPURL(input.XURL) || !validOptionalHTTPURL(input.XReplyURL) {
 		s.writeError(w, r, http.StatusUnprocessableEntity, "validation_error", "Published recording links must be absolute http or https URLs, or empty to clear them.")

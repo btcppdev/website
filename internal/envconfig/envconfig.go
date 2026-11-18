@@ -78,7 +78,7 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		StripeEndpointSec:           os.Getenv("STRIPE_END_SECRET"),
 		RegistryPin:                 os.Getenv("REGISTRY_PIN"),
 		LogFile:                     os.Getenv("LOG_FILE"),
-		BufferAPI:                   os.Getenv("BUFFER_KEY"),
+		Publishing:                  types.PublishingConfig{Enabled: envBool("PUBLISHING_ENABLED", false), XClientID: os.Getenv("X_OAUTH_CLIENT_ID"), XClientSecret: os.Getenv("X_OAUTH_CLIENT_SECRET"), XRedirectURL: os.Getenv("X_OAUTH_REDIRECT_URL")},
 		CacheTTLSec:                 envInt("CACHE_TTL_SEC", 0),
 		TaxFormEncryptionKey:        os.Getenv("TAX_FORM_ENCRYPTION_KEY"),
 		BadgeStudioURL:              strings.TrimRight(strings.TrimSpace(os.Getenv("BADGE_STUDIO_URL")), "/"),

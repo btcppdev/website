@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Publishing · bitcoin++</title>
+    {{ block "header" . }}{{ end }}
+    <link
+      rel="stylesheet"
+      href="/static/css/publishing.css?v=20261118-recordings-1"
+    />
+    <script
+      defer
+      src="/static/js/publishing.js?v=20261118-recordings-1"
+    ></script>
+  </head>
+  <body class="btcpp-admin-page publishing-page">
+    {{ template "mainnav" . }}
+    <main id="publishing" data-csrf="{{ .CSRF }}">
+      <header class="pub-heading">
+        <div>
+          <a href="/admin">← Administration</a>
+          <p class="pub-eyebrow">BITCOIN++ / PUBLISHING</p>
+          <h1>Publishing <span>calendar.</span></h1>
+          <p>One calendar for every event, channel, and recording release.</p>
+        </div>
+        <div class="pub-heading-actions">
+          <button id="recording-workflows">Media library</button>
+          <button id="schedule-recordings">Schedule recordings</button>
+          <button id="compose" class="pub-primary">＋ New post</button>
+        </div>
+      </header>
+      <div id="notice" role="status" aria-live="polite"></div>
+      <p id="move-status" role="status" aria-live="polite"></p>
+      <nav class="pub-tabs" aria-label="Publishing views">
+        <button data-view="week" aria-pressed="true">Week</button
+        ><button data-view="month">Month</button
+        ><button data-view="agenda">Agenda</button
+        ><button data-view="queue">Queue</button
+        ><button data-view="channels">Channels & schedules</button>
+      </nav>
+      <section class="pub-toolbar" aria-label="Calendar controls">
+        <div class="pub-period">
+          <button id="prev" aria-label="Previous period">←</button
+          ><button id="today">Today</button
+          ><button id="next" aria-label="Next period">→</button>
+          <div class="pub-period-label">
+            <strong id="range" aria-live="polite"></strong
+            ><span id="calendar-zone"></span>
+          </div>
+        </div>
+        <details class="pub-filters" id="filters" open>
+          <summary>Filters <span id="filter-count">All posts</span></summary>
+          <div class="pub-filter-fields">
+            <label
+              >Event
+              <select id="event">
+                <option value="">All events</option>
+              </select></label
+            ><label
+              >Channel
+              <select id="channel">
+                <option value="">All channels</option>
+              </select></label
+            ><label
+              >Type
+              <select id="kind">
+                <option value="">All types</option>
+                <option value="post">Social posts</option>
+                <option value="recording">Recordings</option>
+                <option value="stream">Broadcasts</option>
+              </select></label
+            ><label
+              >Status
+              <select id="status">
+                <option value="">All statuses</option>
+                <option>draft</option>
+                <option>scheduled</option>
+                <option>pending</option>
+                <option>syncing</option>
+                <option>live</option>
+                <option>ended</option>
+                <option>failed</option>
+                <option>needs_review</option>
+                <option>published</option>
+                <option>sending</option>
+              </select></label
+            ><label
+              >Timezone
+              <input
+                id="timezone"
+                value="America/Chicago"
+                list="timezones"
+                size="19" /></label
+            ><datalist id="timezones">
+              <option>America/Chicago</option>
+              <option>UTC</option>
+              <option>Europe/Berlin</option>
+              <option>Asia/Seoul</option>
+            </datalist>
+          </div>
+        </details>
+      </section>
+      <section
+        id="calendar"
+        aria-label="Publishing calendar"
+        aria-busy="true"
+      ></section>
+      <footer class="pub-foot">
+        <span id="freshness"></span
+        ><button id="refresh-calendar">Refresh calendar</button>
+      </footer>
+      <dialog id="editor" aria-labelledby="editor-title">
+        <form id="post-form">
+          <div class="pub-dialog-head">
+            <h2 id="editor-title">New post</h2>
+            <button type="button" id="close-editor" aria-label="Close editor">
+              ×
+            </button>
+          </div>
+          <p id="editor-error" role="alert"></p>
+          <input type="hidden" name="id" /><input
+            type="hidden"
+            name="client_key"
+          /><input type="hidden" name="version" value="0" />
+          <input type="hidden" name="channel_id" />
+          <fieldset id="composer-accounts">
+            <legend>Publish to</legend>
+            <div id="account-options"></div>
+          </fieldset>
+          <p id="account-help" class="pub-legend">
+            Each selected account gets its own item and schedule. You can move
+            or edit each copy independently.
+          </p>
+          <label
+            >Event
+            <input
+              name="conference"
+              list="events"
+              placeholder="Optional event tag, e.g. berlin26" /></label
+          ><datalist id="events"></datalist
+          ><label
+            >Internal title
+            <input
+              name="title"
+              maxlength="240"
+              placeholder="Optional label for the calendar" /></label
+          ><label
+            >Post
+            <textarea
+              name="body"
+              rows="6"
+              required
+              maxlength="10000"
+              placeholder="What would you like to share?"
+            ></textarea></label
+          ><label
+            >Follow-up reply
+            <textarea
+              name="reply"
+              rows="2"
+              maxlength="10000"
+              placeholder="Optional ticket link or second post"
+            ></textarea></label
+          ><label
+            >Images · up to 4, 5 MB each
+            <input
+              id="media-input"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+          /></label>
+          <div id="media-preview"></div>
+          <label
+            >Schedule
+            <select name="mode">
+              <option value="draft">Save as draft</option>
+              <option value="queue">Next default slot</option>
+              <option value="fixed">Specific time</option>
+            </select></label
+          ><label id="fixed-time" hidden
+            >Date & time <input name="at" type="datetime-local" /><span
+              id="input-timezone"
+            ></span
+          ></label>
+          <div class="pub-dialog-actions">
+            <button type="submit" class="pub-primary">Save post</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="move-post" aria-labelledby="move-title">
+        <form id="move-form">
+          <div class="pub-dialog-head">
+            <h2 id="move-title">Move to a publication slot</h2>
+            <button type="button" id="close-move" aria-label="Close move">
+              ×
+            </button>
+          </div>
+          <p id="move-description"></p>
+          <p id="move-error" role="alert"></p>
+          <label
+            >Available publication slots<select id="move-slot" required></select
+          ></label>
+          <p id="move-zone" class="pub-legend"></p>
+          <p class="pub-legend">
+            Only this destination will move. Other release, broadcast, and post
+            times stay unchanged.
+          </p>
+          <div class="pub-dialog-actions">
+            <button type="submit" class="pub-primary">Move item</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="recording-picker" aria-label="Recording media library">
+        <div class="pub-dialog-head">
+          <h2>Recording media library</h2>
+          <button id="close-recordings" aria-label="Close recordings">×</button>
+        </div>
+        <p>
+          Choose an event to upload recordings or edit their media. Schedule
+          releases and broadcasts in the shared calendar.
+        </p>
+        <label
+          >Event
+          <select id="recording-event"></select
+        ></label>
+        <p><a id="open-recordings">Open recordings</a></p>
+      </dialog>
+      <dialog
+        id="recording-scheduler"
+        aria-labelledby="recording-scheduler-title"
+      >
+        <form id="recording-schedule-form">
+          <div class="pub-dialog-head">
+            <h2 id="recording-scheduler-title">Schedule recordings</h2>
+            <button
+              type="button"
+              id="close-recording-scheduler"
+              aria-label="Close recording scheduler"
+            >
+              ×
+            </button>
+          </div>
+          <p>
+            Choose releases or broadcasts, review their next available channel
+            slots, then apply. Each destination keeps its own schedule.
+          </p>
+          <p id="recording-schedule-error" role="alert"></p>
+          <div class="pub-recording-filters">
+            <label
+              >Event<select id="schedule-event">
+                <option value="">All events</option>
+              </select></label
+            >
+            <label
+              >Destination<select id="schedule-destination">
+                <option value="">YouTube and broadcasts</option>
+                <option value="youtube">YouTube releases</option>
+                <option value="broadcasts">Broadcasts</option>
+              </select></label
+            >
+          </div>
+          <label class="pub-recording-check"
+            ><input type="checkbox" id="include-scheduled" /><span
+              >Include already scheduled recordings</span
+            ></label
+          >
+          <div class="pub-recording-selection">
+            <button type="button" id="select-recordings">
+              Select available</button
+            ><button type="button" id="clear-recordings">Clear selection</button
+            ><button type="button" id="refresh-recording-status">Refresh recording status</button>
+            <span id="recording-selection-count" aria-live="polite"></span>
+          </div>
+          <div id="recording-options"></div>
+          <div id="recording-schedule-preview" aria-live="polite"></div>
+          <div class="pub-dialog-actions">
+            <button type="button" id="preview-recording-schedule">
+              Preview schedule</button
+            ><button
+              type="submit"
+              id="apply-recording-schedule"
+              class="pub-primary"
+              disabled
+            >
+              Apply schedule
+            </button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="calendar-day" aria-labelledby="calendar-day-title">
+        <div class="pub-dialog-head">
+          <h2 id="calendar-day-title"></h2>
+          <button id="close-day" aria-label="Close day">×</button>
+        </div>
+        <p id="calendar-day-zone" class="pub-legend"></p>
+        <div id="calendar-day-entries"></div>
+      </dialog>
+      <dialog id="detail" aria-label="Post details">
+        <div class="pub-dialog-head">
+          <h2>Post details</h2>
+          <button id="close-detail" aria-label="Close details">×</button>
+        </div>
+        <div id="detail-body"></div>
+      </dialog>
+    </main>
+    {{ block "footer" . }}{{ end }}
+  </body>
+</html>

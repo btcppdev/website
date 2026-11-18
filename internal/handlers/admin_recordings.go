@@ -41,7 +41,7 @@ const maxRecordingUploadBytes int64 = 25 << 30 // 25 GiB
 const (
 	recordingPlatformYouTube = "youtube"
 	recordingPlatformX       = "twitter"
-	recordingPlatformBufferX = "buffer-twitter"
+	recordingPlatformLegacyX = "buffer-twitter"
 )
 
 // ---- page data ---------------------------------------------------------
@@ -52,7 +52,7 @@ type RecordingRow struct {
 	Speakers          []*types.Speaker
 	YTSocialPost      *types.SocialPost
 	XSocialPost       *types.SocialPost
-	BufferXSocialPost *types.SocialPost
+	LegacyXSocialPost *types.SocialPost
 	YTURL             string
 	XURL              string
 	XReplyURL         string
@@ -408,7 +408,7 @@ func recordingSocialPostsByRef(ctx *config.AppContext, recs []*types.Recording) 
 		}
 		refs[recordingSocialPostRef(rec, recordingPlatformYouTube)] = true
 		refs[recordingSocialPostRef(rec, recordingPlatformX)] = true
-		refs[recordingSocialPostRef(rec, recordingPlatformBufferX)] = true
+		refs[recordingSocialPostRef(rec, recordingPlatformLegacyX)] = true
 	}
 	if len(refs) == 0 {
 		return nil
@@ -435,26 +435,50 @@ func enrichRowsWithYouTubeStatus(ctx *config.AppContext, rows []*RecordingRow) {
 	if !youtubepkg.IsConfigured() || !youtubepkg.IsConnected() {
 		return
 	}
+	var ids []string
+	seen := map[string]bool{}
+	for _, row := range rows {
+		if row == nil || row.Recording == nil {
+			continue
+		}
+		id := youtubeVideoID(row.Recording.YTLink)
+		if id != "" && !seen[id] {
+			ids = append(ids, id)
+			seen[id] = true
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	statusCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	statuses, err := youtubepkg.GetVideoStatuses(statusCtx, ids)
 	for _, row := range rows {
 		if row == nil || row.Recording == nil || strings.TrimSpace(row.Recording.YTLink) == "" {
 			continue
 		}
-		videoID := youtubeVideoID(row.Recording.YTLink)
-		if videoID == "" {
-			row.YTStatusError = "could not parse video ID"
-			continue
-		}
-		statusCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		status, err := youtubepkg.GetVideoStatus(statusCtx, videoID)
-		cancel()
 		if err != nil {
 			row.YTStatusError = err.Error()
-			ctx.Err.Printf("recording youtube status recording=%s video=%s: %s", row.Recording.ID, videoID, err)
 			continue
+		}
+		status := statuses[youtubeVideoID(row.Recording.YTLink)]
+		if status == nil {
+			row.YTStatusError = "YouTube video not found"
+			continue
+		}
+		if err := getters.CacheRecordingYouTubeStatus(ctx, row.Recording.ID, row.Recording.YTLink, status.PrivacyStatus); err != nil {
+			row.YTStatusError = "couldn't save visibility: " + err.Error()
 		}
 		row.YTPrivacyStatus = status.PrivacyStatus
 		row.YTUploadStatus = status.UploadStatus
 		row.YTPublishAt = status.PublishAt
+		if row.Recording.DurationSeconds == 0 && status.DurationSeconds > 0 {
+			if err := getters.CacheRecordingYouTubeDuration(ctx, row.Recording.ID, row.Recording.YTLink, row.Recording.FileURI, status.DurationSeconds); err != nil {
+				row.YTStatusError = "couldn't save runtime: " + err.Error()
+			} else {
+				row.Recording.DurationSeconds = status.DurationSeconds
+			}
+		}
 	}
 }
 
@@ -496,9 +520,7 @@ func RecordingsAdminDetail(w http.ResponseWriter, r *http.Request, ctx *config.A
 		XStudioEnabled:        ctx.Env.Recordings.X.Enabled,
 		Year:                  uint(time.Now().Year()),
 	}
-	if xBroadcast != nil && rec.PublishAt != nil {
-		page.XBroadcastNeedsUpdate = !xBroadcast.ScheduledAt.Equal(*rec.PublishAt)
-	}
+
 	if job := getJob(rec.ID); job != nil {
 		page.JobActive = job.Status == "running"
 		page.JobStatus = job.Status
@@ -963,61 +985,7 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 	if !ok {
 		return
 	}
-	recordingID := rec.ID
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse form: "+err.Error())
-		return
-	}
-
-	var publishAt *time.Time
-	if r.FormValue("action") != "clear" {
-		raw := strings.TrimSpace(r.FormValue("publish_at"))
-		if raw == "" {
-			redirectWithErr(w, r, conf.Tag, recordingID, "Choose a publish time or clear the schedule")
-			return
-		}
-		when, err := parseRecordingPublishAt(raw, conf)
-		if err != nil {
-			redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse publish time: "+err.Error())
-			return
-		}
-		if strings.TrimSpace(rec.YTLink) != "" && !when.After(time.Now()) {
-			redirectWithErr(w, r, conf.Tag, recordingID, "YouTube scheduled publish time must be in the future")
-			return
-		}
-		publishAt = &when
-	}
-
-	if err := getters.UpdateRecordingPublishAt(ctx, recordingID, publishAt); err != nil {
-		ctx.Err.Printf("schedule recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update PublishAt: "+err.Error())
-		return
-	}
-	ytScheduleResult, err := updateRecordingYouTubeSchedule(ctx, rec, publishAt)
-	if err != nil {
-		ctx.Err.Printf("recording youtube schedule recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "saved PublishAt, but couldn't update YouTube schedule: "+err.Error())
-		return
-	}
-	flash := "Schedule cleared"
-	if publishAt != nil {
-		flash = "Schedule saved"
-		if ytScheduleResult == "updated" {
-			flash = "Schedule saved and YouTube updated"
-		} else if ytScheduleResult == "public" {
-			flash = "Schedule saved. YouTube is already public, so it was not changed."
-		} else if ytScheduleResult == "disabled" {
-			flash = "Schedule saved locally. YouTube updates are disabled, so the video was not changed."
-		}
-	} else if ytScheduleResult == "updated" {
-		flash = "Schedule cleared and YouTube set to unlisted"
-	} else if ytScheduleResult == "public" {
-		flash = "Schedule cleared. YouTube is already public, so it was not changed."
-	} else if ytScheduleResult == "disabled" {
-		flash = "Schedule cleared locally. YouTube updates are disabled, so the video was not changed."
-	}
-	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash="+url.QueryEscape(flash), http.StatusSeeOther)
+	redirectRecordingPublishing(w, r, conf.Tag, rec.ID, "youtube")
 }
 
 func updateRecordingYouTubeSchedule(ctx *config.AppContext, rec *types.Recording, publishAt *time.Time) (string, error) {
@@ -1544,7 +1512,7 @@ func attachRecordingSocialPosts(ctx *config.AppContext, row *RecordingRow) {
 	}
 	row.YTSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformYouTube)
 	row.XSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformX)
-	row.BufferXSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformBufferX)
+	row.LegacyXSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformLegacyX)
 	applyRecordingSocialPosts(row)
 }
 
@@ -1554,7 +1522,7 @@ func attachRecordingSocialPostsFromMap(row *RecordingRow, socialPostsByRef map[s
 	}
 	row.YTSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformYouTube)]
 	row.XSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformX)]
-	row.BufferXSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformBufferX)]
+	row.LegacyXSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformLegacyX)]
 	applyRecordingSocialPosts(row)
 }
 
