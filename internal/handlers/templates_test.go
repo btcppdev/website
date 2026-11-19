@@ -1116,7 +1116,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err := ctx.TemplateCache.ExecuteTemplate(&organizationDashboard, "dashboard_org.tmpl", organizationDashboardPage); err != nil {
 		t.Fatalf("render organization dashboard: %v", err)
 	}
-	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", `aria-label="Signet Systems workspace"`, `href="/dashboard/orgs/signet-systems" class="is-active" aria-current="page">/organization`, `href="/dashboard/orgs/signet-systems/badges">/badges`, "How Signet Systems appears.", `href="/organizations/signet-systems"`, "Your organization team.", "Mara", "Eli", "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/signet-systems/profile"`, `action="/dashboard/orgs/signet-systems/invites"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/replace"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/revoke"`, `action="/dashboard/orgs/signet-systems/members/member-id/role"`, `action="/dashboard/orgs/signet-systems/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/signet-systems/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/signet-systems/membership-requests/request-id"`, `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
+	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", `aria-label="Signet Systems workspace"`, `href="/dashboard/orgs/signet-systems" class="is-active" aria-current="page">/organization`, `href="/dashboard/orgs/signet-systems/badges">/badges`, `href="/dashboard/orgs/signet-systems/shop">/shop`, "How Signet Systems appears.", `href="/organizations/signet-systems"`, "Your organization team.", "Mara", "Eli", "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/signet-systems/profile"`, `action="/dashboard/orgs/signet-systems/invites"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/replace"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/revoke"`, `action="/dashboard/orgs/signet-systems/members/member-id/role"`, `action="/dashboard/orgs/signet-systems/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/signet-systems/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/signet-systems/membership-requests/request-id"`, `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
 		if !strings.Contains(organizationDashboard.String(), want) {
 			t.Fatalf("organization dashboard omitted %q: %s", want, organizationDashboard.String())
 		}
@@ -1127,11 +1127,39 @@ func TestLoadTemplates(t *testing.T) {
 		}
 	}
 
+	shopWorkspace := *organizationDashboardPage
+	shopWorkspace.Memberships = []*types.OrganizationMembership{
+		{OrganizationID: "org-id", Organization: shopWorkspace.Organization, Role: getters.OrganizationRoleOwner},
+		{OrganizationID: "managed-id", Organization: &types.Org{Ref: "managed-id", Slug: "managed-org", Name: "Managed org"}, Role: getters.OrganizationRoleManager},
+		{OrganizationID: "member-only-id", Organization: &types.Org{Ref: "member-only-id", Slug: "member-org", Name: "Member org"}, Role: getters.OrganizationRoleMember},
+	}
+	var organizationShop bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&organizationShop, "shop/organization.tmpl", &organizationShopPage{
+		OrganizationDashboardPage: &shopWorkspace, Org: shopWorkspace.Organization,
+		Base: "/dashboard/orgs/signet-systems/shop", Tab: "profile", Profile: &types.OrganizationShopProfile{},
+	}); err != nil {
+		t.Fatalf("render organization shop workspace: %v", err)
+	}
+	for _, want := range []string{
+		`aria-label="Dashboard sections"`, `aria-label="Signet Systems workspace"`,
+		`href="/dashboard/orgs/signet-systems/shop" class="is-active" aria-current="page">/shop`,
+		`href="/dashboard/orgs/signet-systems/badges">/badges`,
+		`href="/dashboard/orgs/managed-org/shop"`, `href="/dashboard/orgs/member-org"`,
+		`aria-label="Shop management"`, `action="/dashboard/orgs/signet-systems/shop"`, `value="org-csrf"`,
+	} {
+		if !strings.Contains(organizationShop.String(), want) {
+			t.Fatalf("organization shop workspace omitted %q", want)
+		}
+	}
+	if strings.Contains(organizationShop.String(), `href="/dashboard/orgs/member-org/shop"`) {
+		t.Fatal("shop switcher sends an ordinary member to an inaccessible shop")
+	}
+
 	var organizationBadgeDashboard bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&organizationBadgeDashboard, "dashboard_org_badges.tmpl", organizationDashboardPage); err != nil {
 		t.Fatalf("render organization badge dashboard: %v", err)
 	}
-	for _, want := range []string{`href="/dashboard/orgs/signet-systems">/organization`, `href="/dashboard/orgs/signet-systems/badges" class="is-active" aria-current="page">/badges`, `aria-label="Badge sections"`, "Badge catalog", "Mentor", `class="organization-badge-button is-secondary" href="https://badges.example/organizations/issuer"`, `class="organization-badge-button is-primary" href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id"`, "Open Badge Studio ↗", "Issue &amp; manage", `class="organization-badge-button is-primary is-compact"`, "Issue in Studio ↗", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id%26grant%3Dgrant-id"`, `class="organization-badge-button is-danger is-compact"`, "Cancel grant", `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/badge-grants"`, `action="/dashboard/orgs/signet-systems/badge-grants/grant-id/cancel"`} {
+	for _, want := range []string{`href="/dashboard/orgs/signet-systems">/organization`, `href="/dashboard/orgs/signet-systems/badges" class="is-active" aria-current="page">/badges`, `href="/dashboard/orgs/signet-systems/shop">/shop`, `aria-label="Badge sections"`, "Badge catalog", "Mentor", `class="organization-badge-button is-secondary" href="https://badges.example/organizations/issuer"`, `class="organization-badge-button is-primary" href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id"`, "Open Badge Studio ↗", "Issue &amp; manage", `class="organization-badge-button is-primary is-compact"`, "Issue in Studio ↗", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id%26grant%3Dgrant-id"`, `class="organization-badge-button is-danger is-compact"`, "Cancel grant", `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/badge-grants"`, `action="/dashboard/orgs/signet-systems/badge-grants/grant-id/cancel"`} {
 		if !strings.Contains(organizationBadgeDashboard.String(), want) {
 			t.Fatalf("organization badge dashboard omitted %q: %s", want, organizationBadgeDashboard.String())
 		}
@@ -1152,6 +1180,10 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if strings.Contains(memberOrganizationDashboard.String(), `href="#profile"`) || strings.Contains(memberOrganizationDashboard.String(), "How Signet Systems appears.") {
 		t.Fatalf("ordinary organization member sees organization profile management section: %s", memberOrganizationDashboard.String())
+	}
+
+	if strings.Contains(memberOrganizationDashboard.String(), `href="/dashboard/orgs/org-id/shop"`) {
+		t.Fatal("ordinary organization member sees shop management tab")
 	}
 
 	var organizationApplication bytes.Buffer

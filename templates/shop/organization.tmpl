@@ -1,8 +1,31 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>{{ .Org.Name }} shop · bitcoin++</title><link rel="stylesheet" href="/static/css/event-wizard.css"><link rel="stylesheet" href="/static/css/brand-typography.css"><link rel="stylesheet" href="/static/css/organization-shop.css"><script src="/static/js/organization-shop.js?v=20261118-1" defer></script></head>
-<body class="event-wizard"><header class="ew-header"><a class="ew-brand" href="/">bitcoin++</a><a href="/dashboard/orgs/{{ .Org.Ref }}">{{ .Org.Name }}</a><span>Developing the <i class="brand-frontier">frontier</i> of bitcoin.</span></header>
-<main class="org-shop"><p class="ew-kicker">ORGANIZATION SHOP</p><h1>{{ .Org.Name }} merch.</h1><p class="ew-description">Your products, stock and fulfillment. Sold by bitcoin++ and shipped by your team.</p>
-<nav class="org-shop-nav" aria-label="Shop management"><a href="{{ .Base }}?tab=profile" {{ if eq .Tab "profile" }}aria-current="page"{{ end }}>Shop profile</a><a href="{{ .Base }}?tab=catalog" {{ if or (eq .Tab "catalog") (eq .Tab "product") }}aria-current="page"{{ end }}>Products &amp; stock</a><a href="{{ .Base }}?tab=orders" {{ if eq .Tab "orders" }}aria-current="page"{{ end }}>Purchases &amp; shipping</a><a href="{{ .Base }}?tab=discounts" {{ if eq .Tab "discounts" }}aria-current="page"{{ end }}>Discount codes</a></nav>
+<html lang="en">
+<head>
+  <title>Shop · {{ .Organization.Name }} - bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/static/css/event-wizard.css">
+  <link rel="stylesheet" href="/static/css/organization-shop.css?v=20261118-workspace">
+  <script src="/static/js/organization-shop.js?v=20261118-1" defer></script>
+</head>
+<body class="btcpp-dashboard-page organization-dashboard-page organization-shop-page">
+  {{ block "mainnav" . }}{{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "orgs" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      {{ template "organization_workspace_header" (dict "Page" . "Active" "shop") }}
+      <section class="org-shop" aria-label="Organization shop">
+        <div class="org-shop-intro">
+          <div class="dashboard-kicker">§ Merchandise</div>
+          <h2>Your merch.</h2>
+          <p>Your products, stock and fulfillment. Sold by bitcoin++ and shipped by your team.</p>
+        </div>
+        <nav class="org-shop-nav" aria-label="Shop management">
+          <a href="{{ .Base }}?tab=profile" {{ if eq .Tab "profile" }}aria-current="page"{{ end }}>Shop profile</a>
+          <a href="{{ .Base }}?tab=catalog" {{ if or (eq .Tab "catalog") (eq .Tab "product") }}aria-current="page"{{ end }}>Products &amp; stock</a>
+          <a href="{{ .Base }}?tab=orders" {{ if eq .Tab "orders" }}aria-current="page"{{ end }}>Purchases &amp; shipping</a>
+          <a href="{{ .Base }}?tab=discounts" {{ if eq .Tab "discounts" }}aria-current="page"{{ end }}>Discount codes</a>
+        </nav>
 {{ if .Flash }}<p role="status" class="ew-success">Changes saved.</p>{{ end }}
 {{ if eq .Tab "profile" }}
 <form method="post" action="{{ .Base }}" data-shop-form><input type="hidden" name="action" value="profile"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="revision" value="{{ .Profile.Revision }}">
@@ -44,7 +67,13 @@
 <h2>Purchases &amp; shipping</h2><p class="ew-note">The most recent 100 paid orders containing your items.</p>{{ range .Orders }}<section class="ew-section"><div class="ew-section-head"><h2>{{ .BuyerName }}</h2><span class="ew-pill">{{ .Status }}</span></div><p>{{ .BuyerEmail }} · {{ .CreatedAt.Format "Jan 2, 2006" }} · {{ .PublicID }}</p><ul>{{ range .Items }}<li>{{ .Quantity }} × {{ .ProductNameSnapshot }} · {{ .VariantLabelSnapshot }} · {{ .FulfillmentMethod }} · {{ merchMoney .LineTotalCents nil }} · {{ .FulfilledQuantity }} fulfilled{{ if .RefundedQuantity }} · {{ .RefundedQuantity }} refunded{{ end }}</li>{{ end }}</ul>{{ with .Address }}<p><strong>Ship to:</strong> {{ .Name }}<br>{{ .Line1 }} {{ .Line2 }}<br>{{ .City }}, {{ .Region }} {{ .PostalCode }} {{ .Country }}<br>{{ .Phone }}</p>{{ end }}{{if .ShippingService}}<p><strong>Shipping selected:</strong> {{.ShippingService}} · {{merchMoney .ShippingCents nil}}</p>{{end}}{{ with .ShipFrom }}<p class="ew-note"><strong>Ship from:</strong> {{ .CompanyName }} · {{ .Line1 }}, {{ .City }}, {{ .CountryAlpha2 }}</p>{{ end }}{{ range .Tracking }}<p>Tracking: {{ . }}</p>{{ end }}{{ if .CanShip }}<form method="post" action="{{ $.Base }}" data-shop-form><input type="hidden" name="action" value="ship"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="order_id" value="{{ .ID }}"><div class="ew-grid"><label class="ew-field"><span>Carrier</span><input name="courier" required></label><label class="ew-field"><span>Tracking number</span><input name="tracking_number" required></label><label class="ew-field ew-wide"><span>Tracking URL (optional)</span><input type="url" name="tracking_url" placeholder="https://"></label></div><div class="org-shop-actions"><button class="ew-primary">Mark these items shipped</button><p data-form-message role="status"></p></div></form>{{ end }}</section>{{ else }}<p class="ew-empty">Paid purchases will appear here when customers order your items.</p>{{ end }}
 {{if .EventSales}}<h2>Event purchases</h2>{{range .EventSales}}<section class="ew-section"><h3>{{.Event}}</h3><p>{{.CreatedAt.Format "Jan 2, 2006"}} · {{.Quantity}} × {{.Product}} / {{.Variant}} · {{.TotalSats}} sats{{if .HandedOver}} · Handed over{{else}} · Paid, awaiting pickup{{end}}</p></section>{{end}}{{end}}
 {{ else if eq .Tab "discounts" }}<h2>Discounts for your items.</h2><p>Codes apply only to products fulfilled by {{ .Org.Name }}. Shipping and tax are calculated separately. Dates are UTC.</p>{{ range .Discounts }}<details class="org-shop-detail"><summary>{{ .Code }} · {{ .PercentOff }}% off · {{ .Uses }} uses · {{ if .Active }}Active{{ else }}Disabled{{ end }}</summary>{{ template "organization_shop_discount" (dict "Page" $ "Discount" .) }}</details>{{ end }}<section class="ew-section"><h2>New discount code</h2>{{ template "organization_shop_discount" (dict "Page" .) }}</section>{{ end }}
-<noscript><p>Enable JavaScript to save shop changes.</p></noscript></main></body></html>
+<noscript><p>Enable JavaScript to save shop changes.</p></noscript>
+      </section>
+    </main>
+  </div>
+  {{ block "footer" . }}{{ end }}
+</body>
+</html>
 {{ define "organization_shop_variant" }}{{ $p := .Page }}{{ $v := .Variant }}
 <form method="post" action="{{ $p.Base }}" data-shop-form><input type="hidden" name="action" value="variant"><input type="hidden" name="csrf" value="{{ $p.CSRF }}"><input type="hidden" name="product_id" value="{{ $p.Product.ID }}"><input type="hidden" name="variant_id" value="{{ with $v }}{{ .ID }}{{ end }}"><input type="hidden" name="operation" value="{{ $p.Operation }}"><div class="ew-grid"><label class="ew-field"><span>SKU</span><input name="sku" value="{{ with $v }}{{ .SKU }}{{ end }}" required></label><label class="ew-field"><span>Variant name</span><input name="variant_label" placeholder="Medium / Black" value="{{ with $v }}{{ .Label }}{{ end }}" required></label><label class="ew-field"><span>Price adjustment (USD)</span><input name="price_adjustment" type="number" step="0.01" value="{{ if $v }}{{ merchDecimal $v.PriceDeltaCents }}{{ else }}0.00{{ end }}"></label><label class="ew-field"><span>Stock adjustment (+ to add, − to remove)</span><input name="stock_delta" type="number" value="0" required><small>New variants start at zero. Reserved and event-allocated stock is already excluded.</small></label><label class="ew-field"><span>Packed weight (g)</span><input name="weight_grams" type="number" min="0" value="{{ if $v }}{{ $v.WeightGrams }}{{ else }}0{{ end }}"></label><label class="ew-field"><span>Packed length (inches)</span><input name="length_inches" type="number" min="0" step="0.01" value="{{ if $v }}{{ merchInches $v.LengthMM }}{{ else }}0{{ end }}"></label><label class="ew-field"><span>Packed width (inches)</span><input name="width_inches" type="number" min="0" step="0.01" value="{{ if $v }}{{ merchInches $v.WidthMM }}{{ else }}0{{ end }}"></label><label class="ew-field"><span>Packed height (inches)</span><input name="height_inches" type="number" min="0" step="0.01" value="{{ if $v }}{{ merchInches $v.HeightMM }}{{ else }}0{{ end }}"></label><label class="ew-field"><span>Variant status</span><select name="variant_status"><option value="active">Active</option><option value="archived" {{ if and $v (eq $v.Status "archived") }}selected{{ end }}>Archived</option></select></label></div><div class="org-shop-actions"><button class="ew-secondary">Save variant &amp; stock</button><p data-form-message role="status"></p></div></form>{{ end }}
 {{ define "organization_shop_discount" }}{{ $p := .Page }}{{ $d := .Discount }}

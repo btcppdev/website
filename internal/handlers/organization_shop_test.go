@@ -60,6 +60,9 @@ func TestOrganizationShopAccess(t *testing.T) {
 			t.Fatalf("render %s %d %s", tab, w.Code, w.Body.String())
 		}
 	}
+	if w := request(base, nil); !strings.Contains(w.Body.String(), `aria-label="Dashboard sections"`) || !strings.Contains(w.Body.String(), `aria-current="page">/shop`) {
+		t.Fatal("shop is missing the shared workspace navigation", w.Body.String())
+	}
 	if w := request("/dashboard/orgs/"+other+"/shop", nil); w.Code != 403 {
 		t.Fatal("foreign org readable", w.Code)
 	}
@@ -84,5 +87,11 @@ func TestOrganizationShopAccess(t *testing.T) {
 	}
 	if w := request(base, form); w.Code != 403 {
 		t.Fatal("removed manager write", w.Code)
+	}
+	if _, e = app.DB.Exec(c, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); e != nil {
+		t.Fatal(e)
+	}
+	if w := request("/dashboard/orgs/"+other+"/shop", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "Organization workspace · admin") {
+		t.Fatal("global admin without membership cannot view shop workspace", w.Code, w.Body.String())
 	}
 }

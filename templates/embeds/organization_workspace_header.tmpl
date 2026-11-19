@@ -20,7 +20,7 @@
   {{ if gt (len $page.Memberships) 1 }}
   <nav class="sponsor-dashboard-org-switcher" aria-label="Your organizations">
     {{ range $page.Memberships }}
-    <a href="/dashboard/orgs/{{ orgMembershipPathRef . }}{{ if eq $active "badges" }}/badges{{ end }}"{{ if eq .OrganizationID $page.Organization.Ref }} class="is-active" aria-current="page"{{ end }}>{{ .Organization.Name }}</a>
+    <a href="/dashboard/orgs/{{ orgMembershipPathRef . }}{{ if eq $active "badges" }}/badges{{ else if and (eq $active "shop") (or $page.IsGlobalAdmin (eq .Role "owner") (eq .Role "manager")) }}/shop{{ end }}"{{ if eq .OrganizationID $page.Organization.Ref }} class="is-active" aria-current="page"{{ end }}>{{ .Organization.Name }}</a>
     {{ end }}
   </nav>
   {{ end }}
@@ -28,5 +28,6 @@
 <nav class="organization-workspace-tabs" aria-label="{{ $page.Organization.Name }} workspace">
   <a href="/dashboard/orgs/{{ orgPathRef $page.Organization }}"{{ if eq .Active "organization" }} class="is-active" aria-current="page"{{ end }}>/organization</a>
   <a href="/dashboard/orgs/{{ orgPathRef $page.Organization }}/badges"{{ if eq .Active "badges" }} class="is-active" aria-current="page"{{ end }}>/badges</a>
+  {{ if or $page.CanManage $page.IsGlobalAdmin }}<a href="/dashboard/orgs/{{ orgPathRef $page.Organization }}/shop"{{ if eq .Active "shop" }} class="is-active" aria-current="page"{{ end }}>/shop</a>{{ end }}
 </nav>
 {{ end }}

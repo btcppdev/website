@@ -162,6 +162,9 @@ func TestEventWizardPreview(t *testing.T) {
 		t.Skip("local preview only")
 	}
 	app := wizardTestApp(t)
+	if port := os.Getenv("BTCPP_EVENT_WIZARD_PREVIEW_PORT"); port != "" {
+		app.Env.Port = port
+	}
 	c := context.Background()
 	person, e := getters.CreateSpeaker(app, getters.SpeakerInput{Name: "Event planner preview", Email: fmt.Sprintf("preview-%d@example.test", os.Getpid())})
 	if e != nil {
@@ -173,8 +176,16 @@ func TestEventWizardPreview(t *testing.T) {
 	root := mux.NewRouter()
 	registerEventWizard(root, app)
 	registerOrganizationShops(root, app)
+	root.HandleFunc("/navigation/account", func(w http.ResponseWriter, r *http.Request) { SiteAccountNavigation(w, r, app) }).Methods("GET")
+	root.HandleFunc("/live/status", func(w http.ResponseWriter, r *http.Request) { LiveStatus(w, r, app) }).Methods("GET")
+	root.HandleFunc("/dashboard/orgs", func(w http.ResponseWriter, r *http.Request) { OrganizationDashboardIndex(w, r, app) }).Methods("GET")
+	root.HandleFunc("/dashboard/orgs/{organizationID}", func(w http.ResponseWriter, r *http.Request) { OrganizationDashboard(w, r, app) }).Methods("GET")
+	root.HandleFunc("/dashboard/orgs/{organizationID}/badges", func(w http.ResponseWriter, r *http.Request) { OrganizationDashboardBadges(w, r, app) }).Methods("GET")
 	var org string
 	if e = app.DB.QueryRow(c, `INSERT INTO organizations(id,name) VALUES('00000000-0000-4000-8000-000000008117','Tokyo merch demo') ON CONFLICT(id) DO UPDATE SET name=excluded.name RETURNING id::text`).Scan(&org); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = app.DB.Exec(c, `INSERT INTO organization_memberships(organization_id,person_id,role) VALUES($1,$2,'owner') ON CONFLICT DO NOTHING`, org, person); e != nil {
 		t.Fatal(e)
 	}
 	root.HandleFunc("/shop/cart", func(w http.ResponseWriter, r *http.Request) { ShopCart(w, r, app) }).Methods("GET")
@@ -189,8 +200,8 @@ func TestEventWizardPreview(t *testing.T) {
 		http.Redirect(w, r, "/admin/events", 303)
 	})
 	root.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-	t.Log("Preview: http://127.0.0.1:8117/preview/login")
-	if e = http.ListenAndServe("127.0.0.1:8117", app.Session.LoadAndSave(root)); e != nil {
+	t.Logf("Preview: http://127.0.0.1:%s/preview/login", app.Env.Port)
+	if e = http.ListenAndServe("127.0.0.1:"+app.Env.Port, app.Session.LoadAndSave(root)); e != nil {
 		t.Fatal(e)
 	}
 }

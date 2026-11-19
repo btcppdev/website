@@ -5,6 +5,7 @@ import (
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 )
 
 type organizationShopPage struct {
+	*OrganizationDashboardPage
 	EventSales []getters.OrganizationEventSale
 	EventStock []getters.OrganizationEventStock
 	Org        *types.Org
@@ -30,7 +32,6 @@ type organizationShopPage struct {
 	Events     map[string]bool
 	Tab        string
 	Base       string
-	CSRF       string
 	Operation  string
 	Flash      string
 }
@@ -71,7 +72,7 @@ func OrganizationShop(w http.ResponseWriter, r *http.Request, app *config.AppCon
 	if id == nil || org == nil {
 		return
 	}
-	base := "/dashboard/orgs/" + org.Ref + "/shop"
+	base := "/dashboard/orgs/" + organizationPathRef(org) + "/shop"
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("X-Robots-Tag", "noindex")
 	if r.Method == "POST" {
@@ -83,7 +84,14 @@ func OrganizationShop(w http.ResponseWriter, r *http.Request, app *config.AppCon
 		http.Error(w, "Unable to prepare shop", 500)
 		return
 	}
-	p := &organizationShopPage{Org: org, Base: base, Tab: r.URL.Query().Get("tab"), CSRF: csrf, Operation: uuid.NewString(), Events: map[string]bool{}, Flash: r.URL.Query().Get("saved")}
+	workspace, e := organizationShopWorkspace(app, id, org)
+	if e != nil {
+		app.Err.Printf("organization shop workspace: %s", e)
+		http.Error(w, "Unable to load organization workspace", http.StatusInternalServerError)
+		return
+	}
+	workspace.CSRF = csrf
+	p := &organizationShopPage{OrganizationDashboardPage: workspace, Org: org, Base: base, Tab: r.URL.Query().Get("tab"), Operation: uuid.NewString(), Events: map[string]bool{}, Flash: r.URL.Query().Get("saved")}
 	if p.Tab == "" {
 		p.Tab = "profile"
 	}
@@ -146,6 +154,42 @@ func OrganizationShop(w http.ResponseWriter, r *http.Request, app *config.AppCon
 		app.Err.Printf("organization shop render: %s", e)
 	}
 }
+
+func organizationShopWorkspace(app *config.AppContext, id *auth.Identity, org *types.Org) (*OrganizationDashboardPage, error) {
+	memberships, err := getters.ListOrganizationMembershipsForPerson(app, id.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	membership := organizationMembershipByReference(memberships, org.Ref)
+	if membership == nil {
+		if !id.IsGlobalAdmin() {
+			return nil, fmt.Errorf("organization membership is no longer available")
+		}
+		// Global admins can inspect a shop without joining the organization.
+		membership = &types.OrganizationMembership{OrganizationID: org.Ref, Organization: org, Role: "admin"}
+	}
+	members, err := getters.ListOrganizationMembers(app, org.Ref)
+	if err != nil {
+		return nil, err
+	}
+	sponsorEvents, err := getters.ListSponsorDashboardEvents(app, org.Ref)
+	if err != nil {
+		return nil, err
+	}
+	hasProjects, err := getters.HasHackathonParticipantProjectsForPerson(app, id.PersonID)
+	if err != nil {
+		app.Err.Printf("organization shop hackathon projects: %s", err)
+	}
+	return &OrganizationDashboardPage{
+		Organization: org, Membership: membership, Memberships: memberships,
+		Members: members, SponsorEvents: sponsorEvents, CanManage: true,
+		IsOwner: membership.Role == getters.OrganizationRoleOwner, IsGlobalAdmin: id.IsGlobalAdmin(),
+		PendingOrgInviteCount: pendingOrganizationInviteCount(app, id.PersonID, "organization shop"),
+		HasHackathonProjects:  hasProjects, ShowSponsors: hasManagedSponsorOrganization(app, id.PersonID, "organization shop"),
+		Year: helpers.CurrentYear(),
+	}, nil
+}
+
 func organizationShopSave(w http.ResponseWriter, r *http.Request, app *config.AppContext, id *auth.Identity, org *types.Org, base string) {
 	limitRequestBody(w, r, 12<<20)
 	e := r.ParseMultipartForm(1 << 20)
