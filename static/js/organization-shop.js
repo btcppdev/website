@@ -53,6 +53,7 @@
       const message = form.querySelector("[data-form-message]");
       const submit = event.submitter;
       const body = new FormData(form);
+      if (submit?.name) body.set(submit.name, submit.value);
       form.dataset.busy = "1";
       if (submit) submit.disabled = true;
       message.textContent = "Saving…";

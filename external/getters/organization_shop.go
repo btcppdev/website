@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/text/language"
 	"net/mail"
 	"net/url"
 	"regexp"
@@ -20,6 +21,7 @@ var ErrShopEditConflict = errors.New("This shop was updated by someone else. Rel
 var shopCountryPattern = regexp.MustCompile(`^[A-Z]{2}$`)
 var shopSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,79}$`)
 var shopTaxCodePattern = regexp.MustCompile(`^txcd_[0-9]{8}$`)
+var shopCustomsCodePattern = regexp.MustCompile(`^[0-9]{6,14}$`)
 
 func GetOrganizationShopProfile(app *config.AppContext, orgID string) (*types.OrganizationShopProfile, error) {
 	out := &types.OrganizationShopProfile{OrganizationID: orgID}
@@ -125,16 +127,31 @@ func SaveOrganizationProduct(app *config.AppContext, orgID string, in Organizati
 	default:
 		return "", fmt.Errorf("choose a physical product category")
 	}
-	if !shopTaxCodePattern.MatchString(in.StripeTaxCode) {
-		return "", fmt.Errorf("choose a Stripe tax classification")
+	if in.StripeTaxCode != "" && !shopTaxCodePattern.MatchString(in.StripeTaxCode) {
+		return "", fmt.Errorf("the saved tax settings need a shop admin’s help")
 	}
-	if !shopCountryPattern.MatchString(in.CountryOfOrigin) {
-		return "", fmt.Errorf("enter the two-letter country where the item was manufactured")
+	if in.CountryOfOrigin != "" {
+		region, err := language.ParseRegion(in.CountryOfOrigin)
+		if err != nil || !shopCountryPattern.MatchString(in.CountryOfOrigin) || !region.IsCountry() {
+			return "", fmt.Errorf("choose the country where the item was made")
+		}
+	}
+	if in.HSCode != "" && !shopCustomsCodePattern.MatchString(in.HSCode) {
+		return "", fmt.Errorf("the supplier’s customs code should contain 6–14 digits; leave it blank if you don’t know it")
 	}
 	if len(in.EventIDs) > 100 {
 		return "", fmt.Errorf("choose at most 100 events")
 	}
 	if in.Status == "published" {
+		if in.StripeTaxCode == "" {
+			return "", fmt.Errorf("choose what you are selling before publishing, or save a draft and ask bitcoin++ for help")
+		}
+		if in.OnlineEnabled && in.CountryOfOrigin == "" {
+			return "", fmt.Errorf("confirm where the item was made before publishing it online; you can save a draft while checking with your supplier")
+		}
+		if in.OnlineEnabled && in.HSCode == "" && in.EasyshipCategory == "" {
+			return "", fmt.Errorf("a shop admin needs to finish the shipping classification for this item before it goes online; save a draft or add a customs code from your supplier")
+		}
 		profile, e := GetOrganizationShopProfile(app, orgID)
 		if e != nil {
 			return "", e

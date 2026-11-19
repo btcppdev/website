@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOrganizationShopAccess(t *testing.T) {
@@ -28,6 +29,7 @@ func TestOrganizationShopAccess(t *testing.T) {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() {
+		app.DB.Exec(c, `DELETE FROM merch_products WHERE fulfillment_organization_id=$1`, org)
 		app.DB.Exec(c, `DELETE FROM organization_shop_profiles WHERE organization_id=$1`, org)
 		app.DB.Exec(c, `DELETE FROM organizations WHERE id::text=ANY($1)`, []string{org, other})
 		app.DB.Exec(c, `DELETE FROM people WHERE id=$1`, person)
@@ -75,6 +77,41 @@ func TestOrganizationShopAccess(t *testing.T) {
 	}
 	if w := request(base, form); w.Code != 409 {
 		t.Fatal("stale save", w.Code, w.Body.String())
+	}
+	// Orgs can start with unknown details, even when the visibility control was
+	// left on Published. The explicit draft button must win on the server.
+	productForm := url.Values{"action": {"product"}, "csrf": {"shop-test-token"}, "name": {"Draft tee"}, "slug": {"draft-" + org}, "product_type": {"apparel"}, "base_price": {"40.00"}, "status": {"published"}, "online_enabled": {"on"}, "save_draft": {"1"}, "stripe_tax_code": {"txcd_00000000"}, "easyship_category": {"forged"}}
+	if w := request(base, productForm); w.Code != 200 {
+		t.Fatal("save incomplete draft", w.Code, w.Body.String())
+	}
+	products, err := getters.ListOrganizationMerch(app, org)
+	if err != nil || len(products) != 1 {
+		t.Fatal("load draft", err)
+	}
+	product := products[0]
+	if product.Status != "draft" || product.StripeTaxCode != "" || product.CountryOfOrigin != "" || product.EasyshipCategory != "" {
+		t.Fatal("unknown draft invented or trusted provider details", product)
+	}
+	productForm.Set("product_id", product.ID)
+	productForm.Set("updated_at", product.UpdatedAt.Format(time.RFC3339Nano))
+	productForm.Del("save_draft")
+	if w := request(base, productForm); w.Code != 400 {
+		t.Fatal("published unclassified product", w.Code)
+	}
+	productForm.Set("merchandise_kind", "clothing")
+	if w := request(base, productForm); w.Code != 400 {
+		t.Fatal("manufacturing origin inferred from warehouse", w.Code)
+	}
+	productForm.Set("country_of_origin", "VN")
+	if w := request(base, productForm); w.Code != 200 {
+		t.Fatal("plain-language product setup", w.Code, w.Body.String())
+	}
+	product, err = getters.GetMerchProductByID(app, product.ID)
+	if err != nil || product.Status != "published" || product.StripeTaxCode != "txcd_30011000" || product.EasyshipCategory != "fashion" || product.CountryOfOrigin != "VN" || product.HSCode != "" {
+		t.Fatal("incorrect product classification", product, err)
+	}
+	if w := request(base+"?tab=product&product="+product.ID, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `value="VN" selected>Vietnam`) || strings.Contains(w.Body.String(), `name="stripe_tax_code"`) || strings.Contains(w.Body.String(), `name="easyship_category"`) {
+		t.Fatal("organization form still requires provider knowledge", w.Code)
 	}
 	app.Env.TaxFormEncryptionKey = "shop-http-test-only"
 	payoutForm := url.Values{"action": {"payouts"}, "csrf": {"shop-test-token"}, "revision": {"0"}, "recipient_name": {"Shop manager"}, "entity_type": {"company"}, "tax_country": {"US"}, "payout_method": {"lightning"}, "lightning_address": {"merch@example.com"}}

@@ -14,6 +14,26 @@ pages show the organization's current light-mode logo and name; without a logo,
 the name still appears. Branding is loaded from the organization profile, with
 no shipping, billing or payment details included in public catalog data.
 
+Organization product forms use plain-language merchandise choices instead of raw
+Stripe/Easyship codes. Everyday adult clothing and hats use the verified Stripe
+categories and Easyship's `fashion` category; other physical merchandise uses
+Stripe's general tangible-goods category and needs an existing shipping category
+or a supplier-provided HS code before online publication. Storefront categories
+do not change this classification. Existing admin classifications are preserved
+on ordinary edits; changing the kind clears an unchanged old HS code for review.
+The admin catalog flags incomplete setup without creating tasks or sending mail.
+
+Manufacturing country uses a country-name selector with an unknown option. Drafts
+can be saved without tax classification, manufacturing country or customs data.
+Online publication requires a known manufacturing country and shipping setup;
+event-only merchandise doesn't require shipping customs fields. No manufacturing
+country or HS code is inferred from the organization's address or product title.
+Supplier-provided customs codes are optional in a collapsed section of the form.
+
+Classification references: [Stripe product tax codes](https://docs.stripe.com/tax/tax-codes),
+[Easyship rates](https://developers.easyship.com/docs/how-to-get-shipping-rates), and
+[Easyship country of origin](https://support.easyship.com/hc/en-us/articles/19245058359058-How-to-Change-Your-Product-s-Country-of-Origin).
+
 Payment instructions and tax registrations are encrypted in the database using
 the existing `TAX_FORM_ENCRYPTION_KEY`, with an organization-specific key context.
 Configure and back up that key before accepting details. Missing keys prevent

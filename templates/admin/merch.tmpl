@@ -65,6 +65,7 @@
               <td>
                 <strong>{{ .Name }}</strong>
                 {{ template "shop_product_organization" . }}
+                {{ if and .FulfillmentOrganizationID (or (not .StripeTaxCode) (and .OnlineEnabled (or (not .CountryOfOrigin) (and (not .HSCode) (not .EasyshipCategory))))) }}<span class="shop-status-pill">Product setup needs help</span>{{ end }}
                 <span>{{ .Slug }}{{ if .Variants }}{{ with index .Variants 0 }}{{ if .SKU }} · {{ .SKU }}{{ end }}{{ end }}{{ end }}</span>
               </td>
               <td><span class="shop-status-pill is-{{ .Status }}">{{ .Status }}</span></td>

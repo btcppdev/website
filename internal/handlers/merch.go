@@ -2436,7 +2436,8 @@ func shopShippingCartKey(cart []*shopCartItem) string {
 		}
 		lines = append(lines, fmt.Sprintf("%s:%d:%d:%d:%d:%d:%d", item.Key(), item.Qty,
 			item.UnitPriceCents, item.Variant.WeightGrams, item.Variant.LengthMM,
-			item.Variant.WidthMM, item.Variant.HeightMM)+fmt.Sprintf(":%s:%d", item.Product.FulfillmentOrganizationID, item.OriginRevision))
+			item.Variant.WidthMM, item.Variant.HeightMM)+fmt.Sprintf(":%s:%d:%s:%s:%s:%s", item.Product.FulfillmentOrganizationID, item.OriginRevision,
+			item.Product.CountryOfOrigin, item.Product.HSCode, item.Product.EasyshipCategory, item.Product.StripeTaxCode))
 	}
 	sort.Strings(lines)
 	return strings.Join(lines, "|")

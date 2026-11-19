@@ -37,7 +37,7 @@ func TestOrganizationShopMixedOrderLifecycle(t *testing.T) {
 		if _, e = SaveOrganizationShopProfile(app, org, "", profile); !errors.Is(e, ErrShopEditConflict) {
 			t.Fatalf("stale profile %v", e)
 		}
-		in := OrganizationProductInput{MerchProductInput: MerchProductInput{Slug: "shop-" + org, Name: "Shop product", Status: "published", ProductType: "apparel", BasePriceCents: 2500, Currency: "USD", StripeTaxCode: types.StripeTaxCodeTangibleGood, CountryOfOrigin: "US"}, OnlineEnabled: true}
+		in := OrganizationProductInput{MerchProductInput: MerchProductInput{Slug: "shop-" + org, Name: "Shop product", Status: "published", ProductType: "apparel", BasePriceCents: 2500, Currency: "USD", StripeTaxCode: types.StripeTaxCodeTangibleGood, EasyshipCategory: "fashion", CountryOfOrigin: "US"}, OnlineEnabled: true}
 		id, e := SaveOrganizationProduct(app, org, in)
 		if e != nil {
 			t.Fatal(e)

@@ -37,6 +37,11 @@ func TestOrganizationDiscountAndTaxOrigin(t *testing.T) {
 	if shopShippingCartKey([]*shopCartItem{a, b}) == key {
 		t.Fatal("changed warehouse reused old quote")
 	}
+	key = shopShippingCartKey([]*shopCartItem{a, b})
+	a.Product.CountryOfOrigin = "VN"
+	if shopShippingCartKey([]*shopCartItem{a, b}) == key {
+		t.Fatal("changed manufacturing country reused old quote")
+	}
 }
 func TestMixedOriginShippingCombinations(t *testing.T) {
 	groups := []shopOriginGroup{{ID: "a", Label: "A"}, {ID: "b", Label: "B"}}

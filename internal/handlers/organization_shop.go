@@ -129,7 +129,7 @@ func OrganizationShop(w http.ResponseWriter, r *http.Request, app *config.AppCon
 				}
 			}
 		} else {
-			p.Product = &types.MerchProduct{Currency: "USD", Symbol: "$", Status: "draft", ProductType: "apparel", RequiresShipping: true, OnlineEnabled: true, StripeTaxCode: types.StripeTaxCodeTangibleGood}
+			p.Product = &types.MerchProduct{Currency: "USD", Symbol: "$", Status: "draft", ProductType: "apparel", RequiresShipping: true, OnlineEnabled: true}
 		}
 		if e == nil {
 			var confs []*types.Conf
@@ -245,14 +245,30 @@ func organizationShopSave(w http.ResponseWriter, r *http.Request, app *config.Ap
 			break
 		}
 		in := getters.OrganizationProductInput{ID: r.FormValue("product_id"), MerchProductInput: merchProductInputFromForm(r), OnlineEnabled: r.FormValue("online_enabled") == "on", EventIDs: r.Form["event_ids"]}
+		var existing *types.MerchProduct
 		if in.ID != "" {
+			existing, e = getters.GetMerchProductByID(app, in.ID)
+			if e != nil || existing.FulfillmentOrganizationID != org.Ref {
+				e = fmt.Errorf("product not found in this organization")
+				break
+			}
 			in.UpdatedAt, e = time.Parse(time.RFC3339Nano, r.FormValue("updated_at"))
 			if e != nil {
 				break
 			}
 		}
+		if !r.Form.Has("hs_code") && existing != nil {
+			in.HSCode = existing.HSCode
+		}
+		in.HSCode = normalizeOrganizationCustomsCode(in.HSCode)
+		if e = setOrganizationProductClassification(&in, existing, r.FormValue("merchandise_kind")); e != nil {
+			break
+		}
 		in.Currency = "USD"
 		in.RequiresShipping = true
+		if r.FormValue("save_draft") == "1" {
+			in.Status = types.MerchProductStatusDraft
+		}
 		var productID string
 		productID, e = getters.SaveOrganizationProduct(app, org.Ref, in)
 		destination = base + "?tab=product&product=" + url.QueryEscape(productID)
