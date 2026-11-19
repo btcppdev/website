@@ -1051,6 +1051,17 @@
 .pub-recording-preview-row small {
   display: block;
 }
+.pub-recording-destination {
+  display: inline-block;
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  border: 1px solid #b8b3aa;
+  background: #efeae2;
+  color: #0a0a0a;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
 #recording-options {
   border-top: 1px solid #b8b3aa;
   border-bottom: 1px solid #b8b3aa;

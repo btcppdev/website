@@ -1433,6 +1433,13 @@
     ];
     $("#recording-selection-count").textContent = selected.length + " selected";
   }
+  function recordingDestinationLabel(d) {
+    return el(
+      "span",
+      d.channel_id === "youtube" ? "YouTube release" : "Recorded broadcast",
+      "pub-recording-destination",
+    );
+  }
   function renderRecordingOptions(selectedIDs = []) {
     const selected = new Set(selectedIDs);
     const box = $("#recording-options");
@@ -1457,6 +1464,7 @@
       check.disabled = !d.eligible;
       check.checked = d.eligible && selected.has(d.id);
       text.append(
+        recordingDestinationLabel(d),
         el("strong", d.title),
         el(
           "small",
@@ -1576,6 +1584,7 @@
           row = el("div", undefined, "pub-recording-preview-row");
         const text = el("div");
         text.append(
+          recordingDestinationLabel(d),
           el("strong", d.title),
           el("small", channel(d.channel_id).name + " · " + labelTime(m.at)),
         );

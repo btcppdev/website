@@ -5,11 +5,11 @@
     {{ block "header" . }}{{ end }}
     <link
       rel="stylesheet"
-      href="/static/css/publishing.css?v=20261118-recording-dialog-2"
+      href="/static/css/publishing.css?v=20261118-recording-destinations-3"
     />
     <script
       defer
-      src="/static/js/publishing.js?v=20261118-exclusions-1"
+      src="/static/js/publishing.js?v=20261118-recording-destinations-3"
     ></script>
   </head>
   <body class="btcpp-admin-page publishing-page">
@@ -241,8 +241,10 @@
           </div>
           <div class="pub-recording-body">
             <p>
-              Choose releases or broadcasts, review their next available channel
-              slots, then apply. Each destination keeps its own schedule.
+              Each talk has separate entries for its YouTube release and
+              recorded broadcast, each with its own schedule. Choose a
+              destination below to see only releases or broadcasts, then preview
+              and apply their times.
             </p>
             <p id="recording-schedule-error" role="alert"></p>
             <div class="pub-recording-filters">
