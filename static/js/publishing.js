@@ -19,7 +19,13 @@
       ? location.hash.slice(1)
       : "week",
     anchor = new Date(),
-    data = { channels: [], entries: [], deliveries: [], slots: [] },
+    data = {
+      channels: [],
+      entries: [],
+      deliveries: [],
+      recordings: [],
+      slots: [],
+    },
     media = [],
     loading = 0;
   let dragged = null,
@@ -28,7 +34,14 @@
     moveDelivery = null,
     moveSaving = false,
     suppressClickUntil = 0,
-    moveStatusTimer = 0;
+    moveStatusTimer = 0,
+    dragRecordingSlots = null,
+    recordingPreview = [],
+    recordingOrder = [],
+    recordingPreviewRequest = 0,
+    recordingFocus = "",
+    initialLoad = true;
+  const initialParams = new URLSearchParams(location.search);
   let zone = localStorage.getItem("publishing-timezone") || "America/Chicago";
   $("#timezone").value = zone;
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -139,15 +152,27 @@
       if (seq !== loading) return;
       data = next;
       filters();
+      if (initialLoad && initialParams.get("event"))
+        $("#event").value = initialParams.get("event");
       render();
+      if (initialLoad) {
+        initialLoad = false;
+        if (initialParams.get("recordings") === "1")
+          openRecordingScheduler(
+            initialParams.get("recording") || "",
+            initialParams.get("recording_channel") || "",
+          );
+      }
       const streamFreshness = data.streamer_synced_at
         ? "Streamer updated " + label(data.streamer_synced_at, true)
         : "Streamer has not synced yet";
       $("#freshness").textContent = streamFreshness + " · " + zone;
       notice(
-        data.worker_enabled
-          ? ""
-          : "Direct publishing is paused on the server. Drafts and schedules can be prepared.",
+        !data.recording_worker_enabled
+          ? "Publishing is paused on the server. Schedule changes stay pending until publishing is enabled."
+          : data.worker_enabled
+            ? ""
+            : "Recording scheduling is enabled. Connect X to enable direct social posts.",
       );
     } catch (e) {
       notice(e.message);
@@ -193,9 +218,13 @@
   function deliveryFor(e) {
     return e.id.startsWith("delivery:")
       ? data.deliveries.find((d) => d.id === e.id.slice(9))
-      : null;
+      : (data.recordings || []).find((d) => d.id === e.id);
+  }
+  function isRecording(d) {
+    return Boolean(d?.recording_id);
   }
   function canMove(d) {
+    if (isRecording(d)) return d.eligible && Boolean(d.at);
     return (
       d &&
       d.state === "scheduled" &&
@@ -211,7 +240,15 @@
         (e) =>
           e.kind !== "slot" &&
           e.channel_id === s.channel_id &&
-          ["scheduled", "sending"].includes(e.state) &&
+          [
+            "scheduled",
+            "sending",
+            "pending",
+            "syncing",
+            "needs_review",
+            "failed",
+            "live",
+          ].includes(e.state) &&
           new Date(e.at).getTime() === new Date(s.at).getTime(),
       )
     );
@@ -221,6 +258,12 @@
       dragged &&
       node &&
       node.dataset.slotChannel === dragged.channel_id &&
+      (!isRecording(dragged) ||
+        dragRecordingSlots?.some(
+          (s) =>
+            new Date(s.at).getTime() ===
+            new Date(node.dataset.slotAt).getTime(),
+        )) &&
       data.slots.some(
         (s) =>
           s.channel_id === node.dataset.slotChannel &&
@@ -253,7 +296,28 @@
   function beginDrag(d) {
     dragged = d;
     root.classList.add("pub-dragging");
+    dragRecordingSlots = null;
     highlightSlots();
+    if (isRecording(d)) {
+      moveStatus("Checking available slots and broadcast runtimes…", true);
+      fetchAvailableSlots(d)
+        .then((slots) => {
+          if (dragged !== d) return;
+          dragRecordingSlots = slots;
+          highlightSlots();
+          hoverSlot(pointerTarget());
+          moveStatus(
+            "Move to a highlighted " +
+              channel(d.channel_id).name +
+              " slot. Other destinations keep their times.",
+            true,
+          );
+        })
+        .catch((e) => {
+          if (dragged === d) moveStatus(e.message, true);
+        });
+      return;
+    }
     moveStatus(
       "Move " +
         channel(d.channel_id).name +
@@ -263,6 +327,7 @@
   }
   function endDrag() {
     dragged = null;
+    dragRecordingSlots = null;
     root.classList.remove("pub-dragging");
     root
       .querySelectorAll(".is-drop-target, .is-drop-hover")
@@ -292,21 +357,23 @@
     moveSaving = true;
     try {
       await api({
-        action: "move",
+        action: isRecording(d) ? "recording_move" : "move",
         id: d.id,
-        version: d.version,
+        ...(isRecording(d) ? { revision: d.revision } : { version: d.version }),
         target_channel: d.channel_id,
         at,
       });
       await load();
       moveStatus(
-        "Moved " +
+        (isRecording(d) ? "Reserved " : "Moved ") +
           channel(d.channel_id).name +
           " to " +
           label(at, true) +
           " (" +
           zone +
-          "). Other items are unchanged.",
+          (isRecording(d)
+            ? "). Pending confirmation from the destination; other items are unchanged."
+            : "). Other items are unchanged."),
       );
       return true;
     } finally {
@@ -320,7 +387,7 @@
     handle.setAttribute(
       "aria-label",
       "Move " +
-        (d.title || d.body.slice(0, 70)) +
+        (d.title || d.body?.slice(0, 70) || "Recording") +
         " · " +
         channel(d.channel_id).name,
     );
@@ -356,7 +423,9 @@
         beginDrag(d);
         const ghost = el(
           "div",
-          channel(d.channel_id).name + " · " + (d.title || d.body.slice(0, 60)),
+          channel(d.channel_id).name +
+            " · " +
+            (d.title || d.body?.slice(0, 60) || "Recording"),
           "pub-drag-ghost",
         );
         root.append(ghost);
@@ -431,7 +500,11 @@
     button.onclick = () => {
       if (performance.now() >= suppressClickUntil) details(e);
     };
-    if (e.kind === "slot" && account.provider === "direct" && slotFree(e)) {
+    if (
+      e.kind === "slot" &&
+      ["direct", "recordings"].includes(account.provider) &&
+      slotFree(e)
+    ) {
       button.dataset.slotAt = e.at;
       button.dataset.slotChannel = e.channel_id;
       button.ondragover = (ev) => {
@@ -479,13 +552,22 @@
     item.append(button, moveHandle(d));
     return item;
   }
+  async function fetchAvailableSlots(d) {
+    const res = await fetch(
+      "/admin/publishing/slots?" + new URLSearchParams({ id: d.id }),
+    );
+    if (!res.ok) throw Error(await res.text());
+    return res.json();
+  }
   async function openMove(d) {
     if (moveSaving) return;
     for (const id of ["detail", "calendar-day"])
       if ($("#" + id).open) $("#" + id).close();
     moveDelivery = d;
     $("#move-description").textContent =
-      (d.title || d.body.slice(0, 100)) + " · " + channel(d.channel_id).name;
+      (d.title || d.body?.slice(0, 100) || "Recording") +
+      " · " +
+      channel(d.channel_id).name;
     $("#move-error").textContent = "";
     $("#move-zone").textContent = "Times in " + zone + " · Next 90 days";
     $("#move-slot").replaceChildren(
@@ -494,11 +576,7 @@
     $("#move-form [type=submit]").disabled = true;
     $("#move-post").showModal();
     try {
-      const res = await fetch(
-        "/admin/publishing/slots?" + new URLSearchParams({ id: d.id }),
-      );
-      if (!res.ok) throw Error(await res.text());
-      const slots = await res.json();
+      const slots = await fetchAvailableSlots(d);
       if (moveDelivery !== d || !$("#move-post").open) return;
       $("#move-slot").replaceChildren(
         new Option(
@@ -540,9 +618,10 @@
   };
   document.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" && (dragged || pointerDrag)) {
+      suppressClickUntil = performance.now() + 500;
       pointerDrag = null;
       endDrag();
-      moveStatus("Move canceled. Post unchanged.");
+      moveStatus("Move canceled. Item unchanged.");
     }
   });
   function render() {
@@ -573,7 +652,12 @@
       return;
     }
     if (view === "queue") {
-      renderQueue(container);
+      if (
+        !["recording", "stream"].includes($("#kind").value) &&
+        !["youtube", "broadcasts"].includes($("#channel").value)
+      )
+        renderQueue(container);
+      renderRecordingQueue(container);
       return;
     }
     const entries = data.entries.filter(matches);
@@ -599,7 +683,7 @@
     legend.append(
       el(
         "span",
-        "Drag a scheduled post to a dashed publication slot for the same account. Use the move handle to choose a slot by touch or keyboard.",
+        "Drag a post, YouTube release, or broadcast to an available slot for its channel. Use the move handle to choose a slot by touch or keyboard.",
         view === "month" ? "pub-month-key" : "",
       ),
     );
@@ -640,12 +724,26 @@
           s.at &&
           dayKey(s.at) === key &&
           (!$("#channel").value || s.channel_id === $("#channel").value) &&
-          (!$("#kind").value || $("#kind").value === "post") &&
+          (!$("#kind").value ||
+            $("#kind").value ===
+              (s.channel_id === "youtube"
+                ? "recording"
+                : s.channel_id === "broadcasts"
+                  ? "stream"
+                  : "post")) &&
           (!$("#status").value || $("#status").value === "scheduled") &&
           !data.entries.some(
             (e) =>
               e.channel_id === s.channel_id &&
-              ["scheduled", "sending"].includes(e.state) &&
+              [
+                "scheduled",
+                "sending",
+                "pending",
+                "syncing",
+                "needs_review",
+                "failed",
+                "live",
+              ].includes(e.state) &&
               new Date(e.at).getTime() === new Date(s.at).getTime(),
           ),
       );
@@ -715,7 +813,15 @@
       try {
         await fn();
       } catch (e) {
-        notice(e.message);
+        if ($("#detail").open) {
+          let error = $("#detail-body .pub-action-error");
+          if (!error) {
+            error = el("p", undefined, "pub-action-error pub-recording-error");
+            error.setAttribute("role", "alert");
+            $("#detail-body").append(error);
+          }
+          error.textContent = e.message;
+        } else notice(e.message);
       } finally {
         b.disabled = false;
       }
@@ -787,6 +893,24 @@
         ),
       );
   }
+  function renderRecordingQueue(container) {
+    const rows = (data.recordings || []).filter(
+      (d) =>
+        ((d.at && new Date(d.at) > new Date()) ||
+          ["pending", "syncing", "failed", "needs_review"].includes(d.state)) &&
+        matches(recordingEntry(d)),
+    );
+    if (!rows.length) return;
+    container.append(el("h3", "Recording schedules"));
+    const list = el("div", undefined, "pub-list");
+    rows.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
+    for (const d of rows) {
+      const row = el("article");
+      row.append(el("small", labelTime(d.at)), card(recordingEntry(d)));
+      list.append(row);
+    }
+    container.append(list);
+  }
   async function act(d, action, url = "") {
     await api({ action, id: d.id, version: d.version, url });
     await load();
@@ -796,7 +920,7 @@
     intro.append(
       el(
         "p",
-        "X publishes directly from this queue. YouTube releases and broadcasts use the existing recording workflows. Direct Instagram and LinkedIn publishing is planned next.",
+        "Manage X posts, YouTube releases, and recorded broadcasts here. Each destination has its own schedule. Instagram and LinkedIn are planned next.",
       ),
     );
     if (data.x_configured) {
@@ -814,7 +938,7 @@
       el(
         "p",
         data.youtube_connected
-          ? "YouTube is connected. Open a recording from the calendar to schedule, upload, or edit its release."
+          ? "YouTube is connected. Schedule releases here; use the media library for uploads."
           : "Connect YouTube from an event’s recordings page.",
       ),
     );
@@ -832,7 +956,10 @@
           "pub-badge",
         ),
       );
-      if (c.provider !== "direct" && c.id !== "youtube") {
+      if (
+        c.provider !== "direct" &&
+        !["youtube", "broadcasts"].includes(c.id)
+      ) {
         row.append(
           el(
             "p",
@@ -1034,8 +1161,8 @@
   }
   function details(e) {
     if (e.kind === "slot") {
-      if (channel(e.channel_id).provider !== "direct") {
-        notice("Manage these slots through an event’s recordings page.");
+      if (channel(e.channel_id).provider === "recordings") {
+        openRecordingScheduler("", e.channel_id);
         return;
       }
       edit({ channel_id: e.channel_id, mode: "fixed", at: e.at });
@@ -1055,10 +1182,76 @@
           (e.end ? " → " + label(e.end) : ""),
       ),
     );
-    const d = e.id.startsWith("delivery:")
-      ? data.deliveries.find((d) => d.id === e.id.slice(9))
-      : null;
-    if (d) {
+    const d = deliveryFor(e);
+    if (isRecording(d)) {
+      if (d.error) box.append(el("p", d.error, "pub-recording-error"));
+      if (["pending", "syncing", "failed", "needs_review"].includes(d.state)) {
+        box.append(
+          el(
+            "p",
+            "Requested change: " +
+              (d.at ? label(d.at, true) : "Clear release schedule") +
+              ". " +
+              (d.confirmed_at
+                ? "Previously confirmed: " + label(d.confirmed_at, true) + "."
+                : "No confirmed schedule yet."),
+          ),
+        );
+      }
+      if (d.eligible)
+        box.append(
+          actionButton(d.at ? "Move to slot" : "Choose a slot", () =>
+            openMove(d),
+          ),
+        );
+      else if (d.reason) box.append(el("p", d.reason));
+      if (d.channel_id === "youtube" && d.eligible && d.at)
+        box.append(
+          actionButton("Clear release schedule (set unlisted)", async () => {
+            await api({
+              action: "recording_clear",
+              id: d.id,
+              revision: d.revision,
+            });
+            $("#detail").close();
+            await load();
+            moveStatus(
+              "Release cancellation is pending confirmation from YouTube. Broadcast timing is unchanged.",
+            );
+          }),
+        );
+      if (["failed", "needs_review"].includes(d.state)) {
+        let confirm = null;
+        if (d.retry_confirmation) {
+          const label = el("label", undefined, "pub-recording-check");
+          confirm = el("input");
+          confirm.type = "checkbox";
+          label.append(
+            confirm,
+            el(
+              "span",
+              "I checked X Studio: no broadcast was created. If it exists, leave this stopped for reconciliation.",
+            ),
+          );
+          box.append(label);
+        }
+        box.append(
+          actionButton("Retry synchronization", async () => {
+            if (confirm && !confirm.checked)
+              throw Error("Check X Studio and confirm before retrying.");
+            await api({
+              action: "recording_retry",
+              id: d.id,
+              revision: d.revision,
+              confirmed_not_created: Boolean(confirm?.checked),
+            });
+            $("#detail").close();
+            await load();
+            moveStatus("Schedule synchronization queued.");
+          }),
+        );
+      }
+    } else if (d) {
       box.append(el("p", d.body));
       if (d.reply) box.append(el("p", "Reply: " + d.reply));
       if (d.error) box.append(el("p", d.error));
@@ -1100,7 +1293,7 @@
       const a = el(
         "a",
         e.provider === "recordings"
-          ? "Open recording & schedule"
+          ? "Open recording media"
           : "View published post",
       );
       a.href = url;
@@ -1210,12 +1403,332 @@
     anchor = new Date();
     load();
   };
+
+  function recordingEntry(d) {
+    return {
+      id: d.id,
+      channel_id: d.channel_id,
+      conference: d.conference,
+      title: d.title,
+      kind: d.kind,
+      state: d.state,
+      at: d.at,
+      provider: "recordings",
+      url:
+        "/" +
+        encodeURIComponent(d.conference) +
+        "/admin/recordings/" +
+        encodeURIComponent(d.recording_id),
+    };
+  }
+  function invalidateRecordingPreview() {
+    recordingPreviewRequest++;
+    recordingPreview = [];
+    recordingOrder = [];
+    $("#recording-schedule-preview").replaceChildren();
+    $("#apply-recording-schedule").disabled = true;
+    $("#preview-recording-schedule").disabled = false;
+    const selected = [
+      ...$("#recording-options").querySelectorAll("input:checked"),
+    ];
+    $("#recording-selection-count").textContent = selected.length + " selected";
+  }
+  function recordingDestinationLabel(d) {
+    return el(
+      "span",
+      d.channel_id === "youtube" ? "YouTube release" : "Recorded broadcast",
+      "pub-recording-destination",
+    );
+  }
+  function renderRecordingOptions(selectedIDs = []) {
+    const selected = new Set(selectedIDs);
+    const box = $("#recording-options");
+    box.replaceChildren();
+    const event = $("#schedule-event").value,
+      destination = $("#schedule-destination").value;
+    const items = (data.recordings || []).filter(
+      (d) =>
+        (!event || d.conference === event) &&
+        (!destination || d.channel_id === destination) &&
+        (!recordingFocus || d.recording_id === recordingFocus) &&
+        ($("#include-excluded").checked || !d.excluded) &&
+        ($("#include-scheduled").checked || !d.at),
+    );
+    for (const d of items) {
+      const row = el("div", undefined, "pub-recording-option");
+      const label = el("label", undefined, "pub-recording-check"),
+        check = el("input"),
+        text = el("span");
+      check.type = "checkbox";
+      check.value = d.id;
+      check.disabled = !d.eligible;
+      check.checked = d.eligible && selected.has(d.id);
+      text.append(
+        recordingDestinationLabel(d),
+        el("strong", d.title),
+        el(
+          "small",
+          channel(d.channel_id).name +
+            " · " +
+            d.conference +
+            (d.at ? " · " + labelTime(d.at) : " · Not scheduled"),
+        ),
+      );
+      if (
+        d.channel_id === "youtube" &&
+        ["private", "unlisted", "public"].includes(d.youtube_privacy)
+      )
+        text.append(el("small", "YouTube visibility: " + d.youtube_privacy));
+      if (d.reason)
+        text.append(
+          el(
+            "small",
+            d.reason,
+            d.excluded ? "pub-legend" : "pub-recording-error",
+          ),
+        );
+      label.append(check, text);
+      row.append(label);
+      if (d.excluded || (d.state === "draft" && !d.at && !d.confirmed_at)) {
+        const button = el(
+          "button",
+          d.excluded ? "Restore to scheduling" : "Exclude from scheduling",
+        );
+        button.type = "button";
+        button.setAttribute(
+          "aria-label",
+          button.textContent +
+            ": " +
+            d.title +
+            " · " +
+            channel(d.channel_id).name,
+        );
+        button.onclick = async () => {
+          const selected = [...box.querySelectorAll("input:checked")].map(
+            (x) => x.value,
+          );
+          invalidateRecordingPreview();
+          button.disabled = true;
+          $("#recording-schedule-error").textContent = "";
+          try {
+            await api({
+              action: "recording_exclusion",
+              id: d.id,
+              revision: d.revision,
+              excluded: !d.excluded,
+            });
+            await load();
+            renderRecordingOptions(selected.filter((id) => id !== d.id));
+          } catch (e) {
+            $("#recording-schedule-error").textContent = e.message;
+            button.disabled = false;
+          }
+        };
+        row.append(button);
+      }
+      box.append(row);
+      check.onchange = invalidateRecordingPreview;
+    }
+    if (!items.length)
+      box.append(
+        el(
+          "p",
+          "No recordings match. Choose another event, include scheduled recordings, or show excluded recordings.",
+          "pub-empty",
+        ),
+      );
+    invalidateRecordingPreview();
+  }
+  function labelTime(at) {
+    return label(at, true) + " (" + zone + ")";
+  }
+  function openRecordingScheduler(recording = "", destination = "") {
+    for (const dialog of root.querySelectorAll("dialog[open]")) dialog.close();
+    recordingFocus = recording;
+    const event = $("#schedule-event");
+    event.replaceChildren(new Option("All events", ""));
+    (data.events || []).forEach((e) =>
+      event.add(new Option(e.tag + " · " + e.name, e.tag)),
+    );
+    event.value = $("#event").value;
+    $("#schedule-destination").value = destination;
+    $("#include-scheduled").checked = Boolean(recording);
+    $("#include-excluded").checked = Boolean(recording);
+    $("#recording-schedule-error").textContent = "";
+    renderRecordingOptions();
+    $("#recording-scheduler").showModal();
+  }
+  async function previewRecordingSchedule(ids) {
+    if (!ids.length) {
+      invalidateRecordingPreview();
+      return;
+    }
+    const request = ++recordingPreviewRequest;
+    const button = $("#preview-recording-schedule");
+    button.disabled = true;
+    $("#recording-schedule-error").textContent = "";
+    $("#apply-recording-schedule").disabled = true;
+    recordingPreview = [];
+    $("#recording-schedule-preview").replaceChildren(
+      el("p", "Updating preview…"),
+    );
+    try {
+      const preview = await api({ action: "recording_preview", ids });
+      if (request !== recordingPreviewRequest) return;
+      recordingPreview = preview;
+      recordingOrder = ids.slice();
+      const box = $("#recording-schedule-preview");
+      box.replaceChildren(el("h3", "Review publication times"));
+      recordingPreview.forEach((m, index) => {
+        const d = data.recordings.find((x) => x.id === m.id),
+          row = el("div", undefined, "pub-recording-preview-row");
+        const text = el("div");
+        text.append(
+          recordingDestinationLabel(d),
+          el("strong", d.title),
+          el("small", channel(d.channel_id).name + " · " + labelTime(m.at)),
+        );
+        row.append(text);
+        for (const [direction, icon] of [
+          [-1, "↑"],
+          [1, "↓"],
+        ]) {
+          const button = el("button", icon);
+          button.type = "button";
+          button.setAttribute(
+            "aria-label",
+            (direction < 0 ? "Earlier: " : "Later: ") +
+              d.title +
+              " · " +
+              channel(d.channel_id).name,
+          );
+          button.disabled =
+            index + direction < 0 ||
+            index + direction >= recordingPreview.length;
+          button.onclick = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const order = recordingOrder.slice();
+            [order[index], order[index + direction]] = [
+              order[index + direction],
+              order[index],
+            ];
+            previewRecordingSchedule(order);
+          };
+          row.append(button);
+        }
+        const remove = el("button", "Remove", "pub-recording-remove");
+        remove.type = "button";
+        remove.setAttribute(
+          "aria-label",
+          "Remove from this batch: " +
+            d.title +
+            " · " +
+            channel(d.channel_id).name,
+        );
+        remove.onclick = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          for (const check of $("#recording-options").querySelectorAll(
+            "input",
+          )) {
+            if (check.value === d.id) check.checked = false;
+          }
+          const remaining = recordingOrder.filter((id) => id !== d.id);
+          $("#recording-selection-count").textContent =
+            remaining.length + " selected";
+          previewRecordingSchedule(remaining);
+        };
+        row.append(remove);
+        box.append(row);
+      });
+      box.append(
+        el(
+          "p",
+          "Remove skips an item in this batch only. Use Exclude from scheduling above to keep it out of future batches. Times remain pending until the destination confirms.",
+          "pub-legend",
+        ),
+      );
+      $("#apply-recording-schedule").disabled = !recordingPreview.length;
+      box.scrollIntoView({ block: "start" });
+    } catch (e) {
+      if (request !== recordingPreviewRequest) return;
+      recordingPreview = [];
+      $("#recording-schedule-preview").replaceChildren();
+      $("#recording-schedule-error").textContent = e.message;
+    } finally {
+      if (request === recordingPreviewRequest) button.disabled = false;
+    }
+  }
+  $("#refresh-recording-status").onclick = async () => {
+    const button = $("#refresh-recording-status");
+    button.disabled = true;
+    $("#recording-schedule-error").textContent = "";
+    try {
+      await api({
+        action: "recording_refresh",
+        event: $("#schedule-event").value,
+      });
+      await load();
+      renderRecordingOptions();
+    } catch (e) {
+      $("#recording-schedule-error").textContent = e.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+  $("#schedule-recordings").onclick = () => openRecordingScheduler();
+  $("#close-recording-scheduler").onclick = () =>
+    $("#recording-scheduler").close();
+  $("#schedule-event").onchange = () => {
+    recordingFocus = "";
+    renderRecordingOptions();
+  };
+  $("#schedule-destination").onchange = () => renderRecordingOptions();
+  $("#include-scheduled").onchange = () => renderRecordingOptions();
+  $("#include-excluded").onchange = () => renderRecordingOptions();
+  $("#select-recordings").onclick = () => {
+    $("#recording-options")
+      .querySelectorAll("input:not(:disabled)")
+      .forEach((x) => (x.checked = true));
+    invalidateRecordingPreview();
+  };
+  $("#clear-recordings").onclick = () => {
+    $("#recording-options")
+      .querySelectorAll("input")
+      .forEach((x) => (x.checked = false));
+    invalidateRecordingPreview();
+  };
+  $("#preview-recording-schedule").onclick = () =>
+    previewRecordingSchedule(
+      [...$("#recording-options").querySelectorAll("input:checked")].map(
+        (x) => x.value,
+      ),
+    );
+  $("#recording-schedule-form").onsubmit = async (ev) => {
+    ev.preventDefault();
+    if (!recordingPreview.length) return;
+    const button = $("#apply-recording-schedule");
+    button.disabled = true;
+    try {
+      await api({ action: "recording_apply", moves: recordingPreview });
+      $("#recording-scheduler").close();
+      await load();
+      moveStatus(
+        "Recording slots reserved. YouTube releases and broadcasts will synchronize independently.",
+      );
+    } catch (e) {
+      $("#recording-schedule-error").textContent =
+        e.message +
+        ". Preview the schedule again to refresh the available times.";
+      recordingPreview = [];
+      button.disabled = true;
+    }
+  };
   function recordingLinks() {
     const tag = $("#recording-event").value;
     $("#open-recordings").href =
       "/" + encodeURIComponent(tag) + "/admin/recordings";
-    $("#autoschedule-recordings").href =
-      "/" + encodeURIComponent(tag) + "/admin/recordings/autoschedule";
   }
   $("#recording-event").onchange = recordingLinks;
   $("#recording-workflows").onclick = () => $("#recording-picker").showModal();

@@ -5,9 +5,12 @@
     {{ block "header" . }}{{ end }}
     <link
       rel="stylesheet"
-      href="/static/css/publishing.css?v=20261118-slots-1"
+      href="/static/css/publishing.css?v=20261118-recording-destinations-3"
     />
-    <script defer src="/static/js/publishing.js?v=20261118-slots-1"></script>
+    <script
+      defer
+      src="/static/js/publishing.js?v=20261118-recording-destinations-3"
+    ></script>
   </head>
   <body class="btcpp-admin-page publishing-page">
     {{ template "mainnav" . }}
@@ -20,7 +23,8 @@
           <p>One calendar for every event, channel, and recording release.</p>
         </div>
         <div class="pub-heading-actions">
-          <button id="recording-workflows">Recordings & streams</button>
+          <button id="recording-workflows">Media library</button>
+          <button id="schedule-recordings">Schedule recordings</button>
           <button id="compose" class="pub-primary">＋ New post</button>
         </div>
       </header>
@@ -70,6 +74,10 @@
                 <option value="">All statuses</option>
                 <option>draft</option>
                 <option>scheduled</option>
+                <option>pending</option>
+                <option>syncing</option>
+                <option>live</option>
+                <option>ended</option>
                 <option>failed</option>
                 <option>needs_review</option>
                 <option>published</option>
@@ -193,29 +201,110 @@
           ></label>
           <p id="move-zone" class="pub-legend"></p>
           <p class="pub-legend">
-            Only this account’s item will move. Other copies keep their
-            schedules.
+            Only this destination will move. Other release, broadcast, and post
+            times stay unchanged.
           </p>
           <div class="pub-dialog-actions">
-            <button type="submit" class="pub-primary">Move post</button>
+            <button type="submit" class="pub-primary">Move item</button>
           </div>
         </form>
       </dialog>
-      <dialog id="recording-picker" aria-label="Recordings and streams">
+      <dialog id="recording-picker" aria-label="Recording media library">
         <div class="pub-dialog-head">
-          <h2>Recordings & streams</h2>
+          <h2>Recording media library</h2>
           <button id="close-recordings" aria-label="Close recordings">×</button>
         </div>
         <p>
-          Choose an event to upload recordings, schedule YouTube releases, or
-          reserve broadcasts. All events share the same broadcast calendar.
+          Choose an event to upload recordings or edit their media. Schedule
+          releases and broadcasts in the shared calendar.
         </p>
         <label
           >Event
           <select id="recording-event"></select
         ></label>
         <p><a id="open-recordings">Open recordings</a></p>
-        <p><a id="autoschedule-recordings">Schedule a batch</a></p>
+      </dialog>
+      <dialog
+        id="recording-scheduler"
+        aria-labelledby="recording-scheduler-title"
+      >
+        <form id="recording-schedule-form">
+          <div class="pub-dialog-head">
+            <h2 id="recording-scheduler-title">Schedule recordings</h2>
+            <button
+              type="button"
+              id="close-recording-scheduler"
+              aria-label="Close recording scheduler"
+            >
+              ×
+            </button>
+          </div>
+          <div class="pub-recording-body">
+            <p>
+              Each talk has separate entries for its YouTube release and
+              recorded broadcast, each with its own schedule. Choose a
+              destination below to see only releases or broadcasts, then preview
+              and apply their times.
+            </p>
+            <p id="recording-schedule-error" role="alert"></p>
+            <div class="pub-recording-filters">
+              <label
+                >Event<select id="schedule-event">
+                  <option value="">All events</option>
+                </select></label
+              >
+              <label
+                >Destination<select id="schedule-destination">
+                  <option value="">YouTube and broadcasts</option>
+                  <option value="youtube">YouTube releases</option>
+                  <option value="broadcasts">Broadcasts</option>
+                </select></label
+              >
+            </div>
+            <div class="pub-recording-includes">
+              <label class="pub-recording-check"
+                ><input type="checkbox" id="include-scheduled" /><span
+                  >Include already scheduled recordings</span
+                ></label
+              >
+              <label class="pub-recording-check"
+                ><input type="checkbox" id="include-excluded" /><span
+                  >Show excluded recordings</span
+                ></label
+              >
+            </div>
+            <p class="pub-legend">
+              Uncheck a talk or remove it from the preview to skip this batch.
+              Exclude from scheduling keeps this destination out of future
+              batches until you restore it. Excluding does not change YouTube
+              visibility.
+            </p>
+            <div class="pub-recording-selection">
+              <button type="button" id="select-recordings">
+                Select available</button
+              ><button type="button" id="clear-recordings">
+                Clear selection</button
+              ><button type="button" id="refresh-recording-status">
+                Refresh recording status
+              </button>
+              <span id="recording-selection-count" aria-live="polite"></span>
+            </div>
+            <div id="recording-options"></div>
+            <div id="recording-schedule-preview" aria-live="polite"></div>
+          </div>
+          <div class="pub-dialog-actions">
+            <button type="button" id="preview-recording-schedule">
+              Preview schedule</button
+            ><button
+              type="submit"
+              id="apply-recording-schedule"
+              class="pub-primary"
+              disabled
+            >
+              Apply schedule
+            </button>
+          </div>
+        </form>
       </dialog>
       <dialog id="calendar-day" aria-labelledby="calendar-day-title">
         <div class="pub-dialog-head">

@@ -40,6 +40,12 @@ func ListRecordingPublishReservations(ctx *config.AppContext) ([]RecordingPublis
 	return listRecordingPublishReservations(ctx.DatabaseContext(), ctx.DB)
 }
 
+// RecordingScheduleReservations shares confirmed and pending reservations with
+// the publishing calendar, under the same transaction lock as legacy workers.
+func RecordingScheduleReservations(dbctx context.Context, db recordingScheduleQuerier) ([]RecordingPublishReservation, error) {
+	return listRecordingPublishReservations(dbctx, db)
+}
+
 func listRecordingPublishReservations(dbctx context.Context, db recordingScheduleQuerier) ([]RecordingPublishReservation, error) {
 	rows, err := db.Query(dbctx, `
 		SELECT r.id::text, r.talk_name, coalesce(c.tag, ''), coalesce(r.publish_at, rb.started_at, rb.heartbeat_at), r.duration_seconds, false
@@ -65,7 +71,18 @@ func listRecordingPublishReservations(dbctx context.Context, db recordingSchedul
 		LEFT JOIN conf_talks ct ON ct.id = r.conf_talk_id
 		LEFT JOIN conferences c ON c.id = ct.conference_id
 		WHERE xb.scheduled_at + (r.duration_seconds + 300) * interval '1 second' >= now()
-		ORDER BY 4, 1
+        UNION ALL
+        SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.target_at,r.duration_seconds,true
+        FROM recording_schedule_changes j JOIN recordings r ON r.id=j.recording_id
+        JOIN conf_talks ct ON ct.id=r.conf_talk_id JOIN conferences c ON c.id=ct.conference_id
+        WHERE j.state IN ('pending','syncing','failed','needs_review') AND j.target_at + (r.duration_seconds+300)*interval '1 second' >= now()
+        UNION ALL
+        SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.previous_at,r.duration_seconds,true
+        FROM recording_schedule_changes j JOIN recordings r ON r.id=j.recording_id
+        JOIN conf_talks ct ON ct.id=r.conf_talk_id JOIN conferences c ON c.id=ct.conference_id
+        WHERE j.state IN ('pending','syncing','failed','needs_review') AND j.previous_at + (r.duration_seconds+300)*interval '1 second' >= now()
+
+        ORDER BY 4, 1
 	`, YouTubePublishChannel)
 	if err != nil {
 		return nil, fmt.Errorf("load shared recording schedule: %w", err)
@@ -155,7 +172,7 @@ func validateRecordingSchedule(updates []RecordingScheduleUpdate, reservations [
 			continue
 		}
 		if update.DurationSeconds <= 0 {
-			return fmt.Errorf("recording runtime is unknown; refresh the recordings page after YouTube finishes processing before scheduling")
+			return fmt.Errorf("recording runtime is unknown; use Refresh recording status in Publishing after YouTube finishes processing")
 		}
 		conflict, err := RecordingScheduleConflictForRecording(update.RecordingID, *update.PublishAt, update.DurationSeconds, occupied)
 		if err != nil {
@@ -197,7 +214,7 @@ func RecordingScheduleConflictForRecording(recordingID string, start time.Time, 
 			continue
 		}
 		if reservation.RecordingID != "" && reservation.DurationSeconds <= 0 {
-			return nil, fmt.Errorf("runtime is unknown for %s; refresh that event's recordings page before scheduling", reservation.Label())
+			return nil, fmt.Errorf("runtime is unknown for %s; use Refresh recording status in Publishing before scheduling", reservation.Label())
 		}
 		if start.Before(reservation.ReservedUntil()) && reservation.PublishAt.Before(end) {
 			return &reservation, nil

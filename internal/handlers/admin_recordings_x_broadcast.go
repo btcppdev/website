@@ -29,59 +29,11 @@ type recordingXBroadcastWork struct {
 }
 
 func RecordingsAdminScheduleXBroadcast(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	conf, rec, row, ok := scopedRecordingFromRequest(w, r, ctx)
+	conf, rec, _, ok := scopedRecordingFromRequest(w, r, ctx)
 	if !ok {
 		return
 	}
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't parse form: "+err.Error())
-		return
-	}
-	publishAt := rec.PublishAt
-	if raw := strings.TrimSpace(r.FormValue("publish_at")); raw != "" {
-		when, err := parseRecordingPublishAt(raw, conf)
-		if err != nil {
-			redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't parse publish time: "+err.Error())
-			return
-		}
-		publishAt = &when
-	}
-	if publishAt == nil {
-		redirectWithErr(w, r, conf.Tag, rec.ID, "Set a future PublishAt before scheduling an X broadcast")
-		return
-	}
-	if err := refreshRecordingScheduleDurations(ctx, []*RecordingRow{row}); err != nil {
-		redirectWithErr(w, r, conf.Tag, rec.ID, err.Error())
-		return
-	}
-	if rec.PublishAt == nil || !rec.PublishAt.Equal(*publishAt) {
-		if err := getters.UpdateRecordingPublishAt(ctx, rec.ID, publishAt); err != nil {
-			redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't update PublishAt: "+err.Error())
-			return
-		}
-		rec.PublishAt = publishAt
-	}
-	if _, err := updateRecordingYouTubeSchedule(ctx, rec, publishAt); err != nil {
-		redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't update YouTube schedule: "+err.Error())
-		return
-	}
-
-	work, disposition, err := claimRecordingXBroadcast(ctx, conf, rec, row, *publishAt)
-	if err != nil {
-		redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't claim X broadcast scheduling: "+err.Error())
-		return
-	}
-	if work == nil {
-		if disposition == "scheduled" {
-			redirectWithErr(w, r, conf.Tag, rec.ID, "This recording already has a scheduled X broadcast")
-		} else {
-			redirectWithErr(w, r, conf.Tag, rec.ID, "X broadcast scheduling is already running")
-		}
-		return
-	}
-	startRecordingXBroadcastWork(ctx, work)
-	http.Redirect(w, r, recordingDetailPath(conf.Tag, rec.ID)+"?flash="+url.QueryEscape("X broadcast scheduling started"), http.StatusSeeOther)
+	redirectRecordingPublishing(w, r, conf.Tag, rec.ID, "broadcasts")
 }
 
 func claimRecordingXBroadcast(ctx *config.AppContext, conf *types.Conf, rec *types.Recording, row *RecordingRow, publishAt time.Time) (*recordingXBroadcastWork, string, error) {
@@ -95,11 +47,11 @@ func claimRecordingXBroadcast(ctx *config.AppContext, conf *types.Conf, rec *typ
 		return nil, "", fmt.Errorf("the recording must be attached to a conference talk")
 	}
 	cardKey := recordingNotificationCardKey(row, conf)
-	if strings.TrimSpace(cardKey) == "" {
-		return nil, "", fmt.Errorf("generate a talk social card before scheduling an X broadcast")
-	}
 	needsPoster := row.XBroadcast == nil || strings.TrimSpace(row.XBroadcast.PosterMediaID) == ""
 	if needsPoster {
+		if strings.TrimSpace(cardKey) == "" {
+			return nil, "", fmt.Errorf("generate a talk social card before scheduling an X broadcast")
+		}
 		if !spaces.IsConfigured() {
 			return nil, "", fmt.Errorf("Spaces is not configured, so the talk social card cannot be loaded")
 		}

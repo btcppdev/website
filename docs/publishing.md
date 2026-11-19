@@ -5,7 +5,7 @@
 ## First direct publishers
 
 - X: OAuth 2 with PKCE, encrypted database credentials, text, up to four JPEG/PNG/WebP images (5 MB each), and one optional follow-up reply. Video announcements use the recording/broadcast workflow; direct video attachments are not implemented in this version.
-- YouTube: the existing direct upload/release workflow remains authoritative. Use **Recordings & streams** to open any event's uploader or batch scheduler. The shared channel view edits its existing default slots, and scheduled recording cards link to the source entry.
+- YouTube and recorded X broadcasts: schedule and reschedule them in Publishing. **Schedule recordings** selects individual destinations, previews available slots, allows reordering, and applies the batch atomically. Use **Media library** for uploads and media metadata. Existing scheduling URLs redirect into Publishing; their legacy POST actions no longer change times.
 - Instagram and LinkedIn: planned direct integrations. They appear as planned channels, cannot be connected or queued yet, and have no intermediary service. X and YouTube remain the first rollout phase.
 
 ## Enable direct X publishing
@@ -34,11 +34,31 @@ Draft, queued, or wholly failed posts can be edited with optimistic version chec
 
 ## Rescheduling individual posts
 
-Drag a scheduled X post (or its move handle) onto an available publication slot for that same account. Valid slots are highlighted during the drag. Other accounts, occupied slots, past times, and arbitrary calendar space are not valid destinations. The server validates the configured weekday/time in the account's timezone and serializes moves so two posts cannot claim one slot. Stale versions are rejected.
+Drag a scheduled post, YouTube release, or recorded broadcast (or its move handle) onto an available publication slot for that same account. Valid slots are highlighted during the drag. Other accounts, occupied slots, past times, and arbitrary calendar space are not valid destinations. The server validates the configured weekday/time in the account's timezone and serializes moves so two posts cannot claim one slot. Stale versions are rejected.
 
-Click or keyboard-activate the move handle, or choose **Move to slot** in the post details or queue, to select from the next 90 days of available slots. This also works on mobile; touch-dragging uses the handle so scrolling the rest of the calendar still works. Escape cancels a drag.
+Click or keyboard-activate the move handle, or choose **Move to slot** in the item details or queue, to select from the next 90 days of available slots. This also works on mobile; touch-dragging uses the handle so scrolling the rest of the calendar still works. Escape cancels a drag.
 
-A successful move pins only that delivery to the selected slot. It does not reallocate the rest of its queue or reschedule other copies of the post. Sending, already published, uncertain, or partly published deliveries cannot be dragged. YouTube releases and broadcasts continue to use their recording/stream scheduling workflows and conflict checks.
+A successful move pins only that delivery to the selected slot. It does not reallocate the rest of its queue or reschedule other copies of the post. Sending, already published, uncertain, or partly published deliveries cannot be dragged. YouTube releases and recorded broadcasts use the same slot picker and drag controls, with independent channel slots and runtime/conflict checks. Their changes remain pending until confirmed by the destination.
+
+## Withholding a recording
+
+In **Schedule recordings**, uncheck an item or use **Remove** in the preview to skip it for this batch. Removing an item recalculates the remaining slots. Use **Exclude from scheduling** for a persistent hold on that destination; **Select available** and future batches leave it out. Enable **Show excluded recordings** to restore it. Restoring makes it available without scheduling it. YouTube and broadcast exclusions are independent.
+
+Exclusion does not change provider visibility and cannot cancel an existing or pending provider schedule. Resolve or clear that schedule first. YouTube's private visibility is shown separately because private videos can also be scheduled releases. Exclusions are checked by preview, individual moves, batch application, retries, and the provider worker. A stale preview cannot bypass a new exclusion.
+
+## Recording schedules and provider synchronization
+
+Migration 156 adds durable requested schedule changes and initializes separate broadcast slots from the existing cadence. Migration 157 adds a video-identity-bound YouTube visibility cache. Neither migration changes existing confirmed release/broadcast times or calls a provider. Historical items are not replayed.
+
+A recording has independent `youtube:<id>` and `broadcast:<id>` calendar items. YouTube uses the existing YouTube slot table, including each slot's timezone; broadcasts have their own slots in **Channels & schedules**. The same calendar handles individual moves, keyboard/touch slot selection, and batch scheduling. Every save rechecks the item's revision, configured slots, runtime, and shared reservations under the existing database lock. A stale batch fails in full. Publication metadata submitted through the recording API is historical; future scheduling is managed here.
+
+Schedule changes start as **pending**, then **syncing**. They update the actual YouTube schedule or existing X Studio broadcast through the established provider integration. The previously confirmed time remains reserved alongside the requested time until synchronization succeeds. A failed or interrupted operation stays visible for review; uncertain operations are not automatically repeated. Retrying an X create with no saved broadcast ID requires checking X Studio and explicitly confirming that no broadcast was created. If a broadcast does exist, leave the item stopped for reconciliation.
+
+`PUBLISHING_ENABLED` gates both dispatchers. The recording dispatcher does not require direct X social-post OAuth configuration; YouTube and X Studio retain their own connection/update settings. Enabling the dispatcher applies pending provider schedule changes immediately, even when publication itself is weeks away. Review pending work before activation.
+
+**Refresh recording status** fetches YouTube visibility and missing runtimes. Already public releases and live/ended broadcasts cannot move. Replacing a video invalidates its cached visibility by video identity. Clearing a YouTube release queues an unlisted-state update and leaves the recording's broadcast unchanged. X broadcast cancellation is not implemented by this migration.
+
+streamctl continues consuming confirmed X broadcast plans. Uploads, encoding, playback, and manually configured recurring streamer jobs remain in their existing services; recording schedule management lives in Publishing.
 
 ## Calendar imports
 
@@ -48,7 +68,7 @@ Deploy the website endpoint before the streamer update. Account connections and 
 
 ## Validation
 
-Run the normal Go suites for handlers, API, getters, X and YouTube. Run `BTCPP_POSTGRES_SMOKE=1 DATABASE_URL=... go test ./internal/publishing` against an isolated migrated PostgreSQL database for concurrent allocation, rollback, stale edits, duplicate source references, multi-account rollback, independent destination moves, configured-slot restrictions, concurrent slot claims, timezone/DST behavior, and crash/reply recovery. Run streamctl's `go test ./internal/broadcastplans ./internal/btcppclient` with CGO enabled for SQLite. Use local fixtures for browser checks, with publishing disabled.
+Run the normal Go suites for handlers, API, getters, X and YouTube. Run `BTCPP_POSTGRES_SMOKE=1 DATABASE_URL=... go test ./internal/publishing` against an isolated migrated PostgreSQL database for concurrent allocation, rollback, stale edits, duplicate source references, multi-account rollback, independent destination moves, configured-slot restrictions, concurrent slot claims, timezone/DST behavior, and crash/reply recovery. Recording tests also cover independent destinations, preserved confirmed reservations after provider failures, atomic batches, simultaneous moves, runtime and live-state restrictions, clearing a release, and interrupted synchronization. Run streamctl's `go test ./internal/broadcastplans ./internal/btcppclient` with CGO enabled for SQLite. Use local fixtures for browser checks, with publishing disabled.
 
 ## Retiring Buffer
 

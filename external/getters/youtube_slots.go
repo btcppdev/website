@@ -125,6 +125,9 @@ func replaceYouTubePublishSlots(ctx *config.AppContext, channel string, slots []
 		return fmt.Errorf("begin replace youtube publish slots: %w", err)
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
+	if _, err := tx.Exec(ctx.DatabaseContext(), `SELECT pg_advisory_xact_lock(7330192401)`); err != nil {
+		return err
+	}
 
 	if _, err := tx.Exec(ctx.DatabaseContext(), `DELETE FROM youtube_publish_slots WHERE channel = $1`, channel); err != nil {
 		return fmt.Errorf("clear youtube publish slots: %w", err)

@@ -63,15 +63,21 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 		var input struct {
-			Action        string
-			ChannelIDs    []string `json:"channel_ids"`
-			TargetChannel string   `json:"target_channel"`
-			At            time.Time
-			Delivery      publishing.Delivery
-			Channel       publishing.Channel
-			ID            string
-			Version       int
-			URL           string
+			Action              string
+			Event               string
+			Revision            string
+			Excluded            bool
+			IDs                 []string
+			Moves               []publishing.RecordingMove
+			ConfirmedNotCreated bool     `json:"confirmed_not_created"`
+			ChannelIDs          []string `json:"channel_ids"`
+			TargetChannel       string   `json:"target_channel"`
+			At                  time.Time
+			Delivery            publishing.Delivery
+			Channel             publishing.Channel
+			ID                  string
+			Version             int
+			URL                 string
 		}
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
@@ -110,6 +116,28 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 		case "move":
 			err = store.MoveToSlot(r.Context(), input.ID, input.Version, input.TargetChannel, input.At)
 
+		case "recording_refresh":
+			err = refreshPublishingRecordingStatus(app, input.Event)
+		case "recording_preview":
+			result, err = store.PreviewRecordingQueue(r.Context(), input.IDs)
+		case "recording_exclusion":
+			err = store.SetRecordingExcluded(r.Context(), input.ID, input.Revision, input.Excluded)
+		case "recording_apply":
+			err = store.SaveRecordingMoves(r.Context(), input.Moves)
+		case "recording_move":
+			expected := "youtube"
+			if strings.HasPrefix(input.ID, "broadcast:") {
+				expected = "broadcasts"
+			}
+			if !isRecordingPublishingID(input.ID) || input.TargetChannel != expected {
+				err = fmt.Errorf("Choose a slot for this same recording channel")
+			} else {
+				err = store.SaveRecordingMoves(r.Context(), []publishing.RecordingMove{{ID: input.ID, Revision: input.Revision, At: &input.At}})
+			}
+		case "recording_clear":
+			err = store.SaveRecordingMoves(r.Context(), []publishing.RecordingMove{{ID: input.ID, Revision: input.Revision}})
+		case "recording_retry":
+			err = store.RetryRecordingChange(r.Context(), input.ID, input.Revision, input.ConfirmedNotCreated)
 		case "channel":
 			if input.Channel.ID == "youtube" {
 				err = publishing.ValidateSlots(input.Channel.Timezone, input.Channel.Slots)
@@ -120,6 +148,8 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 					}
 					err = getters.ReplaceYouTubePublishSlots(app, slots)
 				}
+			} else if input.Channel.ID == "broadcasts" {
+				err = store.SaveBroadcastSlots(r.Context(), input.Channel)
 			} else {
 				err = store.SaveChannel(r.Context(), input.Channel)
 			}
@@ -182,7 +212,13 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 		}
 		http.Redirect(w, r, "/admin/publishing#channels", http.StatusSeeOther)
 	case "/admin/publishing/slots":
-		slots, err := store.AvailableSlots(r.Context(), r.URL.Query().Get("id"), time.Now())
+		var slots []publishing.Entry
+		var err error
+		if isRecordingPublishingID(r.URL.Query().Get("id")) {
+			slots, err = store.AvailableRecordingSlots(r.Context(), r.URL.Query().Get("id"), time.Now())
+		} else {
+			slots, err = store.AvailableSlots(r.Context(), r.URL.Query().Get("id"), time.Now())
+		}
 		if err != nil {
 			http.Error(w, publishingError(err), 400)
 			return
@@ -234,6 +270,15 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 		_ = app.DB.QueryRow(r.Context(), `SELECT synced_at FROM publishing_sync WHERE provider='streamer'`).Scan(&streamerSynced)
 		slots := []publishing.Entry{}
 		for _, c := range channels {
+			if c.Provider == "recordings" {
+				generated, slotErr := store.RecordingSlotEntries(r.Context(), c.ID, start, end)
+				if slotErr != nil {
+					http.Error(w, "Recording slots unavailable", 503)
+					return
+				}
+				slots = append(slots, generated...)
+				continue
+			}
 			for _, at := range publishing.SlotsBetween(c.Timezone, c.Slots, start, end) {
 				at := at
 				slots = append(slots, publishing.Entry{ID: c.ID + at.String(), ChannelID: c.ID, Title: "Default posting slot", Kind: "slot", At: &at, Provider: c.Provider})
@@ -260,7 +305,12 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 			http.Error(w, "Events unavailable", 503)
 			return
 		}
-		publishingJSON(w, map[string]any{"events": events, "channels": channels, "entries": entries, "deliveries": deliveries, "slots": slots, "streamer_synced_at": streamerSynced, "worker_enabled": app.Env.Publishing.Enabled && publishingXConfigured(app), "x_configured": publishingXConfigured(app), "youtube_connected": youtubepkg.IsConnected()})
+		recordingItems, recordingErr := store.RecordingItems(r.Context())
+		if recordingErr != nil {
+			http.Error(w, "Recordings unavailable", 503)
+			return
+		}
+		publishingJSON(w, map[string]any{"recordings": recordingItems, "recording_worker_enabled": app.Env.Publishing.Enabled, "events": events, "channels": channels, "entries": entries, "deliveries": deliveries, "slots": slots, "streamer_synced_at": streamerSynced, "worker_enabled": app.Env.Publishing.Enabled && publishingXConfigured(app), "x_configured": publishingXConfigured(app), "youtube_connected": youtubepkg.IsConnected()})
 	case "/admin/publishing":
 		csrf, e := ensureAuthMethodsCSRF(app, r)
 		if e != nil {
@@ -355,6 +405,7 @@ func publishingMedia(w http.ResponseWriter, r *http.Request, app *config.AppCont
 	publishingJSON(w, publishing.Media{URL: spaces.PublicURL(key), Kind: "image"})
 }
 func StartPublishingWorker(app *config.AppContext) {
+	StartRecordingPublishingWorker(app)
 	if !app.Env.Publishing.Enabled || app.DB == nil {
 		return
 	}

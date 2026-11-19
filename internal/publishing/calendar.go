@@ -34,15 +34,6 @@ func (s Store) Calendar(ctx context.Context, start, end time.Time) ([]Entry, err
  UNION ALL
  SELECT provider||':'||remote_id,channel_id,conference_tag,title,CASE WHEN provider='streamer' THEN 'stream' ELSE 'post' END,state,starts_at,ends_at,url,provider
  FROM publishing_external WHERE provider='streamer' AND (starts_at BETWEEN $1 AND $2 OR starts_at IS NULL)
- UNION ALL
- SELECT 'youtube:'||r.id::text,'youtube',coalesce(c.tag,''),r.talk_name,'recording',coalesce(nullif(sp.status,''),'scheduled'),r.publish_at,NULL::timestamptz,'/'||c.tag||'/admin/recordings/'||r.id::text,'recordings'
- FROM recordings r LEFT JOIN conf_talks ct ON ct.id=r.conf_talk_id LEFT JOIN conferences c ON c.id=ct.conference_id
- LEFT JOIN social_posts sp ON sp.ref='recording:'||r.id::text||':youtube'
- WHERE r.publish_at BETWEEN $1 AND $2
- UNION ALL
- SELECT 'broadcast:'||r.id::text,'broadcasts',coalesce(c.tag,''),r.talk_name,'stream',xb.status,xb.scheduled_at,xb.scheduled_at+(r.duration_seconds+300)*interval '1 second','/'||c.tag||'/admin/recordings/'||r.id::text,'recordings'
- FROM recording_x_broadcasts xb JOIN recordings r ON r.id=xb.recording_id LEFT JOIN conf_talks ct ON ct.id=r.conf_talk_id LEFT JOIN conferences c ON c.id=ct.conference_id
- WHERE xb.scheduled_at BETWEEN $1 AND $2
  ORDER BY 7 NULLS LAST,1 LIMIT 5000`, start, end)
 	if e != nil {
 		return nil, e
@@ -60,7 +51,29 @@ func (s Store) Calendar(ctx context.Context, start, end time.Time) ([]Entry, err
 		}
 		out = append(out, v)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	recordings, err := s.RecordingItems(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range recordings {
+		if d.At == nil && d.State != "pending" && d.State != "failed" && d.State != "needs_review" {
+			continue
+		}
+		if d.At != nil && (d.At.Before(start) || !d.At.Before(end)) {
+			continue
+		}
+		item := Entry{ID: d.ID, ChannelID: d.ChannelID, Conference: d.Conference, Title: d.Title, Kind: d.Kind, State: d.State, At: d.At, URL: "/" + d.Conference + "/admin/recordings/" + d.RecordingID, Provider: "recordings"}
+		if d.Kind == "stream" && d.At != nil {
+			end := d.At.Add(time.Duration(d.DurationSeconds)*time.Second + 5*time.Minute)
+			item.End = &end
+		}
+		out = append(out, item)
+	}
+	return out, nil
 }
 
 // ReplaceExternal is called only after fetching a complete snapshot. A failed

@@ -951,3 +951,199 @@
     width: 100%;
   }
 }
+
+/* Recording destinations share the calendar's existing controls and palette. */
+.publishing-page #recording-scheduler {
+  width: min(1440px, calc(100% - 48px));
+  max-width: none;
+  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+}
+#recording-schedule-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+#recording-scheduler .pub-dialog-head,
+#recording-scheduler .pub-dialog-actions {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 24px;
+  background: #fff;
+}
+#recording-scheduler .pub-dialog-head {
+  border-bottom: 1px solid #b8b3aa;
+}
+#recording-scheduler .pub-dialog-head h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.3;
+}
+#recording-scheduler .pub-dialog-actions {
+  gap: 8px;
+  border-top: 1px solid #b8b3aa;
+}
+#recording-scheduler button {
+  min-height: 44px;
+}
+#recording-scheduler button,
+#recording-scheduler select,
+#recording-scheduler .pub-legend,
+#recording-scheduler small {
+  font-size: 14px;
+}
+#recording-scheduler .pub-recording-check,
+.pub-recording-preview-row {
+  font-size: 16px;
+  line-height: 1.5;
+}
+#recording-scheduler .pub-recording-check strong {
+  color: #0a0a0a;
+}
+.pub-recording-body {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 24px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.pub-recording-includes {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 32px;
+}
+.pub-recording-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.publishing-page .pub-recording-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  margin: 8px 0;
+  font:
+    14px/1.5 "IBM Plex Sans",
+    sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.publishing-page .pub-recording-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+}
+.pub-recording-check span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pub-recording-check strong,
+.pub-recording-check small,
+.pub-recording-preview-row strong,
+.pub-recording-preview-row small {
+  display: block;
+}
+.pub-recording-destination {
+  display: inline-block;
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  border: 1px solid #b8b3aa;
+  background: #efeae2;
+  color: #0a0a0a;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+#recording-options {
+  border-top: 1px solid #b8b3aa;
+  border-bottom: 1px solid #b8b3aa;
+  margin: 12px 0;
+}
+#recording-options .pub-recording-check {
+  padding: 8px 0;
+  flex: 1;
+  min-width: 0;
+}
+.pub-recording-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e1d9;
+}
+.pub-recording-option > button {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+.pub-recording-selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pub-recording-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #b8b3aa;
+}
+.pub-recording-preview-row div {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pub-recording-preview-row button {
+  flex: 0 0 44px;
+  min-height: 44px;
+}
+.pub-recording-preview-row .pub-recording-remove {
+  flex-basis: auto;
+}
+.pub-recording-error,
+#recording-schedule-error {
+  color: #b42318;
+}
+@media (max-width: 600px) {
+  .publishing-page #recording-scheduler {
+    width: calc(100% - 16px);
+    height: calc(100vh - 16px);
+    height: calc(100dvh - 16px);
+  }
+  #recording-scheduler .pub-dialog-head,
+  #recording-scheduler .pub-dialog-actions {
+    padding: 12px;
+  }
+  #recording-scheduler .pub-dialog-head h2 {
+    font-size: 22px;
+  }
+  .pub-recording-body {
+    padding: 12px 12px 16px;
+  }
+  .pub-recording-option,
+  .pub-recording-preview-row {
+    flex-wrap: wrap;
+  }
+  #recording-options .pub-recording-check,
+  .pub-recording-preview-row > div {
+    flex: 1 1 100%;
+  }
+  .pub-recording-option > button {
+    margin-left: 30px;
+  }
+  .pub-recording-filters {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .pub-heading-actions #recording-workflows {
+    grid-column: 1 / -1;
+  }
+}
