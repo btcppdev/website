@@ -112,13 +112,12 @@
     }).format(new Date(at));
   }
   function channel(id) {
-    return (
-      data.channels.find((c) => c.id === id) || {
-        name: id,
-        platform: "",
-        provider: "",
-      }
-    );
+    const c = data.channels.find((c) => c.id === id) || {
+      name: id,
+      platform: "",
+      provider: "",
+    };
+    return id === "broadcasts" ? { ...c, name: "Bitcoin++ · X Broadcast" } : c;
   }
   function notice(msg) {
     $("#notice").textContent = msg;
@@ -184,7 +183,10 @@
     for (const [id, items] of [
       [
         "channel",
-        data.channels.map((c) => [c.id, c.name + " · " + c.platform]),
+        data.channels.map((c) => [
+          c.id,
+          channel(c.id).name + " · " + c.platform,
+        ]),
       ],
       [
         "event",
@@ -920,7 +922,7 @@
     intro.append(
       el(
         "p",
-        "Manage X posts, YouTube releases, and recorded broadcasts here. Each destination has its own schedule. Instagram and LinkedIn are planned next.",
+        "Manage X posts, YouTube releases, and X broadcasts here. Each destination has its own schedule. Instagram and LinkedIn are planned next.",
       ),
     );
     if (data.x_configured) {
@@ -947,7 +949,7 @@
     for (const c of data.channels) {
       const row = el("article", undefined, "pub-channel");
       row.append(
-        el("h3", c.name),
+        el("h3", channel(c.id).name),
         el(
           "span",
           c.platform.toUpperCase() +
@@ -1436,7 +1438,7 @@
   function recordingDestinationLabel(d) {
     return el(
       "span",
-      d.channel_id === "youtube" ? "YouTube release" : "Recorded broadcast",
+      d.channel_id === "youtube" ? "YouTube release" : "X Broadcast",
       "pub-recording-destination",
     );
   }
@@ -1715,7 +1717,7 @@
       $("#recording-scheduler").close();
       await load();
       moveStatus(
-        "Recording slots reserved. YouTube releases and broadcasts will synchronize independently.",
+        "Recording slots reserved. YouTube releases and X broadcasts will synchronize independently.",
       );
     } catch (e) {
       $("#recording-schedule-error").textContent =
