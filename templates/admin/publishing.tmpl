@@ -5,11 +5,11 @@
     {{ block "header" . }}{{ end }}
     <link
       rel="stylesheet"
-      href="/static/css/publishing.css?v=20261118-recording-destinations-3"
+      href="/static/css/publishing.css?v=20261119-recording-drag-1"
     />
     <script
       defer
-      src="/static/js/publishing.js?v=20261118-publication-status-5"
+      src="/static/js/publishing.js?v=20261119-recording-drag-1"
     ></script>
   </head>
   <body class="btcpp-admin-page publishing-page">
@@ -247,6 +247,11 @@
               broadcast, each with its own schedule. Choose a destination below
               to see only YouTube releases or X broadcasts, then preview and
               apply their times.
+            </p>
+            <p>
+              Default order per event: Main, Talks, then Workshops, in agenda
+              order within each room. Drag talks in the preview to reorder
+              them, or use the up/down buttons.
             </p>
             <p id="recording-schedule-error" role="alert"></p>
             <div class="pub-recording-filters">

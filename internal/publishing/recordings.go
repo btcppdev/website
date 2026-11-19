@@ -64,7 +64,14 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
  LEFT JOIN recording_youtube_status ys ON ys.recording_id=r.id AND ys.youtube_url=r.youtube_url
  LEFT JOIN recording_schedule_changes j ON j.recording_id=r.id AND j.channel_id=ch.id
  LEFT JOIN recording_publication_preferences pref ON pref.recording_id=r.id AND pref.channel_id=ch.id
- WHERE ch.id IN ('youtube','broadcasts') ORDER BY c.start_date DESC NULLS LAST,r.talk_name,r.id,ch.id`)
+ WHERE ch.id IN ('youtube','broadcasts')
+ ORDER BY c.start_date DESC NULLS LAST,c.tag,
+ CASE
+   WHEN lower(trim(ct.venue)) IN ('one','p2pkh','main','main stage') THEN 0
+   WHEN lower(trim(ct.venue)) IN ('two','p2wsh','p2sh-p2wpkh','talk','talks','talking','talks stage','talking stage','talking two') THEN 1
+   WHEN lower(trim(ct.venue)) IN ('three','multisig','p2tr','workshop','workshops','workshop stage','workshops stage','workshops 2') THEN 2
+   ELSE 3
+ END,ct.scheduled_start ASC NULLS LAST,lower(r.talk_name),r.id,ch.id`)
 	if err != nil {
 		return nil, err
 	}

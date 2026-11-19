@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -81,6 +82,88 @@ func seedBroadcast(t *testing.T, s Store, id string, at time.Time) {
 		t.Fatal(e)
 	}
 }
+
+func TestRecordingDefaultOrderAndManualPreviewOrder(t *testing.T) {
+	s := testStore(t)
+	recordingSlotsFixture(t, s)
+	ctx := context.Background()
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	newConference := func(at *time.Time) string {
+		t.Helper()
+		id := uuid.NewString()
+		if _, err := s.DB.Exec(ctx, `INSERT INTO conferences(id,tag,start_date) VALUES($1,$2,$3)`, id, "order-"+id, at); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = s.DB.Exec(ctx, `DELETE FROM conferences WHERE id=$1`, id) })
+		return id
+	}
+	conference := newConference(&start)
+	older := start.AddDate(-1, 0, 0)
+	olderConference := newConference(&older)
+	undatedConference := newConference(nil)
+	addRecording := func(conf, title, room string, hour int) string {
+		t.Helper()
+		var at *time.Time
+		if hour >= 0 {
+			tm := start.Add(time.Duration(hour) * time.Hour)
+			at = &tm
+		}
+		var id string
+		err := s.DB.QueryRow(ctx, `WITH p AS (
+ INSERT INTO proposals(conference_id,title) VALUES($1,$2) RETURNING id
+ ), t AS (
+ INSERT INTO conf_talks(conference_id,proposal_id,venue,scheduled_start)
+ SELECT $1,id,$3,$4 FROM p RETURNING id
+ ) INSERT INTO recordings(conf_talk_id,talk_name,youtube_url,file_uri,duration_seconds)
+ SELECT id,$2,'https://youtu.be/abcdefghijk','recordings/fixture.mp4',3600 FROM t RETURNING id::text`, conf, title, room, at).Scan(&id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	// Deliberately disagree with insertion and alphabetical order. An earlier
+	// workshop follows all Main and Talks recordings, including the next day.
+	workshop := addRecording(conference, "A workshop", "three", 9)
+	talk := addRecording(conference, "B talk", "two", 10)
+	mainNextDay := addRecording(conference, "C main day two", " Main Stage ", 33)
+	mainFirst := addRecording(conference, "Z main opening", "one", 11)
+	mainLater := addRecording(conference, "D main later", "p2pkh", 12)
+	talkLater := addRecording(conference, "A legacy talk", "p2wsh", 11)
+	workshopLater := addRecording(conference, "A legacy workshop", "p2tr", 10)
+	other := addRecording(conference, "A lounge", "lounge", 8)
+	mainUntimedZ := addRecording(conference, "Z untimed main", "main", -1)
+	mainUntimedA := addRecording(conference, "A untimed main", "main", -1)
+	old := addRecording(olderConference, "A older event", "one", 8)
+	undated := addRecording(undatedConference, "A undated event", "one", 8)
+	want := []string{mainFirst, mainLater, mainNextDay, mainUntimedA, mainUntimedZ, talk, talkLater, workshop, workshopLater, other, old, undated}
+	items, err := s.RecordingItems(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, destination := range []struct{ channel, prefix string }{{"youtube", "youtube:"}, {"broadcasts", "broadcast:"}} {
+		t.Run(destination.channel, func(t *testing.T) {
+			var got []string
+			for _, item := range items {
+				if item.ChannelID == destination.channel && slices.Contains(want, item.RecordingID) {
+					got = append(got, item.RecordingID)
+				}
+			}
+			if !slices.Equal(got, want) {
+				t.Fatalf("default recording order = %v; want %v", got, want)
+			}
+			// A manually promoted workshop must stay ahead of Main in the preview.
+			manual := []string{destination.prefix + workshop, destination.prefix + mainFirst}
+			preview, err := s.PreviewRecordingQueue(ctx, manual)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(preview) != 2 || preview[0].ID != manual[0] || preview[1].ID != manual[1] || preview[0].At == nil || preview[1].At == nil || !preview[0].At.Before(*preview[1].At) {
+				t.Fatalf("manual preview order was not preserved: %+v", preview)
+			}
+		})
+	}
+}
+
 func TestRecordingDestinationsMoveIndependently(t *testing.T) {
 	s := testStore(t)
 	recordingSlotsFixture(t, s)

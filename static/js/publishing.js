@@ -38,6 +38,7 @@
     dragRecordingSlots = null,
     recordingPreview = [],
     recordingOrder = [],
+    recordingDragID = null,
     recordingPreviewRequest = 0,
     recordingFocus = "",
     initialLoad = true;
@@ -802,7 +803,11 @@
     }
     container.append(grid);
     const attention = entries.filter(
-      (e) => !e.at && !["disabled", "past", "ended", "published", "canceled"].includes(e.state),
+      (e) =>
+        !e.at &&
+        !["disabled", "past", "ended", "published", "canceled"].includes(
+          e.state,
+        ),
     );
     if (attention.length) {
       container.append(el("h3", "Needs a time / review"));
@@ -1426,6 +1431,7 @@
     };
   }
   function invalidateRecordingPreview() {
+    clearRecordingDrag();
     recordingPreviewRequest++;
     recordingPreview = [];
     recordingOrder = [];
@@ -1562,7 +1568,74 @@
     renderRecordingOptions();
     $("#recording-scheduler").showModal();
   }
+  function clearRecordingDrag() {
+    recordingDragID = null;
+    $("#recording-schedule-preview")
+      .querySelectorAll(".pub-recording-preview-row")
+      .forEach((row) =>
+        row.classList.remove(
+          "is-reordering",
+          "is-insert-before",
+          "is-insert-after",
+        ),
+      );
+  }
+  function recordingReorderTarget(row, event) {
+    const rect = row.getBoundingClientRect();
+    return event.clientY >= rect.top + rect.height / 2;
+  }
+  function enableRecordingReorder(row, id) {
+    row.draggable = true;
+    row.ondragstart = (event) => {
+      if (event.target.closest("button, a, input")) {
+        event.preventDefault();
+        return;
+      }
+      clearRecordingDrag();
+      recordingDragID = id;
+      event.dataTransfer.setData("text/plain", id);
+      event.dataTransfer.effectAllowed = "move";
+      row.classList.add("is-reordering");
+      $("#apply-recording-schedule").disabled = true;
+    };
+    row.ondragover = (event) => {
+      if (!recordingDragID || recordingDragID === id) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      $("#recording-schedule-preview")
+        .querySelectorAll(".is-insert-before, .is-insert-after")
+        .forEach((node) =>
+          node.classList.remove("is-insert-before", "is-insert-after"),
+        );
+      row.classList.add(
+        recordingReorderTarget(row, event)
+          ? "is-insert-after"
+          : "is-insert-before",
+      );
+    };
+    row.ondragleave = (event) => {
+      if (!row.contains(event.relatedTarget))
+        row.classList.remove("is-insert-before", "is-insert-after");
+    };
+    row.ondrop = (event) => {
+      if (!recordingDragID || recordingDragID === id) return;
+      event.preventDefault();
+      const moved = recordingDragID;
+      const order = recordingOrder.filter((item) => item !== moved);
+      const at =
+        order.indexOf(id) + (recordingReorderTarget(row, event) ? 1 : 0);
+      order.splice(at, 0, moved);
+      clearRecordingDrag();
+      if (order.some((item, index) => item !== recordingOrder[index]))
+        previewRecordingSchedule(order);
+    };
+    row.ondragend = () => {
+      clearRecordingDrag();
+      $("#apply-recording-schedule").disabled = !recordingPreview.length;
+    };
+  }
   async function previewRecordingSchedule(ids) {
+    clearRecordingDrag();
     if (!ids.length) {
       invalidateRecordingPreview();
       return;
@@ -1583,16 +1656,29 @@
       recordingOrder = ids.slice();
       const box = $("#recording-schedule-preview");
       box.replaceChildren(el("h3", "Review publication times"));
+      const help = el(
+        "p",
+        "Drag a talk to reorder it, or use the up/down buttons. Times update after each move.",
+        "pub-legend",
+      );
+      help.id = "recording-reorder-help";
+      box.append(help);
       recordingPreview.forEach((m, index) => {
         const d = data.recordings.find((x) => x.id === m.id),
           row = el("div", undefined, "pub-recording-preview-row");
+        row.dataset.recordingId = m.id;
+        row.setAttribute("aria-describedby", "recording-reorder-help");
+        enableRecordingReorder(row, m.id);
+        const grip = el("span", "⠿", "pub-recording-grip");
+        grip.setAttribute("aria-hidden", "true");
+        grip.title = "Drag to reorder";
         const text = el("div");
         text.append(
           recordingDestinationLabel(d),
           el("strong", d.title),
           el("small", channel(d.channel_id).name + " · " + labelTime(m.at)),
         );
-        row.append(text);
+        row.append(grip, text);
         for (const [direction, icon] of [
           [-1, "↑"],
           [1, "↓"],
@@ -1684,6 +1770,7 @@
   $("#schedule-recordings").onclick = () => openRecordingScheduler();
   $("#close-recording-scheduler").onclick = () =>
     $("#recording-scheduler").close();
+  $("#recording-scheduler").addEventListener("close", clearRecordingDrag);
   $("#schedule-event").onchange = () => {
     recordingFocus = "";
     renderRecordingOptions();

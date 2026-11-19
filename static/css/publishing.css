@@ -1090,11 +1090,40 @@
   flex-wrap: wrap;
 }
 .pub-recording-preview-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 0;
   border-bottom: 1px solid #b8b3aa;
+  cursor: grab;
+}
+.pub-recording-grip {
+  flex: 0 0 24px;
+  color: #6a6258;
+  font-size: 24px;
+  text-align: center;
+  user-select: none;
+}
+.pub-recording-preview-row.is-reordering {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+.pub-recording-preview-row.is-insert-before::before,
+.pub-recording-preview-row.is-insert-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #e77924;
+  pointer-events: none;
+}
+.pub-recording-preview-row.is-insert-before::before {
+  top: -2px;
+}
+.pub-recording-preview-row.is-insert-after::after {
+  bottom: -2px;
 }
 .pub-recording-preview-row div {
   flex: 1;
@@ -1132,9 +1161,11 @@
   .pub-recording-preview-row {
     flex-wrap: wrap;
   }
-  #recording-options .pub-recording-check,
-  .pub-recording-preview-row > div {
+  #recording-options .pub-recording-check {
     flex: 1 1 100%;
+  }
+  .pub-recording-preview-row > div {
+    flex: 1 1 calc(100% - 32px);
   }
   .pub-recording-option > button {
     margin-left: 30px;
