@@ -5,7 +5,7 @@
     {{ block "header" . }}{{ end }}
     <link
       rel="stylesheet"
-      href="/static/css/publishing.css?v=20261118-exclusions-1"
+      href="/static/css/publishing.css?v=20261118-recording-dialog-2"
     />
     <script
       defer
@@ -239,51 +239,57 @@
               ×
             </button>
           </div>
-          <p>
-            Choose releases or broadcasts, review their next available channel
-            slots, then apply. Each destination keeps its own schedule.
-          </p>
-          <p id="recording-schedule-error" role="alert"></p>
-          <div class="pub-recording-filters">
-            <label
-              >Event<select id="schedule-event">
-                <option value="">All events</option>
-              </select></label
-            >
-            <label
-              >Destination<select id="schedule-destination">
-                <option value="">YouTube and broadcasts</option>
-                <option value="youtube">YouTube releases</option>
-                <option value="broadcasts">Broadcasts</option>
-              </select></label
-            >
+          <div class="pub-recording-body">
+            <p>
+              Choose releases or broadcasts, review their next available channel
+              slots, then apply. Each destination keeps its own schedule.
+            </p>
+            <p id="recording-schedule-error" role="alert"></p>
+            <div class="pub-recording-filters">
+              <label
+                >Event<select id="schedule-event">
+                  <option value="">All events</option>
+                </select></label
+              >
+              <label
+                >Destination<select id="schedule-destination">
+                  <option value="">YouTube and broadcasts</option>
+                  <option value="youtube">YouTube releases</option>
+                  <option value="broadcasts">Broadcasts</option>
+                </select></label
+              >
+            </div>
+            <div class="pub-recording-includes">
+              <label class="pub-recording-check"
+                ><input type="checkbox" id="include-scheduled" /><span
+                  >Include already scheduled recordings</span
+                ></label
+              >
+              <label class="pub-recording-check"
+                ><input type="checkbox" id="include-excluded" /><span
+                  >Show excluded recordings</span
+                ></label
+              >
+            </div>
+            <p class="pub-legend">
+              Uncheck a talk or remove it from the preview to skip this batch.
+              Exclude from scheduling keeps this destination out of future
+              batches until you restore it. Excluding does not change YouTube
+              visibility.
+            </p>
+            <div class="pub-recording-selection">
+              <button type="button" id="select-recordings">
+                Select available</button
+              ><button type="button" id="clear-recordings">
+                Clear selection</button
+              ><button type="button" id="refresh-recording-status">
+                Refresh recording status
+              </button>
+              <span id="recording-selection-count" aria-live="polite"></span>
+            </div>
+            <div id="recording-options"></div>
+            <div id="recording-schedule-preview" aria-live="polite"></div>
           </div>
-          <label class="pub-recording-check"
-            ><input type="checkbox" id="include-scheduled" /><span
-              >Include already scheduled recordings</span
-            ></label
-          >
-          <label class="pub-recording-check"
-            ><input type="checkbox" id="include-excluded" /><span
-              >Show excluded recordings</span
-            ></label
-          >
-          <p class="pub-legend">
-            Uncheck a talk or remove it from the preview to skip this batch.
-            Exclude from scheduling keeps this destination out of future batches
-            until you restore it. Excluding does not change YouTube visibility.
-          </p>
-          <div class="pub-recording-selection">
-            <button type="button" id="select-recordings">
-              Select available</button
-            ><button type="button" id="clear-recordings">Clear selection</button
-            ><button type="button" id="refresh-recording-status">
-              Refresh recording status
-            </button>
-            <span id="recording-selection-count" aria-live="polite"></span>
-          </div>
-          <div id="recording-options"></div>
-          <div id="recording-schedule-preview" aria-live="polite"></div>
           <div class="pub-dialog-actions">
             <button type="button" id="preview-recording-schedule">
               Preview schedule</button

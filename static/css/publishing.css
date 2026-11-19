@@ -954,7 +954,69 @@
 
 /* Recording destinations share the calendar's existing controls and palette. */
 .publishing-page #recording-scheduler {
-  width: min(760px, calc(100% - 16px));
+  width: min(1440px, calc(100% - 48px));
+  max-width: none;
+  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+}
+#recording-schedule-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+#recording-scheduler .pub-dialog-head,
+#recording-scheduler .pub-dialog-actions {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 24px;
+  background: #fff;
+}
+#recording-scheduler .pub-dialog-head {
+  border-bottom: 1px solid #b8b3aa;
+}
+#recording-scheduler .pub-dialog-head h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.3;
+}
+#recording-scheduler .pub-dialog-actions {
+  gap: 8px;
+  border-top: 1px solid #b8b3aa;
+}
+#recording-scheduler button {
+  min-height: 44px;
+}
+#recording-scheduler button,
+#recording-scheduler select,
+#recording-scheduler .pub-legend,
+#recording-scheduler small {
+  font-size: 14px;
+}
+#recording-scheduler .pub-recording-check,
+.pub-recording-preview-row {
+  font-size: 16px;
+  line-height: 1.5;
+}
+#recording-scheduler .pub-recording-check strong {
+  color: #0a0a0a;
+}
+.pub-recording-body {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 24px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.pub-recording-includes {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 32px;
 }
 .pub-recording-filters {
   display: grid;
@@ -990,8 +1052,6 @@
   display: block;
 }
 #recording-options {
-  max-height: 320px;
-  overflow: auto;
   border-top: 1px solid #b8b3aa;
   border-bottom: 1px solid #b8b3aa;
   margin: 12px 0;
@@ -1042,6 +1102,21 @@
   color: #b42318;
 }
 @media (max-width: 600px) {
+  .publishing-page #recording-scheduler {
+    width: calc(100% - 16px);
+    height: calc(100vh - 16px);
+    height: calc(100dvh - 16px);
+  }
+  #recording-scheduler .pub-dialog-head,
+  #recording-scheduler .pub-dialog-actions {
+    padding: 12px;
+  }
+  #recording-scheduler .pub-dialog-head h2 {
+    font-size: 22px;
+  }
+  .pub-recording-body {
+    padding: 12px 12px 16px;
+  }
   .pub-recording-option,
   .pub-recording-preview-row {
     flex-wrap: wrap;
