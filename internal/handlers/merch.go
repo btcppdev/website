@@ -177,6 +177,7 @@ func StartShopMaintenance(ctx *config.AppContext) {
 		defer ticker.Stop()
 		for {
 			processMerchSaleNotifications(ctx)
+			processOrganizationSaleNotifications(ctx)
 			<-ticker.C
 		}
 	}()

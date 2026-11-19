@@ -362,6 +362,11 @@ func POSApplyPayment(ctx *config.AppContext, saleID, chargeID, status string, am
 	if err != nil {
 		return err
 	}
+	if status == "paid" {
+		if err := queueOrganizationPOSSale(ctx, tx, saleID); err != nil {
+			return fmt.Errorf("queue organization event sale notification: %w", err)
+		}
+	}
 	return tx.Commit(ctx.DatabaseContext())
 }
 func POSHandOver(ctx *config.AppContext, id, confID, actor string) error {

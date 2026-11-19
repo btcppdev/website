@@ -70,6 +70,14 @@ must be reconciled before settlement; the existing refund records remain separat
 Older sales intentionally have null snapshots rather than retroactively assigning
 them new terms. No automatic supplier payout or settlement ledger is introduced.
 
+Confirmed online and event-register purchases notify every active organization
+owner and manager at one verified account email. Each message contains only that
+organization's items, fulfillment methods, recorded share and a link to its shop
+purchases. Delivery retries use stable mailer IDs. See
+[sale notifications](merch-sale-notifications.md#organization-owners-and-managers).
+Apply migration `167_organization_sale_notifications.sql` before processing new
+payments with the updated application; historical sales are not backfilled.
+
 Apply migration `166_organization_shop_payouts.sql` before running the updated
 shop handlers. The local preview accepts `TAX_FORM_ENCRYPTION_KEY` and uses only
 the disposable database; keep real bank/tax data out of test fixtures.

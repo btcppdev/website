@@ -33,3 +33,43 @@ MERCH_NOTICE_PREVIEW=1 go test ./internal/handlers -run '^TestMerchSaleEmail$'
 ```
 
 It writes `/private/tmp/merch-sale-notification.html`.
+
+## Organization owners and managers
+
+Migration 167 adds a separate organization notification queue so supplier mail
+does not depend on having a bitcoin++ merch admin subscribed. Both confirmed shop
+payments (Stripe/OpenNode, including merch bought with tickets) and confirmed
+event-register purchases enqueue one notice per organization in the payment
+transaction. Payment retries cannot enqueue another notice for the same purchase.
+Old sales are not backfilled. Expired or canceled event payments that go into
+manual review do not send a normal sale notice.
+
+The worker checks at startup and every minute, with a ten-minute retry lease.
+Every current active owner and manager with a verified account email receives
+one message: primary address first, otherwise earliest verified address. Ordinary
+members, pending invites and removed memberships are excluded. Recipients are
+resolved again on retries. With no eligible recipients, the notice remains pending
+and the worker logs the problem. MAIL_OFF leaves notices unclaimed.
+
+Each message contains only that organization's purchased items, quantities,
+fulfillment methods, and recorded supplier share after the platform fee. Shipping
+and tax are excluded from the share; missing historical split data is not guessed.
+Event-register proceeds are shown in sats. This is a sale notice, not confirmation
+of a supplier payout; subsequent refunds can change the amount due.
+
+The link opens `/dashboard/orgs/{organization-id}/shop?tab=orders`, which requires
+the existing organization permissions. Customer addresses, other suppliers' items,
+and the whole mixed-order total are not included in the email. A person managing
+two participating organizations receives a separately scoped notice for each.
+Stable mailer job keys per notice and email deduplicate successful recipients
+when another recipient's delivery fails. Completion means mailer acceptance,
+not confirmed inbox delivery. The existing bitcoin++ merch-admin notice continues.
+
+`TestOrganizationSaleNotifications` exercises mixed orders, recipient selection,
+duplicate payment callbacks, partial delivery failure, removed memberships and
+MAIL_OFF using a fake sender. `TestOrganizationEventSaleNotifications` covers
+confirmed, invalid and late event payments. `TestOrganizationSaleEmail` checks
+rendering, escaping, sats and stable delivery keys. Set `BTCPP_EVENT_WIZARD_TEST=1`
+and `BTCPP_POSTGRES_SMOKE=1` with a migrated disposable `DATABASE_URL` to run the
+database cases. Adding `ORG_SALE_NOTICE_PREVIEW=1` writes a synthetic email to
+`/private/tmp/organization-sale-email.html` without sending any mail.

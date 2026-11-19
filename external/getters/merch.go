@@ -2134,6 +2134,9 @@ func MarkShopOrderPaid(ctx *config.AppContext, orderID, provider, providerID str
  ON CONFLICT (order_id) DO NOTHING`, orderID); err != nil {
 		return false, fmt.Errorf("queue merch sale notification: %w", err)
 	}
+	if err := queueOrganizationShopSale(ctx, tx, orderID); err != nil {
+		return false, fmt.Errorf("queue organization sale notification: %w", err)
+	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return false, err
 	}
