@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20261118-orgs">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
   <body class="shop-page shop-admin-page">
@@ -64,6 +64,7 @@
               </td>
               <td>
                 <strong>{{ .Name }}</strong>
+                {{ template "shop_product_organization" . }}
                 <span>{{ .Slug }}{{ if .Variants }}{{ with index .Variants 0 }}{{ if .SKU }} · {{ .SKU }}{{ end }}{{ end }}{{ end }}</span>
               </td>
               <td><span class="shop-status-pill is-{{ .Status }}">{{ .Status }}</span></td>

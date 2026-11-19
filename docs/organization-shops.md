@@ -6,6 +6,14 @@ legal recipient, tax residence, optional registration details, and preferred
 bank-transfer, Bitcoin, or Lightning payment instructions. It is private,
 requires the existing session/CSRF checks, and uses revision checks for edits.
 
+Shop administrators can edit any supplier product at `/admin/merch`, including
+its shop category. Changing category preserves the fulfillment organization.
+The organization editor includes all six storefront categories and rejects stale
+edits after an administrator changes a product. Public product cards and detail
+pages show the organization's current light-mode logo and name; without a logo,
+the name still appears. Branding is loaded from the organization profile, with
+no shipping, billing or payment details included in public catalog data.
+
 Payment instructions and tax registrations are encrypted in the database using
 the existing `TAX_FORM_ENCRYPTION_KEY`, with an organization-specific key context.
 Configure and back up that key before accepting details. Missing keys prevent

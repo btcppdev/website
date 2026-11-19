@@ -176,6 +176,11 @@ func TestEventWizardPreview(t *testing.T) {
 	root := mux.NewRouter()
 	registerEventWizard(root, app)
 	registerOrganizationShops(root, app)
+	root.HandleFunc("/shop", func(w http.ResponseWriter, r *http.Request) { ShopHome(w, r, app) }).Methods("GET")
+	root.HandleFunc("/shop/all", func(w http.ResponseWriter, r *http.Request) { ShopCollection(w, r, app) }).Methods("GET")
+	root.HandleFunc("/admin/merch", func(w http.ResponseWriter, r *http.Request) { AdminMerch(w, r, app) }).Methods("GET")
+	root.HandleFunc("/admin/merch/{id}", func(w http.ResponseWriter, r *http.Request) { AdminMerchProduct(w, r, app) }).Methods("GET")
+	root.HandleFunc("/admin/merch/{id}", func(w http.ResponseWriter, r *http.Request) { AdminMerchUpdate(w, r, app) }).Methods("POST")
 	root.HandleFunc("/navigation/account", func(w http.ResponseWriter, r *http.Request) { SiteAccountNavigation(w, r, app) }).Methods("GET")
 	root.HandleFunc("/live/status", func(w http.ResponseWriter, r *http.Request) { LiveStatus(w, r, app) }).Methods("GET")
 	root.HandleFunc("/dashboard/orgs", func(w http.ResponseWriter, r *http.Request) { OrganizationDashboardIndex(w, r, app) }).Methods("GET")
@@ -192,6 +197,7 @@ func TestEventWizardPreview(t *testing.T) {
 	root.HandleFunc("/shop/cart/add", func(w http.ResponseWriter, r *http.Request) { ShopCartAdd(w, r, app) }).Methods("POST")
 	root.HandleFunc("/shop/checkout", func(w http.ResponseWriter, r *http.Request) { ShopCheckout(w, r, app) }).Methods("GET")
 	root.HandleFunc("/shop/shipping-rates", func(w http.ResponseWriter, r *http.Request) { ShopShippingRates(w, r, app) }).Methods("POST")
+	root.HandleFunc("/shop/{slug}", func(w http.ResponseWriter, r *http.Request) { ShopItem(w, r, app) }).Methods("GET")
 	root.HandleFunc("/preview/login", func(w http.ResponseWriter, r *http.Request) {
 		if e := auth.LoginPerson(app, r, person, auth.MethodEmailLink); e != nil {
 			http.Error(w, e.Error(), 500)

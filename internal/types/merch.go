@@ -55,6 +55,8 @@ const (
 
 type MerchProduct struct {
 	FulfillmentOrganizationID string
+	OrganizationName          string
+	OrganizationLogoURL       string
 	OnlineEnabled             bool
 	ID                        string
 	Tag                       string

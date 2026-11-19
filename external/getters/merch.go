@@ -2313,6 +2313,9 @@ func queryMerchProducts(ctx *config.AppContext, whereSQL string, args []any) ([]
 	if len(products) == 0 {
 		return products, nil
 	}
+	if err := loadMerchOrganizations(ctx, products); err != nil {
+		return nil, err
+	}
 	images, err := listMerchImages(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -2331,6 +2334,39 @@ func queryMerchProducts(ctx *config.AppContext, whereSQL string, args []any) ([]
 		p.Options = options[p.ID]
 	}
 	return products, nil
+}
+
+// Load only public branding, in one query for the whole catalog. Shipping,
+// billing and payout profiles never belong in the public product data.
+func loadMerchOrganizations(ctx *config.AppContext, products []*types.MerchProduct) error {
+	byOrg := make(map[string][]*types.MerchProduct)
+	var ids []string
+	for _, p := range products {
+		if id := p.FulfillmentOrganizationID; id != "" {
+			if _, exists := byOrg[id]; !exists {
+				ids = append(ids, id)
+			}
+			byOrg[id] = append(byOrg[id], p)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `SELECT id::text,name,logo_light_url FROM organizations WHERE id::text=ANY($1)`, ids)
+	if err != nil {
+		return fmt.Errorf("load merchandise organizations: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, name, logo string
+		if err := rows.Scan(&id, &name, &logo); err != nil {
+			return err
+		}
+		for _, p := range byOrg[id] {
+			p.OrganizationName, p.OrganizationLogoURL = name, strings.TrimSpace(logo)
+		}
+	}
+	return rows.Err()
 }
 
 func listMerchOptions(ctx *config.AppContext, productIDs []string) (map[string][]*types.MerchProductOption, error) {

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css?v=20260914-1">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20261118-orgs">
     <link rel="stylesheet" href="/static/css/archive-rain.css">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
@@ -20,6 +20,7 @@
         <p class="shop-kicker">§ bitcoin++ goods</p>
         {{ if .Product }}
         <h1>{{ .Product.Name }}</h1>
+        {{ template "shop_product_organization" .Product }}
         <p>{{ if eq .Product.ProductType "badge_canvas" }}You earned it. Give it a place on your wall. A 9×9-inch canvas of a badge issued to you.{{ else }}{{ .Product.Subtitle }}{{ end }}</p>
         <div class="shop-price">{{ template "shop_product_price" .Product }}</div>
         <div class="shop-actions"><a class="shop-button is-primary" href="/shop/{{ .Product.Slug }}">{{ if eq .Product.ProductType "badge_canvas" }}Choose your badge →{{ else }}Take a closer look →{{ end }}</a><a class="shop-spotlight__browse" href="#collection">Browse the collection ↓</a></div>
@@ -70,6 +71,7 @@
     <div class="shop-card__body">
       <div class="shop-card__meta"><span>{{ .CategoryName }}</span>{{ if merchProductSoldOut . }}<b>sold out</b>{{ else if .Variants }}{{ with index .Variants 0 }}{{ if and (ne .InventoryPolicy "unlimited") (le .Stock 6) }}<b>low stock · {{ .Stock }} left</b>{{ end }}{{ end }}{{ end }}</div>
       <h2>{{ .Name }}</h2>
+      {{ template "shop_product_organization" . }}
       <p>{{ .Subtitle }}</p>
       <div class="shop-price is-small">
         {{ template "shop_product_price" . }}
@@ -80,6 +82,15 @@
   <div class="shop-empty">No products are published yet.</div>
   {{ end }}
 </div>
+{{ end }}
+
+{{ define "shop_product_organization" }}
+{{ if .OrganizationName }}
+<span class="shop-product-organization">
+  {{ if .OrganizationLogoURL }}<img src="{{ .OrganizationLogoURL | safeURL }}" alt="" loading="lazy" width="40" height="40">{{ end }}
+  <span><small>From</small><strong>{{ .OrganizationName }}</strong></span>
+</span>
+{{ end }}
 {{ end }}
 
 {{ define "shop_product_price" }}

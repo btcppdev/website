@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css?v=20260914-1">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20261118-orgs">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
   <body class="shop-page">
@@ -19,6 +19,8 @@
       <section class="shop-item__details">
         <p class="shop-kicker">{{ .Product.CategoryName }}</p>
         <h1>{{ .Product.Name }}</h1>
+        {{ template "shop_product_organization" .Product }}
+        {{ if .Product.OrganizationName }}<p class="shop-supplier-note">Sold by bitcoin++. Shipped by {{ .Product.OrganizationName }}.</p>{{ end }}
         <div class="shop-price">
           {{ template "shop_product_price" .Product }}
         </div>
