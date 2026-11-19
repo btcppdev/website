@@ -140,6 +140,18 @@ func TestOrganizationShopMixedOrderLifecycle(t *testing.T) {
 	if _, e = MarkShopOrderPaid(app, order.ID, "stripe", "cs_shop_"+suffix, 0, 4750); e != nil {
 		t.Fatal(e)
 	}
+	for i, org := range orgs {
+		var bps int
+		var fee, supplier uint
+		err := app.DB.QueryRow(c, `SELECT organization_fee_bps,organization_fee_cents,supplier_amount_cents FROM shop_order_items WHERE order_id=$1 AND fulfillment_organization_id=$2`, order.ID, org).Scan(&bps, &fee, &supplier)
+		wantFee, wantSupplier := uint(375), uint(2125)
+		if i == 0 {
+			wantFee, wantSupplier = 338, 1912
+		}
+		if err != nil || bps != 1500 || fee != wantFee || supplier != wantSupplier {
+			t.Fatalf("saved supplier split: %d %d %d %v", bps, fee, supplier, err)
+		}
+	}
 	for _, org := range orgs {
 		owned, e := ListOrganizationShopOrders(app, org)
 		if e != nil || len(owned) != 1 || len(owned[0].Items) != 1 {
@@ -197,6 +209,18 @@ func TestOrganizationShopMixedOrderLifecycle(t *testing.T) {
 	sale, _, e := POSCreateSale(app, conf, "register", uuid.NewString(), "USD", 80000, []types.POSCartLine{{VariantID: variants[0], Quantity: 1, PriceSats: 1000}, {VariantID: variants[1], Quantity: 1, PriceSats: 1000}})
 	if e != nil {
 		t.Fatal(e)
+	}
+	var snapshotted int
+	if err := app.DB.QueryRow(c, `SELECT count(*) FROM conference_pos_sale_items WHERE sale_id=$1 AND organization_fee_bps=1500 AND organization_fee_sats=150 AND supplier_amount_sats=850`, sale.ID).Scan(&snapshotted); err != nil || snapshotted != 2 {
+		t.Fatalf("event supplier splits: %d %v", snapshotted, err)
+	}
+	// Catalog edits cannot alter the agreed amounts on existing sales.
+	if _, err := app.DB.Exec(c, `UPDATE merch_products SET base_price_cents=9900 WHERE id=$1`, products[0]); err != nil {
+		t.Fatal(err)
+	}
+	var retained uint
+	if err := app.DB.QueryRow(c, `SELECT supplier_amount_cents FROM shop_order_items WHERE order_id=$1 AND fulfillment_organization_id=$2`, order.ID, orgs[0]).Scan(&retained); err != nil || retained != 1912 {
+		t.Fatalf("mutable supplier purchase amount: %d %v", retained, err)
 	}
 	if e = POSApplyPayment(app, sale.ID, "charge-"+sale.ID, "paid", 2000); e != nil {
 		t.Fatal(e)

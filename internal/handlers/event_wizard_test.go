@@ -34,7 +34,7 @@ func wizardTestApp(t *testing.T) *config.AppContext {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() { os.Chdir(wd) })
-	app := &config.AppContext{DB: pool, Session: scs.New(), Env: &types.EnvConfig{MailOff: true, Host: "127.0.0.1", Port: "8117"}, Err: log.Default(), Infos: log.Default()}
+	app := &config.AppContext{DB: pool, Session: scs.New(), Env: &types.EnvConfig{MailOff: true, Host: "127.0.0.1", Port: "8117", TaxFormEncryptionKey: os.Getenv("TAX_FORM_ENCRYPTION_KEY")}, Err: log.Default(), Infos: log.Default()}
 	app.Session.Cookie.Name = "event_wizard_test"
 	if e = loadTemplates(app); e != nil {
 		t.Fatal(e)

@@ -244,7 +244,13 @@ func POSCreateSale(ctx *config.AppContext, confID, operator, requestID, currency
 		if err != nil {
 			return nil, false, err
 		}
-		_, err = tx.Exec(ctx.DatabaseContext(), `INSERT INTO conference_pos_sale_items(sale_id,variant_id,product_name,variant_label,quantity,price_sats,fulfillment_organization_id) SELECT $1,$2,$3,$4,$5,$6,p.fulfillment_organization_id FROM merch_variants v JOIN merch_products p ON p.id=v.product_id WHERE v.id=$2`, id, item.VariantID, item.Name, item.Label, item.Quantity, item.PriceSats)
+		fee, supplier := types.OrganizationShopSplit(uint(item.PriceSats) * uint(item.Quantity))
+		_, err = tx.Exec(ctx.DatabaseContext(), `INSERT INTO conference_pos_sale_items(sale_id,variant_id,product_name,variant_label,quantity,price_sats,fulfillment_organization_id,organization_fee_bps,organization_fee_sats,supplier_amount_sats)
+ SELECT $1,$2,$3,$4,$5,$6,p.fulfillment_organization_id,
+ CASE WHEN p.fulfillment_organization_id IS NOT NULL THEN $7::smallint END,
+ CASE WHEN p.fulfillment_organization_id IS NOT NULL THEN $8::bigint END,
+ CASE WHEN p.fulfillment_organization_id IS NOT NULL THEN $9::bigint END
+ FROM merch_variants v JOIN merch_products p ON p.id=v.product_id WHERE v.id=$2`, id, item.VariantID, item.Name, item.Label, item.Quantity, item.PriceSats, types.OrganizationShopFeeBPS, fee, supplier)
 		if err != nil {
 			return nil, false, err
 		}

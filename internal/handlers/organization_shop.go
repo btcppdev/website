@@ -20,20 +20,23 @@ import (
 
 type organizationShopPage struct {
 	*OrganizationDashboardPage
-	EventSales []getters.OrganizationEventSale
-	EventStock []getters.OrganizationEventStock
-	Org        *types.Org
-	Profile    *types.OrganizationShopProfile
-	Products   []*types.MerchProduct
-	Product    *types.MerchProduct
-	Orders     []*getters.OrganizationShopOrder
-	Discounts  []types.OrganizationShopDiscount
-	Confs      []*types.Conf
-	Events     map[string]bool
-	Tab        string
-	Base       string
-	Operation  string
-	Flash      string
+	EventSales       []getters.OrganizationEventSale
+	EventStock       []getters.OrganizationEventStock
+	Org              *types.Org
+	Profile          *types.OrganizationShopProfile
+	Products         []*types.MerchProduct
+	Product          *types.MerchProduct
+	Orders           []*getters.OrganizationShopOrder
+	Discounts        []types.OrganizationShopDiscount
+	Confs            []*types.Conf
+	Events           map[string]bool
+	Tab              string
+	Base             string
+	Operation        string
+	Flash            string
+	Payouts          *types.OrganizationShopPayoutProfile
+	PayoutsAvailable bool
+	FeeBPS           int
 }
 
 func registerOrganizationShops(r *mux.Router, app *config.AppContext) {
@@ -91,7 +94,7 @@ func OrganizationShop(w http.ResponseWriter, r *http.Request, app *config.AppCon
 		return
 	}
 	workspace.CSRF = csrf
-	p := &organizationShopPage{OrganizationDashboardPage: workspace, Org: org, Base: base, Tab: r.URL.Query().Get("tab"), Operation: uuid.NewString(), Events: map[string]bool{}, Flash: r.URL.Query().Get("saved")}
+	p := &organizationShopPage{OrganizationDashboardPage: workspace, FeeBPS: types.OrganizationShopFeeBPS, Org: org, Base: base, Tab: r.URL.Query().Get("tab"), Operation: uuid.NewString(), Events: map[string]bool{}, Flash: r.URL.Query().Get("saved")}
 	if p.Tab == "" {
 		p.Tab = "profile"
 	}
@@ -102,6 +105,9 @@ func OrganizationShop(w http.ResponseWriter, r *http.Request, app *config.AppCon
 	}
 	switch p.Tab {
 	case "profile":
+	case "payouts":
+		p.PayoutsAvailable = getters.OrganizationShopPayoutsConfigured(app)
+		p.Payouts, e = getters.GetOrganizationShopPayoutProfile(app, org.Ref)
 	case "catalog":
 		p.Products, e = getters.ListOrganizationMerch(app, org.Ref)
 		if e == nil {
@@ -212,9 +218,28 @@ func organizationShopSave(w http.ResponseWriter, r *http.Request, app *config.Ap
 			wizardError(w, fmt.Errorf("invalid form revision"))
 			return
 		}
-		p := types.OrganizationShopProfile{Revision: revision, BillingName: r.FormValue("billing_name"), TaxID: r.FormValue("tax_id"), Notes: r.FormValue("notes"), Billing: shopProfileAddress(r, "billing_")}
+		existing, err := getters.GetOrganizationShopProfile(app, org.Ref)
+		if err != nil {
+			e = err
+			break
+		}
+		p := types.OrganizationShopProfile{Revision: revision, BillingName: r.FormValue("billing_name"), TaxID: existing.TaxID, Notes: r.FormValue("notes"), Billing: shopProfileAddress(r, "billing_")}
 		p.ShipFrom = types.EasyshipSettings{ContactName: r.FormValue("ship_contact"), CompanyName: r.FormValue("ship_company"), Email: r.FormValue("ship_email"), Phone: r.FormValue("ship_phone"), Line1: r.FormValue("ship_line1"), Line2: r.FormValue("ship_line2"), City: r.FormValue("ship_city"), Region: r.FormValue("ship_region"), PostalCode: r.FormValue("ship_postal_code"), CountryAlpha2: r.FormValue("ship_country")}
 		_, e = getters.SaveOrganizationShopProfile(app, org.Ref, id.PersonID, p)
+	case "payouts":
+		revision, err := strconv.ParseInt(r.FormValue("revision"), 10, 64)
+		if err != nil || revision < 0 {
+			e = fmt.Errorf("invalid form revision")
+			break
+		}
+		p := types.OrganizationShopPayoutProfile{
+			Revision: revision, Method: r.FormValue("payout_method"), RecipientName: r.FormValue("recipient_name"), Currency: r.FormValue("payout_currency"),
+			BankName: r.FormValue("bank_name"), BankCountry: r.FormValue("bank_country"), BankAccount: r.FormValue("bank_account"), BankRouting: r.FormValue("bank_routing"), BankSWIFT: r.FormValue("bank_swift"),
+			BitcoinAddress: r.FormValue("bitcoin_address"), LightningAddress: r.FormValue("lightning_address"),
+			TaxCountry: r.FormValue("tax_country"), EntityType: r.FormValue("entity_type"), TaxID: r.FormValue("tax_id"), TaxIDType: r.FormValue("tax_id_type"),
+		}
+		e = getters.SaveOrganizationShopPayoutProfile(app, org.Ref, id.PersonID, p)
+		destination = base + "?tab=payouts"
 	case "product":
 		if e = normalizeMerchAdminPrices(r); e != nil {
 			break
@@ -314,4 +339,32 @@ func shopDiscountTime(raw string) (*time.Time, error) {
 		return nil, fmt.Errorf("enter a valid UTC date and time")
 	}
 	return &t, nil
+}
+
+type organizationProductPayout struct {
+	PriceCents    uint
+	FeeCents      uint
+	SupplierCents uint
+	Valid         bool
+}
+
+func (p *organizationShopPage) FeePercent() int      { return p.FeeBPS / 100 }
+func (p *organizationShopPage) SupplierPercent() int { return 100 - p.FeePercent() }
+func (p *organizationShopPage) ExamplePayout() organizationProductPayout {
+	fee, supplier := types.OrganizationShopSplit(4000)
+	return organizationProductPayout{PriceCents: 4000, FeeCents: fee, SupplierCents: supplier, Valid: true}
+}
+func (p *organizationShopPage) ProductPayout(v *types.MerchVariant) organizationProductPayout {
+	if p.Product == nil {
+		return organizationProductPayout{}
+	}
+	price := int64(p.Product.BasePriceCents)
+	if v != nil {
+		price += int64(v.PriceDeltaCents)
+	}
+	if price < 1 || price > 100000000 {
+		return organizationProductPayout{}
+	}
+	fee, supplier := types.OrganizationShopSplit(uint(price))
+	return organizationProductPayout{PriceCents: uint(price), FeeCents: fee, SupplierCents: supplier, Valid: true}
 }

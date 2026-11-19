@@ -55,7 +55,7 @@ func TestOrganizationShopAccess(t *testing.T) {
 		return w
 	}
 	base := "/dashboard/orgs/" + org + "/shop"
-	for _, tab := range []string{"profile", "catalog", "product", "orders", "discounts"} {
+	for _, tab := range []string{"profile", "catalog", "product", "orders", "discounts", "payouts"} {
 		if w := request(base+"?tab="+tab, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "Sold by bitcoin++") {
 			t.Fatalf("render %s %d %s", tab, w.Code, w.Body.String())
 		}
@@ -76,8 +76,23 @@ func TestOrganizationShopAccess(t *testing.T) {
 	if w := request(base, form); w.Code != 409 {
 		t.Fatal("stale save", w.Code, w.Body.String())
 	}
+	app.Env.TaxFormEncryptionKey = "shop-http-test-only"
+	payoutForm := url.Values{"action": {"payouts"}, "csrf": {"shop-test-token"}, "revision": {"0"}, "recipient_name": {"Shop manager"}, "entity_type": {"company"}, "tax_country": {"US"}, "payout_method": {"lightning"}, "lightning_address": {"merch@example.com"}}
+	if w := request(base, payoutForm); w.Code != 200 {
+		t.Fatal("save payout profile", w.Code, w.Body.String())
+	}
+	if w := request(base, payoutForm); w.Code != 409 {
+		t.Fatal("stale payout profile", w.Code)
+	}
+	payoutForm.Set("revision", "1")
+	if w := request("/dashboard/orgs/"+other+"/shop", payoutForm); w.Code != 403 {
+		t.Fatal("foreign payout write", w.Code)
+	}
 	if _, e = app.DB.Exec(c, `UPDATE organization_memberships SET role='member' WHERE person_id=$1`, person); e != nil {
 		t.Fatal(e)
+	}
+	if w := request(base, payoutForm); w.Code != 403 {
+		t.Fatal("ordinary member payout write", w.Code)
 	}
 	if w := request(base, nil); w.Code != 403 {
 		t.Fatal("member access", w.Code)

@@ -1,0 +1,57 @@
+{{ define "organization_shop_payouts" }}
+<section class="org-payout-policy" aria-label="Your revenue share">
+  <div><span class="dashboard-kicker">Your share</span><strong>{{ .SupplierPercent }}%</strong></div>
+  <div><h2>You set the price. You keep {{ .SupplierPercent }}%.</h2><p>bitcoin++ keeps {{ .FeePercent }}% of merchandise sales after discounts. Tax and shipping are separate. We round the fee to the nearest cent per order line; you receive the remainder.</p>{{ with .ExamplePayout }}<p>For a {{ merchMoney .PriceCents nil }} item, you receive {{ merchMoney .SupplierCents nil }} and bitcoin++ keeps {{ merchMoney .FeeCents nil }}.</p>{{ end }}</div>
+</section>
+<form method="post" action="{{ .Base }}" data-shop-form data-payout-form autocomplete="off">
+  <input type="hidden" name="action" value="payouts">
+  <input type="hidden" name="csrf" value="{{ .CSRF }}">
+  <input type="hidden" name="revision" value="{{ .Payouts.Revision }}">
+  <section class="ew-section">
+    <h2>Supplier &amp; tax details</h2>
+    <p class="ew-note">Use the details of the organization or person bitcoin++ is buying the merchandise from. Tax registration numbers are optional if you are not registered.</p>
+    <div class="ew-grid">
+      <label class="ew-field"><span>Legal recipient / account holder name</span><input name="recipient_name" value="{{ .Payouts.RecipientName }}" maxlength="200" required></label>
+      <label class="ew-field"><span>Legal entity type</span><select name="entity_type"><option value="company" {{ if eq .Payouts.EntityType "company" }}selected{{ end }}>Company</option><option value="individual" {{ if eq .Payouts.EntityType "individual" }}selected{{ end }}>Individual / sole proprietor</option><option value="nonprofit" {{ if eq .Payouts.EntityType "nonprofit" }}selected{{ end }}>Nonprofit</option><option value="other" {{ if eq .Payouts.EntityType "other" }}selected{{ end }}>Other legal entity</option></select></label>
+      <label class="ew-field"><span>Tax residence country code</span><input name="tax_country" value="{{ .Payouts.TaxCountry }}" placeholder="US, BR, DE or JP" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" required></label>
+      <label class="ew-field"><span>Tax registration type</span><select name="tax_id_type"><option value="">Not registered / not provided</option><option value="vat" {{ if eq .Payouts.TaxIDType "vat" }}selected{{ end }}>VAT</option><option value="gst" {{ if eq .Payouts.TaxIDType "gst" }}selected{{ end }}>GST</option><option value="business_tax" {{ if eq .Payouts.TaxIDType "business_tax" }}selected{{ end }}>Business tax ID</option><option value="other" {{ if eq .Payouts.TaxIDType "other" }}selected{{ end }}>Other tax registration</option></select></label>
+      <label class="ew-field ew-wide"><span>Tax registration number (if applicable)</span><input name="tax_id" value="{{ .Payouts.TaxID }}" maxlength="200"></label>
+    </div>
+    {{ with .Profile.Billing }}{{ if .Line1 }}<p class="ew-note"><strong>Registered / billing address:</strong> {{ .Line1 }} {{ .Line2 }}, {{ .City }} {{ .Region }} {{ .PostalCode }}, {{ .Country }}.</p>{{ end }}{{ end }}
+    <p class="ew-note"><a href="{{ .Base }}?tab=profile">Update your legal billing address in Shop profile →</a></p>
+  </section>
+  <section class="ew-section">
+    <h2>Where to send your payments</h2>
+    <label class="ew-field"><span>Preferred payment method</span><select name="payout_method" data-payout-method><option value="">Choose later</option><option value="bank_transfer" {{ if eq .Payouts.Method "bank_transfer" }}selected{{ end }}>Bank transfer</option><option value="bitcoin" {{ if eq .Payouts.Method "bitcoin" }}selected{{ end }}>Bitcoin on-chain</option><option value="lightning" {{ if eq .Payouts.Method "lightning" }}selected{{ end }}>Lightning address</option></select></label>
+    <div class="ew-grid org-payout-fields" data-payout-method-fields="bank_transfer" {{ if ne .Payouts.Method "bank_transfer" }}hidden{{ end }}>
+      <label class="ew-field"><span>Bank name</span><input name="bank_name" value="{{ .Payouts.BankName }}" maxlength="200" data-payout-required></label>
+      <label class="ew-field"><span>Bank country code</span><input name="bank_country" value="{{ .Payouts.BankCountry }}" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" data-payout-required></label>
+      <label class="ew-field"><span>Account number / IBAN</span><input name="bank_account" value="{{ .Payouts.BankAccount }}" maxlength="200" spellcheck="false" data-payout-required></label>
+      <label class="ew-field"><span>Preferred payment currency</span><input name="payout_currency" value="{{ .Payouts.Currency }}" placeholder="USD, EUR, BRL or JPY" pattern="[A-Za-z]{3}" maxlength="3" data-payout-required></label>
+      <label class="ew-field"><span>Routing / branch code</span><input name="bank_routing" value="{{ .Payouts.BankRouting }}" maxlength="200" spellcheck="false"></label>
+      <label class="ew-field"><span>SWIFT / BIC</span><input name="bank_swift" value="{{ .Payouts.BankSWIFT }}" maxlength="200" spellcheck="false"></label>
+    </div>
+    <div class="org-payout-fields" data-payout-method-fields="bitcoin" {{ if ne .Payouts.Method "bitcoin" }}hidden{{ end }}>
+      <label class="ew-field"><span>Bitcoin mainnet address</span><input name="bitcoin_address" value="{{ .Payouts.BitcoinAddress }}" maxlength="100" spellcheck="false" data-payout-required></label>
+    </div>
+    <div class="org-payout-fields" data-payout-method-fields="lightning" {{ if ne .Payouts.Method "lightning" }}hidden{{ end }}>
+      <label class="ew-field"><span>Lightning address</span><input name="lightning_address" value="{{ .Payouts.LightningAddress }}" placeholder="name@example.com" maxlength="200" spellcheck="false" data-payout-required></label>
+    </div>
+    <p class="ew-note">These instructions are private and reviewed before use. Saving them does not send a payment or set a payment date. bitcoin++ will confirm settlement timing and any currency conversion with you.</p>
+  </section>
+  {{ if not .PayoutsAvailable }}<p class="ew-error" role="status">Payment details are temporarily unavailable. Contact bitcoin++ to finish setting up payments.</p>{{ end }}
+  <div class="org-shop-actions"><button class="ew-primary" {{ if not .PayoutsAvailable }}disabled{{ end }}>Save payouts &amp; tax details</button><p data-form-message role="status"></p></div>
+</form>
+{{ end }}
+
+{{ define "organization_shop_earnings" }}
+<aside class="org-earnings" data-earnings data-fee-bps="{{ .Page.FeeBPS }}" data-base-price-cents="{{ .Page.Product.BasePriceCents }}" aria-label="Earnings estimate">
+  <div class="org-earnings-heading"><span class="dashboard-kicker">Per item sold</span><strong>Your earnings</strong></div>
+  <dl aria-live="polite" aria-atomic="true">
+    <div><dt>Customer price</dt><dd data-earnings-price>{{ if .Estimate.Valid }}{{ merchMoney .Estimate.PriceCents nil }}{{ else }}—{{ end }}</dd></div>
+    <div><dt>bitcoin++ · {{ .Page.FeePercent }}%</dt><dd data-earnings-fee>{{ if .Estimate.Valid }}{{ merchMoney .Estimate.FeeCents nil }}{{ else }}—{{ end }}</dd></div>
+    <div class="org-earnings-net"><dt>You receive · {{ .Page.SupplierPercent }}%</dt><dd data-earnings-net>{{ if .Estimate.Valid }}{{ merchMoney .Estimate.SupplierCents nil }}{{ else }}—{{ end }}</dd></div>
+  </dl>
+  <p data-earnings-note>Before discounts. Tax and shipping are separate.</p>
+</aside>
+{{ end }}

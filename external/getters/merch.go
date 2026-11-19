@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -827,7 +828,11 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 			if len(originSnapshot) == 0 {
 				originSnapshot = []byte("{}")
 			}
-			if _, err = tx.Exec(ctx.DatabaseContext(), `UPDATE shop_order_items SET fulfillment_organization_id=$2,ship_from_snapshot=$3 WHERE id=$1`, row.ID, fulfillmentOrg, originSnapshot); err != nil {
+			if item.Quantity == 0 || item.UnitPriceCents > uint(math.MaxInt64)/item.Quantity || item.DiscountAmountCents > item.UnitPriceCents*item.Quantity {
+				return nil, fmt.Errorf("invalid organization merchandise amount")
+			}
+			fee, supplier := types.OrganizationShopSplit(item.UnitPriceCents*item.Quantity - item.DiscountAmountCents)
+			if _, err = tx.Exec(ctx.DatabaseContext(), `UPDATE shop_order_items SET fulfillment_organization_id=$2,ship_from_snapshot=$3,organization_fee_bps=$4,organization_fee_cents=$5,supplier_amount_cents=$6 WHERE id=$1`, row.ID, fulfillmentOrg, originSnapshot, types.OrganizationShopFeeBPS, fee, supplier); err != nil {
 				return nil, err
 			}
 		}
