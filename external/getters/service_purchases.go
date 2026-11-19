@@ -194,7 +194,7 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 		if quote.PeriodStart == nil || quote.PeriodEnd == nil || !quote.PeriodEnd.After(*quote.PeriodStart) {
 			return nil, ErrServiceQuote
 		}
-	case "insider.article", "insider.open-access":
+	case "insider.article", "insider.open-access", "insider.article.gifts":
 		method = "digital"
 		if strings.TrimSpace(quote.ResourceID) == "" || quote.Quantity != 1 || quote.PeriodStart != nil || quote.PeriodEnd != nil {
 			return nil, ErrServiceQuote

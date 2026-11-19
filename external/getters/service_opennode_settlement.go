@@ -73,7 +73,7 @@ func finishVerifiedServiceSettlement(ctx context.Context, app *config.AppContext
 				}
 			}
 		}
-	case "insider.membership.monthly", "insider.membership.annual", "insider.article", expedition.ProductCode:
+	case "insider.membership.monthly", "insider.membership.annual", "insider.article", "insider.article.gifts", expedition.ProductCode:
 		// recordServicePayment atomically queues Insider delivery, including on
 		// settlement replays; there is no local Alerts entitlement to create.
 	default:

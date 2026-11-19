@@ -18,6 +18,7 @@ import (
 	"btcpp-web/internal/servicebilling"
 	"btcpp-web/internal/servicestripe"
 
+	"github.com/google/uuid"
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
 )
@@ -31,6 +32,9 @@ const (
 )
 
 type insiderCheckoutRequest struct {
+	GiftLinkID                string          `json:"gift_link_id,omitempty"`
+	GiftQuantity              int             `json:"gift_quantity,omitempty"`
+	GiftIncludeBuyer          bool            `json:"gift_include_buyer,omitempty"`
 	BillingMode               string          `json:"billing_mode,omitempty"`
 	RequestID                 string          `json:"request_id"`
 	ProductCode               string          `json:"product_code"`
@@ -47,11 +51,17 @@ type insiderCheckoutRequest struct {
 }
 
 type insiderFulfillmentSnapshot struct {
+	GiftLinkID                string          `json:"gift_link_id,omitempty"`
+	GiftQuantity              int             `json:"gift_quantity,omitempty"`
+	GiftIncludeBuyer          bool            `json:"gift_include_buyer,omitempty"`
 	ContributionPublicationID string          `json:"contribution_publication_id,omitempty"`
 	PublicCredit              json.RawMessage `json:"public_credit,omitempty"`
 }
 
 type insiderSettlementEvent struct {
+	GiftLinkID                string          `json:"gift_link_id,omitempty"`
+	GiftQuantity              int             `json:"gift_quantity,omitempty"`
+	GiftIncludeBuyer          bool            `json:"gift_include_buyer,omitempty"`
 	AccessAction              string          `json:"access_action,omitempty"`
 	ReversesEventID           string          `json:"reverses_event_id,omitempty"`
 	AdjustmentReference       string          `json:"adjustment_reference,omitempty"`
@@ -187,7 +197,11 @@ func resolveInsiderServiceQuote(request insiderCheckoutRequest, now time.Time) (
 			return getters.ServiceQuote{}, getters.ErrServiceQuote
 		}
 	}
+	if request.ProductCode != "insider.article.gifts" && (request.GiftLinkID != "" || request.GiftQuantity != 0 || request.GiftIncludeBuyer) {
+		return getters.ServiceQuote{}, getters.ErrServiceQuote
+	}
 	fulfillment, err := json.Marshal(insiderFulfillmentSnapshot{
+		GiftLinkID: request.GiftLinkID, GiftQuantity: request.GiftQuantity, GiftIncludeBuyer: request.GiftIncludeBuyer,
 		ContributionPublicationID: request.ContributionPublicationID,
 		PublicCredit:              request.PublicCredit,
 	})
@@ -207,6 +221,22 @@ func resolveInsiderServiceQuote(request insiderCheckoutRequest, now time.Time) (
 			return getters.ServiceQuote{}, getters.ErrServiceQuote
 		}
 		quote.Name, quote.PeriodStart, quote.PeriodEnd = plan.Name, &start, &end
+	case "insider.article.gifts":
+		if _, err := uuid.Parse(request.GiftLinkID); err != nil || request.GiftQuantity < 1 || request.GiftQuantity > 1000 ||
+			request.ResourceID == "" || len(request.PublicCredit) != 0 || (request.ContributionPublicationID != "" && request.ResourceID != request.ContributionPublicationID) {
+			return getters.ServiceQuote{}, getters.ErrServiceQuote
+		}
+		reads := request.GiftQuantity
+		if request.GiftIncludeBuyer {
+			reads++
+		}
+		if request.AmountCents != int64(reads)*insiderArticleUnlockCents {
+			return getters.ServiceQuote{}, getters.ErrServiceQuote
+		}
+		quote.Name = fmt.Sprintf("bitcoin++ Insider · %d gift reads", request.GiftQuantity)
+		if request.GiftIncludeBuyer {
+			quote.Name = fmt.Sprintf("bitcoin++ Insider article access + %d gift reads", request.GiftQuantity)
+		}
 	case "insider.article":
 		if request.AmountCents != insiderArticleUnlockCents || request.ResourceID == "" ||
 			(request.ContributionPublicationID != "" && request.ResourceID != request.ContributionPublicationID) {
@@ -341,6 +371,7 @@ func buildInsiderSettlement(app *config.AppContext, payment getters.VerifiedServ
 		return insiderSettlementEvent{}, fmt.Errorf("decode Insider fulfillment: %w", err)
 	}
 	event := insiderSettlementEvent{
+		GiftLinkID: snapshot.GiftLinkID, GiftQuantity: snapshot.GiftQuantity, GiftIncludeBuyer: snapshot.GiftIncludeBuyer,
 		EventID: payment.Provider + ":" + payment.EventID, EventKind: "settled",
 		ProductCode: purchase.Quote.ProductCode, ResourceID: purchase.Quote.ResourceID,
 		ContributionPublicationID: snapshot.ContributionPublicationID,

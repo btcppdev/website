@@ -52,7 +52,7 @@ func serveInsiderRecurringCheckout(w http.ResponseWriter, r *http.Request, app *
 
 func insiderRecurringTerms(request insiderCheckoutRequest, origins, taxCode string, now time.Time) (servicestripe.CheckoutIntent, error) {
 	bad := servicestripe.ErrCheckout
-	if request.BillingMode != "recurring" || request.PaymentProvider != "stripe" || request.ResourceID != "" || request.ContributionPublicationID != "" || len(request.PublicCredit) != 0 {
+	if request.BillingMode != "recurring" || request.PaymentProvider != "stripe" || request.ResourceID != "" || request.ContributionPublicationID != "" || len(request.PublicCredit) != 0 || request.GiftLinkID != "" || request.GiftQuantity != 0 || request.GiftIncludeBuyer {
 		return servicestripe.CheckoutIntent{}, bad
 	}
 	if request.ProductCode != "insider.membership.monthly" && request.ProductCode != "insider.membership.annual" {

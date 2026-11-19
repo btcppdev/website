@@ -20,9 +20,9 @@ func buildInsiderRefund(original []byte, person string, job *getters.ServiceRefu
 	}
 	if job == nil || (job.AccessAction != "retain" && job.AccessAction != "revoke") ||
 		event.EventKind != "settled" || event.EventID == "" || event.PersonID != person || person == "" ||
-		(event.ProductCode != "insider.membership.monthly" && event.ProductCode != "insider.membership.annual" && event.ProductCode != "insider.article") ||
-		(event.ProductCode == "insider.article" && event.ResourceID == "") ||
-		event.ContributionPublicationID != "" || event.Provider != job.Refund.Provider ||
+		(event.ProductCode != "insider.membership.monthly" && event.ProductCode != "insider.membership.annual" && event.ProductCode != "insider.article" && event.ProductCode != "insider.article.gifts") ||
+		((event.ProductCode == "insider.article" || event.ProductCode == "insider.article.gifts") && event.ResourceID == "") ||
+		(event.ContributionPublicationID != "" && (event.ProductCode != "insider.article.gifts" || event.ContributionPublicationID != event.ResourceID)) || event.Provider != job.Refund.Provider ||
 		event.ProviderReference != job.Refund.PaymentReference || event.Currency != job.Refund.Currency ||
 		job.Refund.AmountCents < 0 || (job.Refund.AmountCents == 0 && (job.Refund.AmountSatoshis == nil || event.SettledSats <= 0)) || job.Refund.AmountCents > event.AmountCents || job.Refund.RefundReference == "" {
 		return insiderSettlementEvent{}, getters.ErrServiceRefund

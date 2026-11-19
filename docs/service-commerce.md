@@ -273,6 +273,29 @@ databases retain their original checksums; no deployed database was modified.
 
 ## Durable external fulfillment
 
+### Insider gift reads
+
+The one-time product `insider.article.gifts` purchases 1–1,000 gift reads for an
+article at $2.10 per recipient, plus an optional $2.10 buyer unlock. The adapter
+validates `gift_quantity`, `gift_include_buyer`, and `gift_link_id` before freezing
+them in the fulfillment snapshot. The aggregate order has one digital line item;
+its amount must exactly equal the server-calculated bundle price. Membership and
+ordinary article quotes reject gift-specific fields.
+
+Verified Stripe/OpenNode settlement carries those fields to Insider. Refund
+delivery preserves the original gift identity and the reviewed `retain`/`revoke`
+decision. Eligible gift purchases may also name their article in
+`contribution_publication_id`; Insider maintains the funding total, gift
+inventory, recipient claims, and branded receipts. Shared commerce creates no
+recipient content grants and receives no recipient identities.
+
+Migration `168_insider_gift_reads.sql` adds the product to legal-policy
+registration. This adapter does not enable gift sales on beta: Insider's existing
+one-time checkout gate stays in effect pending tax-quote integration. Gift quote,
+refund, and PostgreSQL order/settlement tests cover the companion contract.
+
+### Delivery queue
+
 Verified Insider settlement now creates `service_fulfillment_jobs` in the same
 transaction as the payment evidence. The primary key is the payment attempt, so
 provider retries cannot create a second fulfillment job. Initial callbacks try
