@@ -3,6 +3,14 @@
 <head>
   <title>{{ if eq .Mode "edit" }}Edit profile{{ else if .IsAdmin }}Create speaker profile{{ else }}Set up your account{{ end }} · bitcoin++</title>
   {{ block "header" . }} {{ end }}
+  <style>
+    #payments { scroll-margin-top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height) + 16px); }
+    .profile-edit-section__title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+    .profile-edit-copy-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 12px; border: 1px solid currentColor; color: var(--profile-edit-ink); font: 12px/1.4 "IBM Plex Mono", monospace; text-decoration: none; }
+    .profile-edit-copy-link:hover { background: var(--profile-edit-paper); }
+    .profile-edit-copy-link:focus-visible { outline: 2px solid var(--profile-edit-ink); outline-offset: 3px; }
+    #payments-link-status { display: block; color: var(--profile-edit-muted); font-size: 14px; }
+  </style>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128100;</text></svg>">
 </head>
 <body class="btcpp-profile-edit-page">
@@ -199,13 +207,17 @@
       </section>
 
       {{ if and .Speaker (not .IsAdmin) }}
-      <section class="profile-edit-section is-open">
+      <section id="payments" class="profile-edit-section is-open" aria-labelledby="payments-title">
         <div class="profile-edit-section__index">₿</div>
         <div class="profile-edit-section__body">
           <div class="profile-edit-section__head">
             <div>
               <p>§ PAYOUT DETAILS</p>
-              <h2>Awards & payments</h2>
+              <div class="profile-edit-section__title">
+                <h2 id="payments-title">Awards & payments</h2>
+                <a id="copy-payments-link" class="profile-edit-copy-link" href="/dashboard/profile#payments" aria-label="Copy link to Awards & payments">Copy link</a>
+              </div>
+              <output id="payments-link-status" role="status"></output>
               <span>Private. Used by authorized bitcoin++ organizers for prizes and reimbursements. Sponsors paying your winning prizes can see your payment addresses once your tax form is on file. Tax documents stay with organizers.</span>
             </div>
             <div class="profile-edit-section__status">
@@ -298,5 +310,23 @@
 
   {{ block "footer" . }} {{ end }}
   {{ template "pic_cropper" . }}
+  <script>
+    (function () {
+      const link = document.getElementById('copy-payments-link');
+      if (!link) return;
+      const status = document.getElementById('payments-link-status');
+      link.addEventListener('click', async function (event) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        status.textContent = '';
+        try {
+          await navigator.clipboard.writeText(link.href);
+          status.textContent = 'Link copied';
+        } catch (_) {
+          status.textContent = 'Use your browser’s link menu to copy this link.';
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
