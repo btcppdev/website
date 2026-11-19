@@ -801,7 +801,9 @@
       grid.append(cell);
     }
     container.append(grid);
-    const attention = entries.filter((e) => !e.at);
+    const attention = entries.filter(
+      (e) => !e.at && !["disabled", "past", "ended", "published", "canceled"].includes(e.state),
+    );
     if (attention.length) {
       container.append(el("h3", "Needs a time / review"));
       attention.forEach((e) => container.append(card(e)));

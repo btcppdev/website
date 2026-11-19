@@ -64,6 +64,9 @@ type RecordingRow struct {
 	YTPrivacyStatus   string
 	YTUploadStatus    string
 	YTPublishAt       *time.Time
+	YTRequestedAt     *time.Time
+	YTScheduleState   string
+	YTScheduleError   string
 	YTStatusError     string
 	HasFile           bool
 	HasYT             bool
@@ -246,6 +249,7 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 	start := time.Now()
 	reqID := requestID(r)
 	rows := recordingRowsForConf(ctx, conf.Tag)
+	scheduleErr := attachRecordingPublishChanges(ctx, rows)
 	ctx.Infos.Printf("/%s/admin/recordings id=%s rows=%d load=%s", conf.Tag, reqID, len(rows), time.Since(start))
 	sort.SliceStable(rows, func(i, j int) bool {
 		return rowSortKey(rows[i]) > rowSortKey(rows[j])
@@ -272,6 +276,10 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 	}
 	if flashErr := r.URL.Query().Get("err"); flashErr != "" {
 		page.FlashError = flashErr
+	}
+	if scheduleErr != nil {
+		ctx.Err.Printf("recording publication changes: %s", scheduleErr)
+		page.FlashError = "Could not load pending publication changes. Check the publication scheduler for current status."
 	}
 
 	renderStart := time.Now()

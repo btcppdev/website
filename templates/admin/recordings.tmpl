@@ -87,7 +87,7 @@
                     {{ range $i, $s := .Speakers }}{{ if $i }}, {{ end }}{{ $s.Name }}{{ end }}
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700">
-                    {{ if .Recording.PublishAt }}{{ .Recording.PublishAt.Format "Jan 2, 2006 3:04 PM MST" }}{{ else }}<span class="text-gray-300">—</span>{{ end }}
+                    {{ template "recording_publish_status" . }}
                     {{ if .YTPublishAt }}
                     <div class="mt-1 text-xs text-red-700">YT: {{ .YTPublishAt.Format "Jan 2, 2006 3:04 PM MST" }}</div>
                     {{ else if .YTPrivacyStatus }}
@@ -130,3 +130,20 @@
     </div>
   </body>
 </html>
+
+{{ define "recording_publish_status" }}
+{{ if .YTScheduleState }}
+  {{ if .YTRequestedAt }}
+  <div>Requested: {{ .YTRequestedAt.Format "Jan 2, 2006 3:04 PM MST" }}</div>
+  {{ else }}<div>Remove publication schedule requested</div>{{ end }}
+  <div class="mt-1 text-xs text-amber-700">
+    {{ if eq .YTScheduleState "pending" }}Waiting to sync with YouTube
+    {{ else if eq .YTScheduleState "syncing" }}Confirming with YouTube
+    {{ else if eq .YTScheduleState "needs_review" }}Needs review — YouTube confirmation pending
+    {{ else }}Schedule change failed{{ end }}
+  </div>
+  {{ if .YTScheduleError }}<div class="mt-1 text-xs text-red-700">{{ .YTScheduleError }}</div>{{ end }}
+  {{ if .Recording.PublishAt }}<div class="mt-1 text-xs text-gray-500">Previously confirmed: {{ .Recording.PublishAt.Format "Jan 2, 2006 3:04 PM MST" }}</div>{{ end }}
+{{ else if .Recording.PublishAt }}{{ .Recording.PublishAt.Format "Jan 2, 2006 3:04 PM MST" }}
+{{ else }}<span class="text-gray-300">—</span>{{ end }}
+{{ end }}

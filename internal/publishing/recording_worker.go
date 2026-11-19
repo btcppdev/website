@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type RecordingChange struct {
@@ -30,6 +29,8 @@ func (e *ScheduleApplyError) Error() string { return e.Message }
 type RecordingScheduler struct {
 	Store Store
 	Apply func(context.Context, RecordingChange) error
+	// Confirm only reads provider state; uncertain operations must not be repeated.
+	Confirm func(context.Context, RecordingChange) (bool, error)
 }
 
 func (w RecordingScheduler) RunOnce(ctx context.Context) error {
@@ -50,6 +51,9 @@ func (w RecordingScheduler) RunOnce(ctx context.Context) error {
 		}
 	}()
 	if _, e = conn.Exec(ctx, `UPDATE recording_schedule_changes SET state='needs_review',error='Schedule synchronization was interrupted. Check the destination before retrying.',lease_until=NULL,version=version+1,updated_at=now() WHERE state='syncing' AND lease_until<now()`); e != nil {
+		return e
+	}
+	if e = w.reconcileYouTube(ctx, conn); e != nil {
 		return e
 	}
 	for n := 0; n < 10; n++ {
@@ -129,39 +133,7 @@ func (w RecordingScheduler) RunOnce(ctx context.Context) error {
 			}
 			continue
 		}
-		// Confirmed source fields and operation completion advance together. A crash
-		// before this commit leaves a reviewable operation, never a silent success.
-		tx, e = conn.Begin(ctx)
-		if e != nil {
-			return e
-		}
-		if e = lockRecordings(ctx, tx); e != nil {
-			tx.Rollback(ctx)
-			return e
-		}
-		tag, e := tx.Exec(ctx, `UPDATE recording_schedule_changes SET state='applied',error='',lease_until=NULL,version=version+1,updated_at=now() WHERE recording_id=$1 AND channel_id=$2 AND version=$3 AND state='syncing'`, d.RecordingID, d.ChannelID, d.Version)
-		if e != nil || tag.RowsAffected() != 1 {
-			tx.Rollback(ctx)
-			if e != nil {
-				return e
-			}
-			return ErrChanged
-		}
-		if d.ChannelID == "youtube" {
-			var updated pgconn.CommandTag
-			updated, e = tx.Exec(ctx, `UPDATE recordings SET publish_at=$2 WHERE id=$1 AND youtube_url=$3 AND file_uri=$4`, d.RecordingID, d.TargetAt, d.YouTubeURL, d.FileURI)
-			if e == nil && updated.RowsAffected() != 1 {
-				e = ErrChanged
-			}
-			if e == nil {
-				_, e = tx.Exec(ctx, `UPDATE social_posts SET scheduled_at=$2,status=CASE WHEN $2::timestamptz IS NULL THEN 'canceled' ELSE 'scheduled' END,error='' WHERE ref='recording:'||$1||':youtube'`, d.RecordingID, d.TargetAt)
-			}
-		}
-		if e != nil {
-			tx.Rollback(ctx)
-			return e
-		}
-		if e = tx.Commit(ctx); e != nil {
+		if e = completeRecordingChange(ctx, conn, d, "syncing"); e != nil {
 			return e
 		}
 	}

@@ -33,7 +33,7 @@ func (s Store) Calendar(ctx context.Context, start, end time.Time) ([]Entry, err
  FROM publishing_deliveries WHERE scheduled_at BETWEEN $1 AND $2 OR state IN ('draft','failed','needs_review')
  UNION ALL
  SELECT provider||':'||remote_id,channel_id,conference_tag,title,CASE WHEN provider='streamer' THEN 'stream' ELSE 'post' END,state,starts_at,ends_at,url,provider
- FROM publishing_external WHERE provider='streamer' AND (starts_at BETWEEN $1 AND $2 OR starts_at IS NULL)
+ FROM publishing_external WHERE provider='streamer' AND (starts_at BETWEEN $1 AND $2 OR (starts_at IS NULL AND state NOT IN ('disabled','past','ended','canceled')))
  ORDER BY 7 NULLS LAST,1 LIMIT 5000`, start, end)
 	if e != nil {
 		return nil, e
@@ -48,6 +48,9 @@ func (s Store) Calendar(ctx context.Context, start, end time.Time) ([]Entry, err
 		}
 		if link != nil {
 			v.URL = *link
+		}
+		if v.Provider == "streamer" && v.State == "scheduled" && v.At != nil && !v.At.After(time.Now()) {
+			v.State = "past"
 		}
 		out = append(out, v)
 	}

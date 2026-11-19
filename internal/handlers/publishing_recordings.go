@@ -62,18 +62,7 @@ func applyPublishingRecording(ctx context.Context, app *config.AppContext, d pub
 				return err
 			}
 		}
-		status, err = youtubepkg.GetVideoStatus(ctx, id)
-		if err != nil {
-			return err
-		}
-		if d.TargetAt == nil {
-			if status.PublishAt != nil || status.PrivacyStatus != "unlisted" {
-				return fmt.Errorf("YouTube has not confirmed the cleared schedule")
-			}
-		} else if status.PublishAt == nil || !status.PublishAt.Equal(*d.TargetAt) {
-			return fmt.Errorf("YouTube has not confirmed the requested publication time")
-		}
-		return nil
+		return youtubepkg.WaitForVideoSchedule(ctx, id, d.TargetAt)
 	}
 	if d.ChannelID != "broadcasts" || d.TargetAt == nil {
 		return fail("Unsupported recording destination")
@@ -117,7 +106,7 @@ func StartRecordingPublishingWorker(app *config.AppContext) {
 	if app.DB == nil || !app.Env.Publishing.Enabled {
 		return
 	}
-	worker := publishing.RecordingScheduler{Store: publishing.Store{DB: app.DB}, Apply: func(ctx context.Context, d publishing.RecordingChange) error {
+	worker := publishing.RecordingScheduler{Store: publishing.Store{DB: app.DB}, Confirm: confirmPublishingYouTube, Apply: func(ctx context.Context, d publishing.RecordingChange) error {
 		return applyPublishingRecording(ctx, app, d)
 	}}
 	go func() {
@@ -132,6 +121,11 @@ func StartRecordingPublishingWorker(app *config.AppContext) {
 			}
 		}
 	}()
+}
+
+func confirmPublishingYouTube(ctx context.Context, d publishing.RecordingChange) (bool, error) {
+	status, err := youtubepkg.GetVideoStatus(ctx, youtubeVideoID(d.YouTubeURL))
+	return err == nil && status.MatchesSchedule(d.TargetAt), err
 }
 
 // Old scheduling bookmarks land at the unified scheduler. POSTs do not replay
