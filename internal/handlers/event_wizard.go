@@ -9,16 +9,12 @@ import (
 	"btcpp-web/internal/eventplan"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/types"
-	"bytes"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
 	"html/template"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
 	"net/http"
 	"net/url"
@@ -299,7 +295,7 @@ func EventWizardArtwork(w http.ResponseWriter, r *http.Request, app *config.AppC
 		wizardError(w, fmt.Errorf("unknown artwork type"))
 		return
 	}
-	file, _, e := r.FormFile("file")
+	file, header, e := r.FormFile("file")
 	if e != nil {
 		wizardError(w, fmt.Errorf("choose an image"))
 		return
@@ -310,15 +306,9 @@ func EventWizardArtwork(w http.ResponseWriter, r *http.Request, app *config.AppC
 		wizardError(w, fmt.Errorf("image must be at most 10 MB"))
 		return
 	}
-	mime := http.DetectContentType(raw)
-	ext := map[string]string{"image/png": "png", "image/jpeg": "jpg"}[mime]
-	if ext == "" {
-		wizardError(w, fmt.Errorf("use a PNG or JPEG image; transparent PNG is best for logos"))
-		return
-	}
-	dimensions, _, err := image.DecodeConfig(bytes.NewReader(raw))
-	if err != nil || dimensions.Width < 1 || dimensions.Height < 1 || int64(dimensions.Width)*int64(dimensions.Height) > 40000000 {
-		wizardError(w, fmt.Errorf("use a valid image with at most 40 million pixels"))
+	mime, ext, e := validateEventArtwork(field, header.Filename, raw)
+	if e != nil {
+		wizardError(w, e)
 		return
 	}
 	if !spaces.IsConfigured() {

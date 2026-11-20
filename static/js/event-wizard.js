@@ -352,7 +352,10 @@
       s.append(preview);
       const f = el("input");
       f.type = "file";
-      f.accept = "image/png,image/jpeg";
+      f.accept =
+        key === "leading"
+          ? "image/png,image/jpeg"
+          : "image/png,image/jpeg,image/svg+xml,.svg";
       f.disabled = readonly;
       f.setAttribute("aria-label", "Upload " + label);
       s.append(f);
@@ -381,7 +384,7 @@
         s,
         key === "leading"
           ? "PNG or JPEG, up to 10 MB. Use landscape artwork. We create a smaller web version when possible and keep your original."
-          : "Transparent PNG recommended. Up to 10 MB.",
+          : "SVG or transparent PNG recommended; JPEG also accepted. Up to 10 MB. SVG logos stay in their original vector format.",
       );
       g.append(s);
     }

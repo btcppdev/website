@@ -8,10 +8,72 @@ import (
 	"html/template"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"strings"
 	"testing"
 )
+
+func TestEventArtworkAcceptedFormats(t *testing.T) {
+	svg := []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M0 0h100v100H0z"/></svg>`)
+	var pngData, jpegData bytes.Buffer
+	img := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	if err := png.Encode(&pngData, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := jpeg.Encode(&jpegData, img, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, field, filename string
+		raw                   []byte
+		mime, ext             string
+	}{
+		{"black SVG", "black", "logo.svg", svg, "image/svg+xml", "svg"},
+		{"white SVG", "white", "LOGO.SVG", svg, "image/svg+xml", "svg"},
+		{"transparent PNG logo", "black", "logo.png", pngData.Bytes(), "image/png", "png"},
+		{"JPEG logo", "white", "logo.jpeg", jpegData.Bytes(), "image/jpeg", "jpg"},
+		{"leading PNG", "leading", "leading.png", pngData.Bytes(), "image/png", "png"},
+		{"leading JPEG", "leading", "leading.jpg", jpegData.Bytes(), "image/jpeg", "jpg"},
+		{"SVG is logo only", "leading", "leading.svg", svg, "", ""},
+		{"renamed HTML", "black", "logo.svg", []byte(`<html>not an SVG</html>`), "", ""},
+		{"scripted SVG", "black", "logo.svg", []byte(`<svg><script>alert(1)</script></svg>`), "", ""},
+		{"corrupt PNG", "white", "logo.png", pngData.Bytes()[:8], "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mime, ext, err := validateEventArtwork(tc.field, tc.filename, tc.raw)
+			if (err != nil) != (tc.mime == "") || mime != tc.mime || ext != tc.ext {
+				t.Fatalf("got (%q, %q, %v), want (%q, %q)", mime, ext, err, tc.mime, tc.ext)
+			}
+		})
+	}
+}
+
+func TestEventArtworkSVGLogoStaysVector(t *testing.T) {
+	raw := []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M0 0h100v100H0z"/></svg>`)
+	for _, field := range []string{"black", "white"} {
+		t.Run(field, func(t *testing.T) {
+			mime, ext, err := validateEventArtwork(field, "logo.svg", raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			uploads := 0
+			got, err := storeEventArtwork("conf", field, mime, ext, raw, func([]byte) ([]byte, error) {
+				t.Fatal("SVG logo sent to raster encoder")
+				return nil, nil
+			}, func(key string, data []byte, contentType, digest string) (string, error) {
+				uploads++
+				if !strings.HasPrefix(key, "events/conf/"+field+"/") || !strings.HasSuffix(key, ".svg") || contentType != "image/svg+xml" || !bytes.Equal(data, raw) {
+					t.Fatalf("SVG was not preserved: %s %s", key, contentType)
+				}
+				return "https://images.example/" + key, nil
+			})
+			if err != nil || uploads != 1 || got.Original == "" || got.AVIF != "" || got.OptimizationError != nil {
+				t.Fatalf("SVG upload: %+v (%d uploads), %v", got, uploads, err)
+			}
+		})
+	}
+}
 
 func TestEventArtworkUploadFallbacks(t *testing.T) {
 	img := image.NewNRGBA(image.Rect(0, 0, 20, 10))
