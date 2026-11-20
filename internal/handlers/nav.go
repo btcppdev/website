@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"sort"
 	"strings"
+	"time"
 
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/auth"
@@ -100,33 +100,12 @@ func buildNavConfList(ctx *config.AppContext) NavConfList {
 		ctx.Err.Printf("navConfs: %s", err)
 		return NavConfList{}
 	}
-	// Tags hardcoded at the bottom of the Past flyout as YouTube
-	// playlist links — exclude them from the dynamic list so they
-	// don't render twice if a row exists in Notion.
-	hardcodedPast := map[string]bool{"atx22": true, "cdmx22": true}
+	return navConfListAt(confs, time.Now())
+}
 
-	var upcoming, past []*types.Conf
-	for _, c := range confs {
-		if c == nil {
-			continue
-		}
-		if hardcodedPast[c.Tag] {
-			continue
-		}
-		if !c.IsPublished() {
-			continue
-		}
-		if c.IsInActiveEventList() {
-			upcoming = append(upcoming, c)
-		} else {
-			past = append(past, c)
-		}
+func navConfListAt(confs []*types.Conf, now time.Time) NavConfList {
+	return NavConfList{
+		Upcoming: homeUpcomingConfsAt(confs, now),
+		Past:     homePastConfsAt(confs, now),
 	}
-	sort.Slice(upcoming, func(i, j int) bool {
-		return upcoming[i].StartDate.Before(upcoming[j].StartDate)
-	})
-	sort.Slice(past, func(i, j int) bool {
-		return past[i].StartDate.After(past[j].StartDate)
-	})
-	return NavConfList{Upcoming: upcoming, Past: past}
 }

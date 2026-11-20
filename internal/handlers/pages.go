@@ -151,6 +151,15 @@ func (h HomePageData) NextConf() *types.Conf {
 	return h.Upcoming[0]
 }
 
+// EditionCount matches the public event cards rendered in the timeline.
+func (h HomePageData) EditionCount() int {
+	count := 0
+	for _, year := range h.Years {
+		count += len(year.Confs)
+	}
+	return count
+}
+
 type HomeTimelineYear struct {
 	Year  int
 	Confs []*types.Conf

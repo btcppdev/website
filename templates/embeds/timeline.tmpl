@@ -27,7 +27,7 @@
               <p class="home-section-label">The permanent record</p>
               <h1>Every edition, <span class="home-serif">archived.</span></h1>
             </div>
-            <p class="home-deck">{{ len .Confs }} editions since 2022: the talks, hackathons, cities, and livestreams kept where anyone can find them.</p>
+            <p class="home-deck">{{ .EditionCount }} editions since 2022: the talks, hackathons, cities, and livestreams kept where anyone can find them.</p>
           </div>
           <div class="timeline-jump">
             {{ range .Years }}<a href="#y{{ .Year }}">{{ .Year }}</a>{{ end }}
