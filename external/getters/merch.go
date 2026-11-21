@@ -1524,14 +1524,12 @@ func MarkTicketPickups(ctx *config.AppContext, ticketRef string, orderItemIDs []
 			WHERE r.ref_id = $1
 				AND r.revoked = false
 				AND r.checked_in_at IS NOT NULL
+				AND (jsonb_array_length(r.checkin_requirements)=0 OR r.proof_checked_at IS NOT NULL OR r.full_ticket_upgraded_at IS NOT NULL)
 				AND r.conference_shirt_picked_up_at IS NULL
 				AND EXISTS (
 					SELECT 1
-					FROM people
-					WHERE people.id = r.person_id
-						AND upper(btrim(people.tshirt)) IN (
-							'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
-						)
+					FROM registration_attendee_fulfillment attendee
+					WHERE attendee.ref_id = r.ref_id AND attendee.tshirt <> ''
 				)
 		`, ticketRef, actorEmail)
 		if err != nil {
@@ -1553,6 +1551,7 @@ func MarkTicketPickups(ctx *config.AppContext, ticketRef string, orderItemIDs []
 				AND registration.ref_id = $1
 				AND registration.revoked = false
 				AND registration.checked_in_at IS NOT NULL
+				AND (jsonb_array_length(registration.checkin_requirements)=0 OR registration.proof_checked_at IS NOT NULL OR registration.full_ticket_upgraded_at IS NOT NULL)
 				AND shop_order.id = item.order_id
 				AND shop_order.status = 'paid'
 				AND shop_order.buyer_email = registration.email

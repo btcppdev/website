@@ -190,6 +190,7 @@ func StartShopMaintenance(ctx *config.AppContext) {
 		defer ticker.Stop()
 		for {
 			reconcilePOSPayments(ctx)
+			reconcileCheckInUpgrades(ctx)
 			<-ticker.C
 		}
 	}()
@@ -2825,22 +2826,7 @@ func createTicketAddOnOrder(ctx *config.AppContext, conf *types.Conf, tix *types
 	if !shopEventPickupOpenAt(conf, time.Now()) {
 		return nil, fmt.Errorf("event pickup closes when ticket sales close")
 	}
-	ticketUnitCents := form.DiscountPrice * 100
-	if paymentMethod == "card" {
-		ticketUnitCents = cardSurchargePrice(form.DiscountPrice, tix.CardSurchargeBPS) * 100
-	}
-	items := []getters.ShopOrderItemInput{{
-		Quantity:             form.Count,
-		UnitPriceCents:       ticketUnitCents,
-		LineTotalCents:       ticketUnitCents * form.Count,
-		ProductTagSnapshot:   "ticket",
-		ProductNameSnapshot:  conf.Desc,
-		VariantLabelSnapshot: ticketKind,
-		SKUSnapshot:          tix.ID,
-		FulfillmentMethod:    types.ShopFulfillmentPOSTakeaway,
-		SaleConferenceID:     conf.Ref,
-		Status:               types.ShopItemStatusPending,
-	}}
+	items, ticketTotalCents := ticketShopOrderLines(conf, tix, form, ticketKind, paymentMethod)
 	for _, item := range addOns {
 		items = append(items, getters.ShopOrderItemInput{
 			ProductID:            item.Product.ID,
@@ -2865,10 +2851,42 @@ func createTicketAddOnOrder(ctx *config.AppContext, conf *types.Conf, tix *types
 		CheckoutKind:        types.ShopCheckoutKindMixed,
 		PaymentProvider:     paymentMethod,
 		Currency:            firstNonEmpty(tix.Currency, "USD"),
-		SubtotalCents:       ticketUnitCents*form.Count + addOnTotalCents,
+		SubtotalCents:       ticketTotalCents + addOnTotalCents,
 		SalesTaxAmountCents: salesTaxCents,
-		TotalCents:          ticketUnitCents*form.Count + addOnTotalCents + salesTaxCents,
+		TotalCents:          ticketTotalCents + addOnTotalCents + salesTaxCents,
 	}, items)
+}
+
+// Ticket snapshots in a mixed merch order must match the independently priced
+// options sent to the payment provider and later fulfilled as registrations.
+func ticketShopOrderLines(conf *types.Conf, tix *types.ConfTicket, form *types.TixForm, ticketKind, paymentMethod string) ([]getters.ShopOrderItemInput, uint) {
+	ticketUnitCents := form.DiscountPrice * 100
+	if paymentMethod == "card" {
+		ticketUnitCents = cardSurchargePrice(form.DiscountPrice, tix.CardSurchargeBPS) * 100
+	}
+	items := []getters.ShopOrderItemInput{{
+		Quantity:             form.Count,
+		UnitPriceCents:       ticketUnitCents,
+		LineTotalCents:       ticketUnitCents * form.Count,
+		ProductTagSnapshot:   "ticket",
+		ProductNameSnapshot:  conf.Desc,
+		VariantLabelSnapshot: ticketKind,
+		SKUSnapshot:          tix.ID,
+		FulfillmentMethod:    types.ShopFulfillmentPOSTakeaway,
+		SaleConferenceID:     conf.Ref,
+		Status:               types.ShopItemStatusPending,
+	}}
+	total := ticketUnitCents * form.Count
+	if len(form.CartLines) > 0 {
+		items = nil
+		total = 0
+		for _, line := range form.CartLines {
+			lineTotal := line.UnitCents * line.Quantity
+			total += lineTotal
+			items = append(items, getters.ShopOrderItemInput{Quantity: line.Quantity, UnitPriceCents: line.UnitCents, LineTotalCents: lineTotal, ProductTagSnapshot: "ticket", ProductNameSnapshot: conf.Desc + " — " + line.Title, VariantLabelSnapshot: line.Kind, SKUSnapshot: line.TicketID, FulfillmentMethod: types.ShopFulfillmentPOSTakeaway, SaleConferenceID: conf.Ref, Status: types.ShopItemStatusPending})
+		}
+	}
+	return items, total
 }
 
 func shopCategorySlug(productType string) string {

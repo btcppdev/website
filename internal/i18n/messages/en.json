@@ -200,7 +200,7 @@
   "checkout.tax_note": "Tax is calculated from the event pickup location.",
   "checkout.skip": "Skip — just the ticket →",
   "checkout.secure": "Secure checkout · ticket delivered by email",
-  "checkout.contact": "Questions? hello@btcpp.dev",
+  "checkout.contact": "Questions? inbox@btcpp.dev",
   "checkout.each": "ea",
   "checkout.bitcoin_price": "Bitcoin price",
   "checkout.card_price": "Card price",
@@ -247,5 +247,18 @@
   "email.ticket.intro": "## Ticket information\n\nThank you for registering for {{.Event}}.\n\n- Dates: {{.Date}}\n- Venue: {{.Venue}} · {{.Location}}\n\nYour ticket PDF is attached. Show its QR code at the registration desk to receive your badge.\n\n[View your ticket in the dashboard (English)]({{.Dashboard}})\n\n[Event information]({{.EventURL}})",
   "email.reminder.intro": "## Event reminder\n\nWe look forward to seeing you at {{.Event}}.\n\n- Dates: {{.Date}}\n- Venue: {{.Venue}} · {{.Location}}\n\nKeep your ticket QR code ready for check-in. Your tickets and registration details are available in your dashboard.\n\n[Open your dashboard (English)]({{.Dashboard}})\n\n[Event information]({{.EventURL}})",
   "email.doors": "Doors open (event local time): {{.Time}}",
-  "email.english_follows": "The complete English organizer message follows, including the latest updates."
+  "email.english_follows": "The complete English organizer message follows, including the latest updates.",
+  "checkout.next_pay": "Continue to payment →",
+  "checkout.special_offers": "Special Offers",
+  "checkout.ticket_options": "Choose your tickets",
+  "checkout.quantity": "Quantity",
+  "checkout.remaining": "{{.Count}} left",
+  "checkout.max_tickets": "Choose 1–8 tickets in total.",
+  "checkout.discounts_excluded": "Discounts do not apply.",
+  "checkout.ticket_total": "Ticket subtotal",
+  "checkout.discount_scope": "Offers apply to eligible ticket types only.",
+  "checkout.free": "$0",
+  "checkout.quote_error": "We couldn't update ticket prices. Please try the offer or code again.",
+  "checkout.tickets_to": "Tickets will be sent to",
+  "checkout.receipt_to": "Receipt will be sent to"
 }

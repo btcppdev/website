@@ -338,6 +338,7 @@ type (
 	}
 
 	TixForm struct {
+		CartLines     []TicketCartLine `schema:"-"`
 		Email         string
 		Subscribe     bool
 		Count         uint
@@ -710,23 +711,29 @@ type (
 	}
 
 	Item struct {
-		Total int64
-		Desc  string
-		Type  string
+		TicketID      string
+		DiscountRef   string
+		BaseCents     uint
+		OriginalCents uint
+		Total         int64
+		Desc          string
+		Type          string
 	}
 
 	Entry struct {
-		TicketID      string
-		ReservationID string
-		Locale        string
-		ID            string
-		ConfRef       string
-		Total         int64
-		Currency      string
-		Created       time.Time
-		Email         string
-		Items         []Item
-		DiscountRef   string
+		Cart             bool
+		AlreadyFulfilled bool
+		TicketID         string
+		ReservationID    string
+		Locale           string
+		ID               string
+		ConfRef          string
+		Total            int64
+		Currency         string
+		Created          time.Time
+		Email            string
+		Items            []Item
+		DiscountRef      string
 	}
 
 	ShirtSize string

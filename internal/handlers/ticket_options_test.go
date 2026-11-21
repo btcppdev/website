@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stripe/stripe-go/v86"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -29,10 +30,11 @@ func TestEvergreenCheckoutOffersAndDiscountPolicy(t *testing.T) {
 	}
 	t.Cleanup(func() { app.DB.Exec(context.Background(), `DELETE FROM conferences WHERE id=$1`, id) })
 	conf, _ := getters.GetConfByTag(app, tag)
+	restrictions := "Proof of Eurocrypt ticket will be requested at the door. <Bring ID>"
 	settings := eventplan.TicketSettings{Tickets: []eventplan.Ticket{
 		{Tier: "Standard", Price: 200, Capacity: 100, Currency: "EUR", SalesEnd: "2099-02-01T10:00", TaxCode: "txcd_20030000", CardSurchargeBPS: 1000},
 		{Tier: "Student", Price: 50, Capacity: 2, Currency: "EUR", TaxCode: "txcd_20030000", CardSurchargeBPS: 1000, Evergreen: true, TicketKind: "student"},
-	}, Offers: []eventplan.CheckoutOffer{{Label: "Eurocrypt ticket holders", Percent: 15, Enabled: true}}}
+	}, Offers: []eventplan.CheckoutOffer{{Label: "Eurocrypt ticket holder", Restrictions: restrictions, Percent: 15, Enabled: true}}}
 	raw, _ := json.Marshal(settings)
 	if _, err = getters.SaveEventPlanning(app, conf, 0, "", "tickets", raw); err != nil {
 		t.Fatal(err)
@@ -64,11 +66,14 @@ func TestEvergreenCheckoutOffersAndDiscountPolicy(t *testing.T) {
 		return w
 	}
 	page := request(standard, "/checkout", "GET", nil)
-	if page.Code != 200 || !strings.Contains(page.Body.String(), "Eurocrypt ticket holders") || !strings.Contains(page.Body.String(), `type="checkbox" name="OfferCode"`) {
+	if page.Code != 200 || !strings.Contains(page.Body.String(), "<strong>Eurocrypt ticket holder</strong>") || !strings.Contains(page.Body.String(), `type="checkbox" name="OfferCode"`) {
 		t.Fatalf("standard page: %d %s", page.Code, page.Body.String())
 	}
+	if !strings.Contains(page.Body.String(), "<small>"+html.EscapeString(restrictions)+"</small>") {
+		t.Fatal("saved offer restrictions missing or not escaped")
+	}
 	studentPage := request(student, "/checkout", "GET", nil)
-	if studentPage.Code != 200 || strings.Contains(studentPage.Body.String(), `name="OfferCode"`) || strings.Contains(studentPage.Body.String(), `id="Discount"`) {
+	if studentPage.Code != 200 || !strings.Contains(studentPage.Body.String(), `name="ticket_`+student.ID+`" value="1"`) || !strings.Contains(studentPage.Body.String(), `name="OfferCode"`) {
 		t.Fatalf("student discount UI: %d", studentPage.Code)
 	}
 	values := url.Values{"OfferCode": {offer.Code}, "Count": {"1"}, "DiscountPrice": {"200"}}

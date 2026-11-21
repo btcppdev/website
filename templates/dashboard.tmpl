@@ -32,7 +32,6 @@
             {{ end }}
           </div>
           <div class="dashboard-workspace-hero__copy">
-            <div class="dashboard-kicker">● Personal workspace</div>
             <h1>{{ .Name }}</h1>
             <p class="dashboard-workspace-hero__meta">
               {{ if .Speaker }}
@@ -53,7 +52,6 @@
 
 {{ if .PendingSpeakerInvitations }}
 <section id="speaker-invitations" class="dashboard-invitation-panel dashboard-workspace-panel">
-  <div class="dashboard-kicker">● Action needed · speaker invitation</div>
   <h2>You’re invited to speak.</h2>
   <p>Review each invitation, complete any missing talk details, and let the organizers know whether you can join.</p>
   <div class="dashboard-invitation-list">
@@ -82,7 +80,6 @@
 <section id="affiliate" class="dashboard-affiliate dashboard-affiliate-cta">
   <a class="dashboard-affiliate-cta__link" href="/dashboard/affiliate" aria-label="Open affiliate program">
     <div class="dashboard-affiliate__copy">
-      <div class="dashboard-kicker">§ Affiliate</div>
       <div class="dashboard-affiliate__title">
         {{ if .AffiliateCode }}
         <h2>Bring your crew. Get paid in sats.</h2>
@@ -116,7 +113,6 @@
 <section id="hackathon-ticket-awards" class="dashboard-affiliate dashboard-affiliate-cta{{ if eq .UnclaimedTicketEntitlements 0 }} dashboard-affiliate-cta--complete{{ end }}">
   <a class="dashboard-affiliate-cta__link" href="/dashboard/tickets" aria-label="Open hackathon ticket awards">
     <div class="dashboard-affiliate__copy">
-      <div class="dashboard-kicker">§ Hackathon ticket awards</div>
       {{ if gt .UnclaimedTicketEntitlements 0 }}
       <div class="dashboard-affiliate__title"><h2>You have {{ .UnclaimedTicketEntitlements }} ticket reward{{ if ne .UnclaimedTicketEntitlements 1 }}s{{ end }} ready to claim.</h2></div>
       <p>Choose a future bitcoin++ event and claim each person-bound ticket from your ticket awards page.</p>
@@ -138,7 +134,7 @@
 */}}
 {{ if .ActiveBlocks }}
 <section id="events" class="dashboard-ledger-list">
-  <div class="dashboard-section-label">§ Your editions · {{ len .ActiveBlocks }}</div>
+  <h2 class="dashboard-section-title">Your editions · {{ len .ActiveBlocks }}</h2>
   {{ range .ActiveBlocks }}
   {{ $eb := . }}
   {{ $conf := .Conf }}
@@ -189,13 +185,21 @@
             {{ end }}
           </div>
           <div class="dashboard-ticket-block__body">
-            <div class="dashboard-kicker">§ Your ticket · check-in ready</div>
             <div class="dashboard-ticket-row__summary">
               <strong>{{ if .Type }}{{ .Type }}{{ else }}Ticket{{ end }}</strong>
             </div>
             <span>ID {{ .RefID }}{{ if $.Email }} · {{ $.Email }}{{ end }}</span>
+            {{ with index $.TicketDetails .RefID }}
+            {{ if .EffectiveName }}<p class="dashboard-ticket-row__attendee">{{ .EffectiveName }}</p>{{ end }}
+            <dl class="dashboard-ticket-row__preferences">
+              <div><dt>T-shirt</dt><dd>{{ if .ShirtLabel }}{{ .ShirtLabel }}{{ else }}Not provided{{ end }}</dd></div>
+              <div><dt>Food</dt><dd>{{ .DietLabel }}{{ if .DietOther }} · {{ .DietOther }}{{ end }}</dd></div>
+            </dl>
+            {{ if .Allergies }}<p class="dashboard-ticket-row__food-notes">Allergies / food needs: {{ .Allergies }}</p>{{ end }}
+            {{ end }}
             <div class="dashboard-ticket-row__actions">
               <a href="/ticket/{{ .RefID }}/pdf?type={{ .Type }}&conf={{ .ConfRef }}">Download ticket ↓</a>
+              <a href="/ticket/{{ .RefID }}/details">Shirt &amp; food preferences</a>
             </div>
           </div>
         </div>
@@ -205,7 +209,6 @@
     {{ else if $eb.CanBuy }}
     <div class="dashboard-ticket-block is-needed">
       <div>
-        <div class="dashboard-kicker">§ Ticket</div>
         <strong>You don't have a ticket yet</strong>
         <span>{{ $conf.DateDesc }} · {{ $conf.Location }}</span>
       </div>
@@ -242,7 +245,7 @@
           {{ end }}
 
           {{ if $eb.CanBuy }}
-          <a href="/{{ $conf.Tag }}#tickets" class="dashboard-action">
+          <a href="/{{ $conf.Tag }}/checkout" class="dashboard-action">
             <span class="dashboard-action__label">{{ if $eb.Tickets }}Buy another ticket{{ else }}Buy a ticket{{ end }}</span>
             <span class="dashboard-action__hint">{{ $conf.DateDesc }}</span>
           </a>
@@ -308,7 +311,7 @@
       {{ if $eb.SpeakerConf }}
       <div id="talks-{{ $conf.Tag }}" class="dashboard-ledger-section dashboard-talks-ledger">
         <div class="dashboard-ledger-section__head">
-          <h3>§ Talks · {{ len $eb.SpeakerConf.Proposals }}</h3>
+          <h3>Talks · {{ len $eb.SpeakerConf.Proposals }}</h3>
           {{ if $conf.TalksOpen }}
           <a class="dashboard-ledger-inline-action" href="/talk/{{ $conf.Tag }}?from=dashboard">+ propose another</a>
           {{ end }}
@@ -514,7 +517,7 @@
 
       {{ if $eb.SatelliteEvents }}
       <div id="satellites-{{ $conf.Tag }}" class="dashboard-ledger-section dashboard-satellite-ledger">
-        <h3>§ Satellite events</h3>
+        <h3>Satellite events</h3>
         <ul class="space-y-2">
           {{ range $eb.SatelliteEvents }}
           <li class="flex items-center justify-between gap-3 rounded-md bg-gray-50/50 border border-gray-100 px-3 py-2">
@@ -720,7 +723,7 @@
      confs the user has no existing relationship with. */}}
 {{ if .DiscoverConfs }}
 <section id="discover" class="dashboard-ledger-list">
-  <h2 class="dashboard-section-label">§ Other upcoming events</h2>
+  <h2 class="dashboard-section-title">Other upcoming events</h2>
   {{ range .DiscoverConfs }}
   {{ $conf := . }}
   <div class="bg-white shadow rounded-lg overflow-hidden">
@@ -792,7 +795,7 @@
 {{ if or .RecentShopOrders .POSPurchases }}
 <section id="purchases" class="dashboard-purchase-ledger dashboard-workspace-panel">
   <div class="dashboard-purchase-ledger__head">
-    <div class="dashboard-kicker">§ Recent purchases</div>
+    <h2 class="dashboard-section-title">Recent purchases</h2>
     <a href="/dashboard/orders">purchases &amp; billing &rarr;</a>
   </div>
   <div class="dashboard-purchase-ledger__rows">
@@ -818,7 +821,7 @@
 {{ if .PastBlocks }}
 <section id="past" class="dashboard-past-ledger dashboard-workspace-panel">
   <div class="dashboard-past-ledger__head">
-    <div class="dashboard-kicker">§ Past conferences · {{ len .PastBlocks }}</div>
+    <h2 class="dashboard-section-title">Past conferences · {{ len .PastBlocks }}</h2>
     {{ if .ArchiveOwnerPath }}<a href="{{ .ArchiveOwnerPath }}">show all {{ len .PastBlocks }} &rarr;</a>{{ end }}
   </div>
   <div class="dashboard-past-ledger__rows">
@@ -854,7 +857,7 @@
 {{ if or .HasUpcomingTalk .HasUpcomingVol }}
 <section id="contact" class="dashboard-help-block">
   <div>
-    <div class="dashboard-kicker">§ Need help?</div>
+    <h2 class="dashboard-section-title">Need help?</h2>
     <p>We read every message. Reach the right crew:</p>
   </div>
   <div class="dashboard-help-block__links">

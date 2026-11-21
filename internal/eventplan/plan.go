@@ -183,11 +183,12 @@ type Applications struct {
 	MerchDesk       bool   `json:"merch_desk"`
 }
 type CheckoutOffer struct {
-	ID      string `json:"id"`
-	Label   string `json:"label"`
-	Percent int    `json:"percent"`
-	Enabled bool   `json:"enabled"`
-	Code    string `json:"code"`
+	Restrictions string `json:"restrictions"`
+	ID           string `json:"id"`
+	Label        string `json:"label"`
+	Percent      int    `json:"percent"`
+	Enabled      bool   `json:"enabled"`
+	Code         string `json:"code"`
 }
 type TicketSettings struct {
 	Offers             []CheckoutOffer `json:"offers"`

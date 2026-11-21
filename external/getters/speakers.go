@@ -9,54 +9,56 @@ import (
 
 // SpeakerInput is the data needed to create a Speakers/People row.
 type SpeakerInput struct {
-	Name          string
-	Email         string
-	Photo         string
-	Phone         string
-	Signal        string
-	Telegram      string
-	Twitter       string
-	Nostr         string
-	Github        string
-	Instagram     string
-	LinkedIn      string
-	LeetCode      string
-	Website       string
-	Company       string
-	Bio           string
-	OrgLogo       string
-	AvailToHire   bool
-	LookingToHire bool
-	TShirt        string
+	AttendeePreferences *types.AttendeePreferences
+	Name                string
+	Email               string
+	Photo               string
+	Phone               string
+	Signal              string
+	Telegram            string
+	Twitter             string
+	Nostr               string
+	Github              string
+	Instagram           string
+	LinkedIn            string
+	LeetCode            string
+	Website             string
+	Company             string
+	Bio                 string
+	OrgLogo             string
+	AvailToHire         bool
+	LookingToHire       bool
+	TShirt              string
 }
 
 // SpeakerUpdate is a sparse update for an existing speaker/person row. Empty
 // strings mean "leave this field alone".
 type SpeakerUpdate struct {
-	Name             string
-	Photo            string
-	Phone            string
-	Signal           string
-	Telegram         string
-	Twitter          string
-	Nostr            string
-	Github           string
-	Instagram        string
-	LinkedIn         string
-	LeetCode         string
-	Website          string
-	Company          string
-	CompanySet       bool // Explicit profile edits may clear the company.
-	AvailToHire      bool
-	LookingToHire    bool
-	HiringFieldsSet  bool
-	Bio              string
-	BioSet           bool
-	OrgLogo          string
-	TShirt           string
-	LightningAddress string
-	BitcoinAddress   string
-	PayoutFieldsSet  bool
+	AttendeePreferences *types.AttendeePreferences // Explicit private defaults; nil preserves existing values.
+	Name                string
+	Photo               string
+	Phone               string
+	Signal              string
+	Telegram            string
+	Twitter             string
+	Nostr               string
+	Github              string
+	Instagram           string
+	LinkedIn            string
+	LeetCode            string
+	Website             string
+	Company             string
+	CompanySet          bool // Explicit profile edits may clear the company.
+	AvailToHire         bool
+	LookingToHire       bool
+	HiringFieldsSet     bool
+	Bio                 string
+	BioSet              bool
+	OrgLogo             string
+	TShirt              string
+	LightningAddress    string
+	BitcoinAddress      string
+	PayoutFieldsSet     bool
 }
 
 // SpeakerProfilePatch is the API-facing profile allowlist. A nil field is
@@ -395,6 +397,14 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 		return "", fmt.Errorf("database is not configured")
 	}
 	in = normalizeSpeakerInput(in)
+	prefs := types.AttendeePreferences{}
+	if in.AttendeePreferences != nil {
+		prefs = *in.AttendeePreferences
+		if err := prefs.Normalize(); err != nil {
+			return "", err
+		}
+		in.TShirt = prefs.TShirt
+	}
 	if in.Nostr != "" {
 		var err error
 		in.Nostr, err = CanonicalNostrProfileValue(in.Nostr)
@@ -413,14 +423,15 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 		INSERT INTO people (
 			name, norm_photo_path, phone, signal, telegram, twitter_handle,
 			nostr, github_url, instagram, linkedin, leetcode, website_url, company,
-			org_logo_path, bio, avail_to_hire, looking_to_hire, tshirt
+			org_logo_path, bio, avail_to_hire, looking_to_hire, tshirt,
+			dietary_preference, dietary_other, food_allergies
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-			$10, $11, $12, $13, $14, $15, $16, $17, $18)
+			$10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 		RETURNING id::text
 	`, in.Name, in.Photo, in.Phone, in.Signal, in.Telegram, in.Twitter,
 		in.Nostr, in.Github, in.Instagram, in.LinkedIn, in.LeetCode, in.Website, in.Company,
-		in.OrgLogo, in.Bio, in.AvailToHire, in.LookingToHire, in.TShirt).Scan(&id)
+		in.OrgLogo, in.Bio, in.AvailToHire, in.LookingToHire, in.TShirt, prefs.Diet, prefs.DietOther, prefs.Allergies).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("create person: %w", err)
 	}
@@ -457,6 +468,14 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 		return fmt.Errorf("database is not configured")
 	}
 	up = normalizeSpeakerUpdate(up)
+	prefs := types.AttendeePreferences{}
+	if up.AttendeePreferences != nil {
+		prefs = *up.AttendeePreferences
+		if err := prefs.Normalize(); err != nil {
+			return err
+		}
+		up.TShirt = prefs.TShirt
+	}
 	verifiedNostr, err := VerifiedNostrProfileValue(ctx, speakerID)
 	if err != nil {
 		return err
@@ -485,18 +504,22 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 			website_url = CASE WHEN $12 <> '' THEN $12 ELSE website_url END,
 			company = CASE WHEN $22 OR $13 <> '' THEN $13 ELSE company END,
 			org_logo_path = CASE WHEN $14 <> '' THEN $14 ELSE org_logo_path END,
-			tshirt = CASE WHEN $15 <> '' THEN $15 ELSE tshirt END,
+			tshirt = CASE WHEN $26 OR $15 <> '' THEN $15 ELSE tshirt END,
 			name = CASE WHEN $16 <> '' THEN $16 ELSE name END,
 			bio = CASE WHEN $17 THEN $18 ELSE bio END,
 			lightning_address = CASE WHEN $19 THEN $20 ELSE lightning_address END,
 			bitcoin_address = CASE WHEN $19 THEN $21 ELSE bitcoin_address END,
 			avail_to_hire = CASE WHEN $23 THEN $24 ELSE avail_to_hire END,
-			looking_to_hire = CASE WHEN $23 THEN $25 ELSE looking_to_hire END
+			looking_to_hire = CASE WHEN $23 THEN $25 ELSE looking_to_hire END,
+			dietary_preference = CASE WHEN $26 THEN $27 ELSE dietary_preference END,
+			dietary_other = CASE WHEN $26 THEN $28 ELSE dietary_other END,
+			food_allergies = CASE WHEN $26 THEN $29 ELSE food_allergies END
 		WHERE id = $1::uuid
 	`, speakerID, up.Photo, up.Phone, up.Signal, up.Telegram, up.Twitter,
 		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.LeetCode, up.Website, up.Company,
 		up.OrgLogo, up.TShirt, up.Name, up.BioSet, up.Bio,
-		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress, up.CompanySet, up.HiringFieldsSet, up.AvailToHire, up.LookingToHire)
+		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress, up.CompanySet, up.HiringFieldsSet, up.AvailToHire, up.LookingToHire,
+		up.AttendeePreferences != nil, prefs.Diet, prefs.DietOther, prefs.Allergies)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
 	}

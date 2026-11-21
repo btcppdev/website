@@ -125,10 +125,12 @@ type HackathonPlaceRow struct {
 }
 
 type SuccessPage struct {
-	Conf      *types.Conf
-	Ticket    *types.Registration
-	Sponsored bool
-	Year      uint
+	AttendeeDetailsPending bool
+	HasAddOns              bool
+	Conf                   *types.Conf
+	Ticket                 *types.Registration
+	Sponsored              bool
+	Year                   uint
 }
 
 type HomePageData struct {
@@ -352,6 +354,14 @@ type HomeSponsor struct {
 }
 
 type TixFormPage struct {
+	AccountEmail     string
+	Cart             bool
+	CartHasDiscounts bool
+	TicketOptions    []checkoutTicketOption
+	CartQuote        string
+	CartHMAC         string
+	CartBTC          uint
+	CartCard         uint
 	Offers           []eventplan.CheckoutOffer
 	OfferCode        string
 	DiscountLabel    string
@@ -390,6 +400,10 @@ type SchedulePage struct {
 }
 
 type CheckInPage struct {
+	Eligibility     *types.CheckInEligibility
+	CSRF            string
+	UpgradePrice    string
+	UpgradeError    string
 	NeedsPin        bool
 	TicketType      string
 	TicketRef       string
@@ -436,6 +450,10 @@ func checkInTicketTypeLabel(ticketType string) string {
 		return "General admission"
 	case "local":
 		return "Local"
+	case "student":
+		return "Student"
+	case "supporter":
+		return "Supporter"
 	case "sponsor", "sponsored":
 		return "Sponsor"
 	case "volunteer":
@@ -556,12 +574,13 @@ type SpeakerPage struct {
 }
 
 type DashboardPage struct {
-	POSPurchases []getters.POSPurchase
-	Name         string
-	Hometown     string
-	Photo        string // Speaker.Photo filename, empty if none
-	Email        string // base64-encoded
-	HMAC         string // base64-encoded
+	TicketDetails map[string]*types.TicketAttendeeDetails
+	POSPurchases  []getters.POSPurchase
+	Name          string
+	Hometown      string
+	Photo         string // Speaker.Photo filename, empty if none
+	Email         string // base64-encoded
+	HMAC          string // base64-encoded
 
 	// Speaker is the user's row in the Speakers DB (looked up by
 	// email). Nil means the user is volunteer- or ticket-only and
@@ -1096,23 +1115,24 @@ type InviteCoSpeakerPage struct {
 // (Speaker non-nil) and "create" when they don't yet (volunteer- or
 // ticket-only contacts who want to add themselves to the speakers DB).
 type EditSpeakerPage struct {
-	Speaker            *types.Speaker
-	HMAC               string
-	Email              string
-	EmailPlain         string // not base64 — used as the value for the create-mode email field
-	Mode               string // "edit" | "create"
-	SetupProvider      string // OAuth provider label when create mode follows a new-provider sign-in
-	SetupPurpose       string // optional destination context, such as "sponsor"
-	SetupName          string // escaped account-setup name prefill
-	RequireFullProfile bool   // speaker-oriented setup requires photo and logistics fields
-	FlashMessage       string
-	IsAdmin            bool
-	BackURL            string
-	FormAction         string
-	NextURL            string
-	PublicURL          string
-	CancelCSRF         string // present only for self-service account setup
-	Year               uint
+	AttendeePreferences types.AttendeePreferences
+	Speaker             *types.Speaker
+	HMAC                string
+	Email               string
+	EmailPlain          string // not base64 — used as the value for the create-mode email field
+	Mode                string // "edit" | "create"
+	SetupProvider       string // OAuth provider label when create mode follows a new-provider sign-in
+	SetupPurpose        string // optional destination context, such as "sponsor"
+	SetupName           string // escaped account-setup name prefill
+	RequireFullProfile  bool   // speaker-oriented setup requires photo and logistics fields
+	FlashMessage        string
+	IsAdmin             bool
+	BackURL             string
+	FormAction          string
+	NextURL             string
+	PublicURL           string
+	CancelCSRF          string // present only for self-service account setup
+	Year                uint
 }
 
 type PersonEmailsPage struct {
@@ -1321,10 +1341,11 @@ type SpeakerRowTalk struct {
 }
 
 type RegistrationsAdminPage struct {
-	Conf          *types.Conf
-	Registrations []*RegistrationAdminRow
-	MerchPickups  []*types.ShopOrderItem
-	FlashMessage  string
+	AttendeeTotals *attendeeSummary
+	Conf           *types.Conf
+	Registrations  []*RegistrationAdminRow
+	MerchPickups   []*types.ShopOrderItem
+	FlashMessage   string
 	// IsConfAdmin gates the email composer. Staff get the
 	// attendee roster (read-only) but no bulk-email power.
 	IsConfAdmin  bool
@@ -1334,6 +1355,7 @@ type RegistrationsAdminPage struct {
 
 type RegistrationAdminRow struct {
 	*types.Registration
+	Attendee        *types.TicketAttendeeDetails
 	CheckedInLabel  string
 	RegisteredLabel string
 	PaymentLabel    string

@@ -95,6 +95,64 @@ func TestLocalizedCheckoutRendering(t *testing.T) {
 	}
 }
 
+func TestCheckoutStepsFollowAvailableAddOns(t *testing.T) {
+	t.Chdir("../..")
+	app := &config.AppContext{Env: &types.EnvConfig{}}
+	if err := loadTemplates(app); err != nil {
+		t.Fatal(err)
+	}
+	conf := &types.Conf{Tag: "seoul"}
+	for _, tc := range []struct {
+		name                   string
+		available, unavailable bool
+	}{
+		{"none", false, false}, {"temporarily unavailable", false, true}, {"available", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			page := &TixFormPage{Conf: conf, Tix: &types.ConfTicket{ID: "pass", Tier: "General", Currency: "USD"}, TixSlug: "pass", Count: 1}
+			if tc.unavailable {
+				page.AddOnUnavailable = "Pricing unavailable"
+			}
+			if tc.available {
+				page.AddOnProducts = []*ticketCheckoutAddOnProduct{{Product: &types.MerchProduct{Name: "Shirt"}, Variant: &types.MerchVariant{ID: "shirt"}, UnitPriceCents: 2000}}
+			}
+			for _, locale := range []string{"en", "ko"} {
+				req := httptest.NewRequest("GET", "/tix/pass/checkout?lang="+locale, nil)
+				w := httptest.NewRecorder()
+				if err := renderCheckout(w, req, app, "collect-email.tmpl", page, conf); err != nil {
+					t.Fatal(err)
+				}
+				body := w.Body.String()
+				for _, marker := range []string{`data-checkout-nav="addons"`, `data-checkout-step="addons"`, `data-checkout-next`, `data-checkout-back`} {
+					if strings.Contains(body, marker) != tc.available {
+						t.Errorf("%s: incorrect add-on control %s", locale, marker)
+					}
+				}
+				steps := "3"
+				if tc.available {
+					steps = "4"
+				}
+				if !strings.Contains(body, `data-step="01/0`+steps+`"`) || strings.Count(body, `data-checkout-submit`) != 1 {
+					t.Fatal("incorrect progress or missing payment submit button")
+				}
+				if !tc.available {
+					registration := regexp.MustCompile(`(?s)data-checkout-step="register".*?data-checkout-submit`).MatchString(body)
+					if !registration {
+						t.Fatal("registration does not submit directly to payment")
+					}
+				}
+				w = httptest.NewRecorder()
+				if err := renderCheckout(w, req, app, "success.tmpl", &SuccessPage{Conf: conf, HasAddOns: tc.available}, conf); err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(w.Body.String(), `data-step="0`+steps+`/0`+steps+`"`) {
+					t.Fatal("confirmation has the wrong progress count")
+				}
+			}
+		})
+	}
+}
+
 type localizedCheckoutTransport func(*http.Request) (*http.Response, error)
 
 func (f localizedCheckoutTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
@@ -135,5 +193,33 @@ func TestLocalizedStripeCheckout(t *testing.T) {
 	StripeInitWithDiscount(w, r, ctx, &types.Conf{Tag: "seoul", Desc: "Seoul"}, &types.ConfTicket{Currency: "USD"}, 330, 389, 300, &types.TixForm{Email: "buyer@example.test", Count: 2}, types.TicketTypeGeneral, nil, nil, 0, "")
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("payment redirect failed: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCheckoutAccountDeliveryRendering(t *testing.T) {
+	t.Chdir("../..")
+	app := &config.AppContext{Env: &types.EnvConfig{}}
+	if err := loadTemplates(app); err != nil {
+		t.Fatal(err)
+	}
+	conf := &types.Conf{Tag: "seoul", Desc: "Seoul"}
+	for _, language := range []string{"en", "ko"} {
+		page := &TixFormPage{Conf: conf, Tix: &types.ConfTicket{Currency: "USD", Symbol: "$"}, Count: 1, AccountEmail: "buyer@example.test"}
+		request := httptest.NewRequest("GET", "/tix/pass/checkout?lang="+language, nil)
+		w := httptest.NewRecorder()
+		if err := renderCheckout(w, request, app, "collect-email.tmpl", page, conf); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(w.Body.String(), `type="email"`) || !strings.Contains(w.Body.String(), `<strong>buyer@example.test</strong>`) {
+			t.Fatal("account delivery is not read-only")
+		}
+		page.AccountEmail = ""
+		w = httptest.NewRecorder()
+		if err := renderCheckout(w, request, app, "collect-email.tmpl", page, conf); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(w.Body.String(), `type="email" id="Email"`) {
+			t.Fatal("guest/account without email cannot enter delivery email")
+		}
 	}
 }

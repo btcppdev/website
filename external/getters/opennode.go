@@ -55,10 +55,31 @@ func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uin
 		PreDiscountCents: int64(preDiscountPrice) * 100,
 	}
 
+	// Multi-option carts use the immutable reservation subtotal, avoiding an
+	// average unit price that could round away cents or lose ticket types.
+	if reservationID != "" {
+		var raw []byte
+		if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `SELECT ticket_lines FROM ticket_reservations WHERE id=$1 AND conference_id=$2`, reservationID, conf.Ref).Scan(&raw); err != nil {
+			return nil, err
+		}
+		var lines []types.TicketCartLine
+		if err := json.Unmarshal(raw, &lines); err != nil {
+			return nil, err
+		}
+		if len(lines) > 0 {
+			metadata.TicketTotalCents = 0
+			metadata.PreDiscountCents = 0
+			metadata.DiscountRef = ""
+			for _, line := range lines {
+				metadata.TicketTotalCents += int64(line.UnitCents) * int64(line.Quantity)
+			}
+		}
+	}
+
 	domain := ctx.Env.GetURI()
 	onReq := &types.OpenNodeRequest{
 		OrderID:       reservationID,
-		Amount:        float64(tixPrice*count) + (float64(addOnCents) / 100),
+		Amount:        float64(metadata.TicketTotalCents+int64(addOnCents)) / 100,
 		Description:   conf.Desc,
 		Currency:      strings.ToUpper(strings.TrimSpace(tix.Currency)),
 		CallbackURL:   domain + "/callback/opennode",

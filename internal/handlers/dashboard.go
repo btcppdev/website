@@ -25,6 +25,7 @@ import (
 // speaker's talk applications + their volunteer shift signups. Magic links
 // establish a session at /auth before redirecting here.
 func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	if r.Method == http.MethodPost {
 		redirectDashboardLogin(w, r, "")
 		return
@@ -70,6 +71,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		volErr               error
 		regs                 []*types.Registration
 		regErr               error
+		ticketDetails        map[string]*types.TicketAttendeeDetails
 		satEvents            []*types.SatelliteEvent
 		satErr               error
 		judgeAssignments     []*types.CompetitionJudgeAssignment
@@ -123,6 +125,13 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			s := time.Now()
 			if personID != "" {
 				regs, regErr = getters.ListRegistrationsForPerson(ctx, personID)
+				if regErr == nil {
+					var detailsErr error
+					ticketDetails, detailsErr = getters.PersonTicketAttendeeDetails(ctx, personID)
+					if detailsErr != nil {
+						ctx.Err.Printf("/dashboard ticket preferences: %s", detailsErr)
+					}
+				}
 			} else {
 				regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
 			}
@@ -451,6 +460,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	showSponsors := hasManagedSponsorOrganization(ctx, personID, "/dashboard")
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "dashboard.tmpl", &DashboardPage{
+		TicketDetails:               ticketDetails,
 		Name:                        name,
 		Hometown:                    hometown,
 		Photo:                       photo,

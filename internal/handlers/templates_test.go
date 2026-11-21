@@ -270,12 +270,12 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render OAuth account setup: %v", err)
 	}
-	for _, expected := range []string{"NEW ACCOUNT", "Finish setting up", "GitHub sign-in is verified", "CREATE ACCOUNT", "profile-edit-actions__create-account", `name="Subscribe" value="on" checked`, "newsletter!", `action="/logout"`, `name="csrf" value="cancel-csrf"`} {
+	for _, expected := range []string{"Finish setting up", "GitHub sign-in is verified", "Create account", "profile-edit-actions__create-account", `name="Subscribe" value="on" checked`, "newsletter!", `action="/logout"`, `name="csrf" value="cancel-csrf"`} {
 		if !strings.Contains(accountSetupPage.String(), expected) {
 			t.Fatalf("OAuth account setup omitted %q: %s", expected, accountSetupPage.String())
 		}
 	}
-	if strings.Contains(accountSetupPage.String(), `id="Phone" name="Phone" type="tel" required`) || !strings.Contains(accountSetupPage.String(), "PHONE (OPTIONAL)") {
+	if strings.Contains(accountSetupPage.String(), `id="Phone" name="Phone" type="tel" required`) || !strings.Contains(accountSetupPage.String(), "Phone (optional)") {
 		t.Fatal("account signup should label phone optional and omit required validation")
 	}
 	if strings.Contains(accountSetupPage.String(), "Arrange <span>your</span> record") {
@@ -1006,7 +1006,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render dashboard speaker invitation: %v", err)
 	}
-	for _, want := range []string{"Action needed · speaker invitation", "You’re invited to speak", "Local Dev speaker invitation", `href="/invite-speaker/speaker-invite-id?t=invite-token"`, "Complete invitation", `action="/dashboard/talks/speaker-invite-id/decline"`} {
+	for _, want := range []string{"You’re invited to speak", "Local Dev speaker invitation", `href="/invite-speaker/speaker-invite-id?t=invite-token"`, "Complete invitation", `action="/dashboard/talks/speaker-invite-id/decline"`} {
 		if !strings.Contains(personalDashboard.String(), want) {
 			t.Fatalf("dashboard speaker invitation omitted %q: %s", want, personalDashboard.String())
 		}

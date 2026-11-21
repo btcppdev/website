@@ -1,3 +1,18 @@
+{{ if .Cart }}
+<div id="discount_result" name="hidden_stuffs" class="checkout-summary" data-ticket-cart-summary data-cart-error="{{ .Err }}">
+  <div hidden>
+    {{ range .TicketOptions }}<span data-ticket-quote="{{ .Ticket.ID }}" data-btc="{{ .BTC }}" data-card="{{ .Card }}" data-original="{{ .Original }}"></span>{{ end }}
+  </div>
+  <div class="checkout-summary__lines" data-ticket-cart-lines>
+    {{ range .TicketOptions }}{{ if .Count }}<div><span>{{ .Ticket.Tier }} × {{ .Count }}</span><strong>{{ if eq $.PaymentMethod "card" }}{{ ticketCheckoutMoney .CardTotal $.Tix }}{{ else }}{{ ticketCheckoutMoney .BTCTotal $.Tix }}{{ end }}</strong></div>{{ end }}{{ end }}
+  </div>
+  <div class="checkout-summary__lines"><div class="is-total"><span>{{ msg "checkout.ticket_total" }}</span><strong data-ticket-cart-total>{{ if eq .PaymentMethod "card" }}{{ ticketCheckoutMoney .CartCard .Tix }}{{ else }}{{ ticketCheckoutMoney .CartBTC .Tix }}{{ end }}</strong></div></div>
+  {{ if .Err }}<div class="checkout-summary__error" role="alert">{{ .Err }}</div>{{ end }}
+  <input type="hidden" name="CartQuote" value="{{ .CartQuote }}">
+  <input type="hidden" name="CartHMAC" value="{{ .CartHMAC }}">
+  <input type="hidden" name="AffiliateCode" value="{{ .AffiliateCode }}">
+</div>
+{{ else }}
 <div id="discount_result" name="hidden_stuffs" class="checkout-summary"
   data-ticket-btc-price-cents="{{ mul (int .DiscountPrice) 100 }}"
   data-ticket-card-price-cents="{{ mul (int .CardPrice) 100 }}">
@@ -31,3 +46,5 @@
   <input type="hidden" name="DiscountRef" value="{{ .DiscountRef }}" required>
   <input type="hidden" name="AffiliateCode" value="{{ .AffiliateCode }}">
 </div>
+
+{{ end }}

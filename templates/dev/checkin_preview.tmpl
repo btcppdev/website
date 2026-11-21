@@ -9,7 +9,6 @@
   <main class="checkin-preview-shell">
     <a href="/dev26/admin/registrations" class="checkin-preview-back">← Registrations</a>
     <header class="checkin-preview-heading">
-      <p>§ local development</p>
       <h1>Check-in previews.</h1>
       <span>These fixtures cover every ticket color and the important merchandise pickup states. Preview pages are read-only.</span>
     </header>
@@ -24,7 +23,7 @@
         </div>
         <h2>{{ .AttendeeName }}</h2>
         <dl>
-          <div><dt>T-shirt</dt><dd>{{ if .TShirtSize }}{{ .TShirtSize }}{{ else }}None{{ end }}</dd></div>
+          <div><dt>T-shirt</dt><dd>{{ if .TShirtSize }}{{ shirtSizeLabel .TShirtSize }}{{ else }}None{{ end }}</dd></div>
           <div><dt>Pickup state</dt><dd>{{ .PickupSummary }}</dd></div>
         </dl>
         <div class="checkin-preview-actions">

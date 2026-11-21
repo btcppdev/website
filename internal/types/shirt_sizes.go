@@ -3,24 +3,46 @@ package types
 import "strings"
 
 type ShirtSizeOption struct {
-	Code  string
-	Label string
+	Code   string
+	Label  string
+	Legacy bool
 }
 
 var canonicalShirtSizes = []ShirtSizeOption{
-	{Code: "LS", Label: "Ladies Small"},
-	{Code: "LM", Label: "Ladies Medium"},
-	{Code: "LL", Label: "Ladies Large"},
-	{Code: "MS", Label: "Men's Small"},
-	{Code: "MM", Label: "Men's Medium"},
-	{Code: "ML", Label: "Men's Large"},
-	{Code: "MXL", Label: "Men's XL"},
-	{Code: "MXXL", Label: "Men's XXL"},
-	{Code: "MXXXL", Label: "Men's XXXL"},
+	{Code: "LS", Label: "S"},
+	{Code: "LM", Label: "M"},
+	{Code: "LL", Label: "L"},
+	{Code: "MS", Label: "S"},
+	{Code: "MM", Label: "M"},
+	{Code: "ML", Label: "L"},
+	{Code: "MXL", Label: "XL"},
+	{Code: "MXXL", Label: "XXL"},
+	{Code: "MXXXL", Label: "XXXL", Legacy: true},
 }
 
-func ShirtSizeOptions() []ShirtSizeOption {
-	return append([]ShirtSizeOption(nil), canonicalShirtSizes...)
+// Keep storage codes compatible while offering five simple size labels.
+// A hidden legacy option preserves an existing XXXL selection on save.
+func ShirtSizeOptions(current ...string) []ShirtSizeOption {
+	options := append([]ShirtSizeOption(nil), canonicalShirtSizes[3:8]...)
+	for _, value := range current {
+		if ValidShirtSizeCode(value) == "MXXXL" {
+			return append(options, canonicalShirtSizes[8])
+		}
+	}
+	return options
+}
+
+func ShirtSizeChoiceCode(value string) string {
+	switch value = ValidShirtSizeCode(value); value {
+	case "LS":
+		return "MS"
+	case "LM":
+		return "MM"
+	case "LL":
+		return "ML"
+	default:
+		return value
+	}
 }
 
 func ValidShirtSizeCode(value string) string {

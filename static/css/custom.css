@@ -5898,10 +5898,24 @@ body.btcpp-admin-page {
 	flex-wrap: wrap;
 }
 
+.dashboard-ticket-row__preferences {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 24px;
+	margin: 12px 0 0;
+	font: 400 14px/1.5 "IBM Plex Sans", sans-serif;
+	color: #343638;
+}
+.dashboard-ticket-row__preferences > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.dashboard-ticket-row__preferences dt { color: #666; }
+.dashboard-ticket-row__preferences dd { margin: 0; font-weight: 600; }
+.dashboard-ticket-row__food-notes, .dashboard-ticket-row__attendee { margin: 10px 0 0; font: 400 14px/1.5 "IBM Plex Sans", sans-serif; color: #343638; overflow-wrap: anywhere; }
+.profile-edit-fields [hidden] { display: none !important; }
+
 .dashboard-ticket-row strong,
 .dashboard-ticket-block.is-needed strong {
 	display: block;
-	color: #0a0a0a;
+	color: #343638;
 	font-size: 20px;
 	font-weight: 800;
 	letter-spacing: 0;
@@ -9230,8 +9244,8 @@ button.dashboard-volunteer-button.is-primary:focus-visible {
 /* Rebrand checkout */
 body.btcpp-checkout-page {
 	margin: 0;
-	background: #f6f3ee;
-	color: #0a0a0a;
+	background: #f9f6ee;
+	color: #343638;
 	font-family: "IBM Plex Sans", system-ui, sans-serif;
 	overflow-x: hidden;
 }
@@ -9240,13 +9254,16 @@ body.btcpp-checkout-page {
 	min-height: 100vh;
 	display: grid;
 	grid-template-columns: minmax(360px, 42vw) minmax(0, 1fr);
-	background: #f6f3ee;
-	overflow-x: hidden;
+	background: #f9f6ee;
+	overflow-x: clip;
 }
 
 .checkout-hero {
-	position: relative;
-	min-height: 100vh;
+	position: sticky;
+	top: 0;
+	align-self: start;
+	height: 100vh;
+	min-height: 0;
 	overflow: hidden;
 	background: #0a0a0a;
 	color: #fff;
@@ -9268,6 +9285,7 @@ body.btcpp-checkout-page {
 }
 
 .checkout-hero__content {
+	box-sizing: border-box;
 	position: relative;
 	z-index: 1;
 	min-height: 100vh;
@@ -9291,13 +9309,13 @@ body.btcpp-checkout-page {
 	width: fit-content;
 	margin: 0 0 14px;
 	padding: 4px 8px;
-	background: #f9af5e;
-	color: #0a0a0a;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
+	background: var(--brand-accent-compact, #b35f00);
+	color: #fff;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
 	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .checkout-hero h1 {
@@ -9311,9 +9329,9 @@ body.btcpp-checkout-page {
 .checkout-hero p:last-child {
 	margin: 14px 0 0;
 	color: rgba(255, 255, 255, 0.78);
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-size: 13px;
-	text-transform: uppercase;
+	text-transform: none;
 }
 
 .checkout-panel {
@@ -9325,19 +9343,20 @@ body.btcpp-checkout-page {
 
 .checkout-steps {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
-	border-bottom: 1px solid #0a0a0a;
+	grid-auto-flow: column;
+	grid-auto-columns: minmax(0, 1fr);
+	border-bottom: 1px solid #d7d4cc;
 }
 
 .checkout-steps span {
 	padding: 18px 22px;
-	border-right: 1px solid #0a0a0a;
+	border-right: 1px solid #d7d4cc;
 	color: #9a948b;
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-size: 12px;
 	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .checkout-steps span:last-child {
@@ -9345,13 +9364,13 @@ body.btcpp-checkout-page {
 }
 
 .checkout-steps .is-active {
-	background: #0a0a0a;
-	color: #f6f3ee;
+	background: #fff0e3;
+	color: #343638;
 }
 
 .checkout-steps b {
 	margin-right: 8px;
-	color: #f9af5e;
+	color: var(--brand-accent-text, #a65b00);
 }
 
 .checkout-form {
@@ -9404,11 +9423,17 @@ body.btcpp-checkout-page {
 
 .checkout-field span,
 .checkout-methods legend {
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
 	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
+}
+
+.checkout-field > span {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em 0.8em;
 }
 
 .checkout-grid .checkout-field > span {
@@ -9428,10 +9453,10 @@ body.btcpp-checkout-page {
 	box-sizing: border-box;
 	width: 100%;
 	height: 48px;
-	border: 1px solid #0a0a0a;
+	border: 1px solid #8b8880;
 	border-radius: 0;
 	background: #fff;
-	color: #0a0a0a;
+	color: #343638;
 	font: inherit;
 	line-height: 1.2;
 	padding: 12px 14px;
@@ -9440,8 +9465,8 @@ body.btcpp-checkout-page {
 
 .checkout-field small {
 	color: #6f6a63;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
 }
 
 .checkout-methods {
@@ -9457,7 +9482,7 @@ body.btcpp-checkout-page {
 	grid-template-columns: auto minmax(0, 1fr);
 	gap: 12px;
 	align-items: start;
-	border: 1px solid #0a0a0a;
+	border: 1px solid #d7d4cc;
 	background: #fff;
 	padding: 14px;
 	cursor: pointer;
@@ -9465,14 +9490,14 @@ body.btcpp-checkout-page {
 
 .checkout-methods input {
 	margin-top: 4px;
-	accent-color: #f9af5e;
+	accent-color: var(--brand-accent, #db7900);
 }
 
 .checkout-methods strong {
 	display: block;
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-size: 14px;
-	text-transform: uppercase;
+	text-transform: none;
 }
 
 .checkout-methods small {
@@ -9489,29 +9514,29 @@ body.btcpp-checkout-page {
 }
 
 .checkout-toggle input {
-	accent-color: #f9af5e;
+	accent-color: var(--brand-accent, #db7900);
 }
 
 .checkout-cart-tabs {
-	border: 1px solid #0a0a0a;
+	border: 1px solid #d7d4cc;
 	background: #fff;
 }
 
 .checkout-cart-tabs__nav {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	border-bottom: 1px solid #0a0a0a;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
+	border-bottom: 1px solid #d7d4cc;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
 	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .checkout-cart-tabs__nav span {
 	padding: 10px 12px;
 	color: #77716a;
-	border-right: 1px solid #0a0a0a;
+	border-right: 1px solid #d7d4cc;
 }
 
 .checkout-cart-tabs__nav span:last-child {
@@ -9519,8 +9544,8 @@ body.btcpp-checkout-page {
 }
 
 .checkout-cart-tabs__nav .is-active {
-	background: #0a0a0a;
-	color: #f6f3ee;
+	background: #fff0e3;
+	color: #343638;
 }
 
 .checkout-cart-tabs--ticket .checkout-cart-tabs__panel {
@@ -9540,7 +9565,7 @@ body.btcpp-checkout-page {
 	align-items: center;
 	justify-content: space-between;
 	gap: 18px;
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .checkout-ticket-line span {
@@ -9552,13 +9577,13 @@ body.btcpp-checkout-page {
 
 .checkout-ticket-line strong {
 	font-size: 14px;
-	text-transform: uppercase;
+	text-transform: none;
 }
 
 .checkout-ticket-line small {
 	overflow: hidden;
 	color: #77716a;
-	font-size: 11px;
+	font-size: 12px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -9581,10 +9606,10 @@ body.btcpp-checkout-page {
 	display: flex;
 	justify-content: space-between;
 	gap: 12px;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .checkout-addons__head span {
@@ -9603,13 +9628,13 @@ body.btcpp-checkout-page {
 }
 
 .checkout-addon.is-selected {
-	background: #fbf0de;
+	background: #fff0e3;
 }
 
 .checkout-addon__image {
 	aspect-ratio: 1;
 	overflow: hidden;
-	background: #f6f3ee;
+	background: #f9f6ee;
 }
 
 .checkout-addon__image img {
@@ -9651,22 +9676,22 @@ body.btcpp-checkout-page {
 }
 
 .checkout-addon__body b {
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-size: 12px;
 }
 
 .checkout-addon__controls > button,
 .checkout-addon__stepper button {
 	min-height: 40px;
-	border: 1px solid #0a0a0a;
+	border: 1px solid #d7d4cc;
 	border-radius: 0;
 	background: #fff;
-	color: #0a0a0a;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
+	color: #343638;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
 	font-weight: 700;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 	cursor: pointer;
 }
 
@@ -9697,11 +9722,11 @@ body.btcpp-checkout-page {
 	box-sizing: border-box;
 	width: 100%;
 	height: 40px;
-	border: 1px solid #0a0a0a;
+	border: 1px solid #8b8880;
 	border-radius: 0;
 	padding: 4px;
 	background: #fff;
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-weight: 700;
 	text-align: center;
 	-moz-appearance: textfield;
@@ -9715,7 +9740,7 @@ body.btcpp-checkout-page {
 
 .checkout-addons--step {
 	gap: 0;
-	border: 1px solid #0a0a0a;
+	border: 1px solid #d7d4cc;
 }
 
 .checkout-addons--step .checkout-addon {
@@ -9730,15 +9755,15 @@ body.btcpp-checkout-page {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	border: 1px solid #0a0a0a;
+	border: 1px solid #d7d4cc;
 	background: #fff;
 	padding: 22px;
 }
 
 .checkout-addons__empty strong {
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-size: 13px;
-	text-transform: uppercase;
+	text-transform: none;
 }
 
 .checkout-addons__empty span {
@@ -9750,9 +9775,9 @@ body.btcpp-checkout-page {
 .checkout-addon-summary {
 	display: grid;
 	gap: 9px;
-	border-top: 1px solid #0a0a0a;
+	border-top: 1px solid #d7d4cc;
 	padding-top: 18px;
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .checkout-addon-summary [data-addon-summary-lines] {
@@ -9767,7 +9792,7 @@ body.btcpp-checkout-page {
 	justify-content: space-between;
 	gap: 18px;
 	font-size: 13px;
-	text-transform: uppercase;
+	text-transform: none;
 }
 
 .checkout-addon-summary .is-empty {
@@ -9781,11 +9806,11 @@ body.btcpp-checkout-page {
 
 .checkout-addon-summary > small {
 	color: #77716a;
-	font-size: 11px;
+	font-size: 12px;
 }
 
 .checkout-summary {
-	border-top: 1px solid #0a0a0a;
+	border-top: 1px solid #d7d4cc;
 	padding-top: 18px;
 }
 
@@ -9798,7 +9823,7 @@ body.btcpp-checkout-page {
 	display: flex;
 	justify-content: space-between;
 	gap: 18px;
-	font-family: "IBM Plex Mono", monospace;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-size: 13px;
 }
 
@@ -9810,6 +9835,11 @@ body.btcpp-checkout-page {
 .checkout-summary__lines .is-card {
 	font-size: 16px;
 	font-weight: 700;
+}
+
+.checkout-summary__lines .is-total,
+.checkout-addon-summary > .is-total {
+	padding-top: 16px;
 }
 
 .checkout-summary__lines .is-discount {
@@ -9833,13 +9863,16 @@ body.btcpp-checkout-page {
 
 .checkout-actions a,
 .checkout-actions button {
-	border: 1px solid #0a0a0a;
-	border-radius: 0;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 12px;
+	box-sizing: border-box;
+	min-height: 52px;
+	border: 1px solid #d7d4cc;
+	border-radius: 6px;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 16px;
+	line-height: 1.25;
 	font-weight: 700;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 	text-decoration: none;
 }
 
@@ -9847,33 +9880,37 @@ body.btcpp-checkout-page {
 	flex: 0 0 auto;
 	padding: 14px 18px;
 	background: transparent;
+	color: #343638;
 }
 
 .checkout-actions a {
 	padding: 14px 18px;
-	color: #0a0a0a;
+	color: #343638;
 	background: transparent;
 }
 
 .checkout-actions button {
 	flex: 1;
-	min-height: 48px;
-	background: #f9af5e;
-	color: #0a0a0a;
+	background: var(--brand-accent, #db7900);
+	color: #fff;
 	cursor: pointer;
 }
 
 .checkout-footer {
 	margin-top: auto;
 	padding: 18px 64px;
-	border-top: 1px solid #0a0a0a;
+	border-top: 1px solid #d7d4cc;
 	display: flex;
 	justify-content: space-between;
 	gap: 20px;
 	color: #77716a;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
-	text-transform: uppercase;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
+	text-transform: none;
+}
+
+.checkout-footer > span {
+	text-transform: none;
 }
 
 .checkout-footer a {
@@ -9884,37 +9921,26 @@ body.btcpp-checkout-page {
 	justify-content: center;
 }
 
-.checkout-confirmation__status {
-	margin: 0 0 14px;
-	color: #12824c;
-	font-family: "IBM Plex Mono", monospace !important;
-	font-size: 12px !important;
-	font-style: normal !important;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-}
-
 .checkout-ticket-stub {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
-	border: 1px solid #0a0a0a;
+	border: 1px solid #d7d4cc;
 	background: #fff;
-	box-shadow: 4px 4px 0 #0a0a0a;
+	box-shadow: 4px 4px 0 rgba(52, 54, 56, .10);
 }
 
 .checkout-ticket-stub > div:first-child {
 	padding: 24px 28px;
-	border-right: 1px dashed #0a0a0a;
+	border-right: 1px dashed #d7d4cc;
 }
 
 .checkout-ticket-stub span,
 .checkout-ticket-stub small {
 	display: block;
-	font-family: "IBM Plex Mono", monospace;
-	font-size: 11px;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 12px;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .checkout-ticket-stub span {
@@ -9937,8 +9963,8 @@ body.btcpp-checkout-page {
 	width: 118px;
 	display: grid;
 	place-items: center;
-	color: #f9af5e;
-	font-family: "IBM Plex Mono", monospace;
+	color: var(--brand-accent-text, #a65b00);
+	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-size: 42px;
 	font-weight: 700;
 }
@@ -9952,7 +9978,31 @@ body.btcpp-checkout-page {
 .checkout-actions__primary {
 	flex: 1;
 	text-align: center;
-	background: #f9af5e !important;
+	background: var(--brand-accent, #db7900) !important;
+	color: #fff !important;
+}
+
+.checkout-actions button:not(.checkout-actions__back),
+.checkout-actions a.checkout-actions__primary {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 14px 24px;
+	border-color: var(--brand-accent, #db7900);
+	font-size: 18px;
+	transition: background-color .15s ease, box-shadow .15s ease;
+}
+
+.checkout-actions button:not(.checkout-actions__back):enabled:hover,
+.checkout-actions a.checkout-actions__primary:hover {
+	background: #a65b00 !important;
+	box-shadow: 0 3px 10px rgba(28, 28, 30, .14);
+}
+
+.checkout-actions a:focus-visible,
+.checkout-actions button:focus-visible {
+	outline: 2px solid var(--brand-accent, #db7900);
+	outline-offset: 4px;
 }
 
 @media (max-width: 900px) {
@@ -9999,17 +10049,17 @@ body.btcpp-checkout-page {
 		justify-content: space-between;
 		gap: 14px;
 		padding: 14px 20px;
-		border-bottom: 1px solid #0a0a0a;
-		font-family: "IBM Plex Mono", monospace;
+		border-bottom: 1px solid #d7d4cc;
+		font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	}
 
 	.checkout-steps::before {
 		content: attr(data-step) " " attr(data-current-label);
-		color: #0a0a0a;
+		color: #343638;
 		font-size: 12px;
 		font-weight: 700;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
+		letter-spacing: normal;
+		text-transform: none;
 	}
 
 	.checkout-steps::after {
@@ -10034,11 +10084,11 @@ body.btcpp-checkout-page {
 
 	.checkout-steps span.is-active {
 		width: 22px;
-		background: #f9af5e;
+		background: var(--brand-accent-compact, #b35f00);
 	}
 
 	.checkout-steps span.is-complete {
-		background: #f9af5e;
+		background: var(--brand-accent-compact, #b35f00);
 	}
 
 	.checkout-brand img {
@@ -10047,7 +10097,7 @@ body.btcpp-checkout-page {
 
 	.checkout-kicker {
 		margin-bottom: 10px;
-		font-size: 10px;
+		font-size: 12px;
 	}
 
 	.checkout-hero h1 {
@@ -10058,7 +10108,7 @@ body.btcpp-checkout-page {
 
 	.checkout-hero p:last-child {
 		margin-top: 10px;
-		font-size: 11px;
+		font-size: 12px;
 	}
 
 	.checkout-copy h2 {
@@ -10082,7 +10132,7 @@ body.btcpp-checkout-page {
 
 	.checkout-ticket-stub > div:first-child {
 		border-right: 0;
-		border-bottom: 1px dashed #0a0a0a;
+		border-bottom: 1px dashed #d7d4cc;
 	}
 
 	.checkout-ticket-stub__mark {
@@ -10135,7 +10185,7 @@ body.btcpp-checkout-page {
 	}
 
 	.checkout-ticket-stub {
-		box-shadow: 3px 3px 0 #0a0a0a;
+		box-shadow: 3px 3px 0 rgba(52, 54, 56, .10);
 	}
 
 	.checkout-ticket-stub > div:first-child {
@@ -10169,7 +10219,7 @@ body.btcpp-checkout-page {
 	.ros-table th,
 	.ros-row,
 	.ros-now-marker td {
-		border-color: #000;
+		border-color: #d7d4cc;
 	}
 
 	.stage-panel {
@@ -16409,3 +16459,59 @@ button.organization-review-action.is-secondary {
 .checkout-offers label { display: flex; align-items: flex-start; gap: .7rem; padding: .65rem 0; cursor: pointer; }
 .checkout-offers input { flex: 0 0 auto; margin-top: .25rem; accent-color: #e65d24; }
 .ticket-eligibility-offer { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid currentColor; }
+
+/* Special offers share checkout's simple bordered controls. */
+.checkout-offers { border: 1px solid #d8d3c9; padding: 1rem; margin: 1rem 0; }
+.checkout-offers legend { font-weight: 700; padding: 0 .4rem; }
+.checkout-offers small { display: block; margin-top: .2rem; font-size: .8rem; line-height: 1.5; color: #625c54; }
+.checkout-offers label { display: flex; align-items: flex-start; gap: .7rem; padding: .65rem 0; cursor: pointer; }
+.checkout-offers input { flex: 0 0 auto; margin-top: .25rem; accent-color: var(--brand-accent, #db7900); }
+/* A typed discount code replaces ticket-discount offers, not newsletter signup. */
+.checkout-offers label:has(input:disabled) { color: #8a8580; cursor: not-allowed; }
+.checkout-offers label:has(input:disabled) small { color: inherit; }
+.checkout-offers input:disabled { cursor: not-allowed; }
+.ticket-eligibility-offer { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid currentColor; }
+
+/* The artwork stays independent of changing discounts and ticket quantities. */
+@media (max-width: 900px) { .checkout-hero { position: relative; height: auto; align-self: stretch; } }
+.checkout-offers { margin: 0; }
+.checkout-offers label > span { flex: 1; min-width: 0; }
+.checkout-ticket-options__heading { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #d7d4cc; font: 700 12px "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-transform: none; letter-spacing: normal; }
+.checkout-ticket-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 16px; border-bottom: 1px solid #ddd5ca; }
+.checkout-ticket-option:last-of-type { border-bottom: 0; }
+.checkout-ticket-option.is-selected { box-shadow: inset 3px 0 var(--brand-accent, #db7900); background: #fff0e3; }
+.checkout-ticket-option__title { display: block; font-size: 17px; }
+.checkout-ticket-option p, .checkout-ticket-option small { display: block; margin: 5px 0 0; color: #625c54; font-size: 12px; line-height: 1.45; }
+.checkout-ticket-option__price { display: block; font: 700 14px "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin-top: 10px; }
+.checkout-ticket-quantity { display: flex; align-items: center; align-self: start; border: 1px solid #d7d4cc; background: #fff; }
+.checkout-ticket-quantity button { width: 32px; height: 40px; border: 0; background: transparent; color: #343638; font-size: 20px; cursor: pointer; }
+.checkout-ticket-quantity button:hover:not(:disabled) { background: var(--brand-accent, #db7900); color: #fff; }
+.checkout-ticket-quantity button:disabled { opacity: .3; cursor: default; }
+.checkout-ticket-quantity input { width: 34px; height: 40px; border: 0; border-radius: 0; padding: 0; text-align: center; background: transparent; font: 600 14px "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; appearance: textfield; -moz-appearance: textfield; }
+.checkout-ticket-quantity input::-webkit-inner-spin-button, .checkout-ticket-quantity input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.checkout-ticket-options__error { margin: 0; padding: 10px 16px; color: #a32700; font-size: 13px; }
+
+.checkout-delivery strong {
+    font-size: 18px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+/* Preserve readable white labels on the brighter brand accent. */
+.checkout-actions button:not(.checkout-actions__back),
+.checkout-actions a.checkout-actions__primary {
+  font-size: 22px;
+  font-weight: 700;
+}
+.checkout-actions button:not(.checkout-actions__back):enabled:hover,
+.checkout-actions a.checkout-actions__primary:hover {
+  background: var(--brand-accent-hover, #bf6900) !important;
+}
+.checkout-ticket-quantity button { font-weight: 700; }
+.checkout-kicker,
+.checkout-steps span.is-active,
+.checkout-steps span.is-complete {
+  background: var(--brand-accent-compact, #b35f00);
+}
+.checkout-steps .is-active b,
+.checkout-steps .is-complete b { color: #fff; }

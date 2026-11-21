@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+  <head>
+    <title>bitcoin++ | {{ msg "attendee.title" }}</title>
+    {{ template "checkout_header" . }}
+    <link rel="stylesheet" href="/static/css/attendee-details.css?v=20261121-bitcoin-orange">
+    <script defer src="/static/js/attendee-details.js?v=20261120-acknowledgement"></script>
+  </head>
+  <body class="btcpp-checkout-page attendee-details-page">
+    <main class="checkout-shell checkout-shell--success">
+      {{ template "checkout_confirmation_hero" (dict "Conf" .Conf "Pending" false) }}
+      <section class="checkout-panel">
+      {{ template "checkout_confirmation_steps" . }}
+      <div class="checkout-form attendee-details">
+      <div class="checkout-copy">
+        <h2>{{ msg "attendee.title" }}</h2>
+      </div>
+      {{ if .Saved }}<p class="attendee-details__saved" role="status">{{ msg "attendee.saved" }}</p>{{ end }}
+      {{ if .Error }}<p class="attendee-details__error" role="alert">{{ .Error }}</p>{{ end }}
+      <form method="post" action="{{ .Action }}" data-attendee-form>
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+          {{ range $index, $row := .Rows }}
+            <fieldset class="attendee-details__row" data-attendee-row data-ticket-ref="{{ .RefID }}" data-profile-name="{{ .ProfileName }}" data-profile-shirt="{{ .ProfileShirt }}" data-profile-handle="{{ .ProfileHandle }}" data-profile-diet="{{ .ProfileDiet }}" data-profile-other="{{ .ProfileDietOther }}" data-profile-allergies="{{ .ProfileAllergies }}">
+              <legend class="attendee-details__ticket"><a href="/ticket/{{ .RefID }}/pdf?type={{ .Type }}&amp;conf={{ .ConferenceID }}" target="_blank" rel="noopener noreferrer">{{ msg "attendee.ticket_number" (dict "Number" (add $index 1)) }} ↗</a><span>{{ .TicketLabel }}</span></legend>
+              <input type="hidden" name="ticket" value="{{ .RefID }}">
+              <input type="hidden" name="version_{{ .RefID }}" value="{{ .Version }}">
+              <div class="attendee-details__fields">
+              <div class="attendee-details__identity">
+                <label class="attendee-details__name"><span class="attendee-details__label">{{ msg "attendee.name" }}</span><input name="name_{{ .RefID }}" value="{{ .Name }}" maxlength="100" placeholder="{{ msg "attendee.guest" }}" autocomplete="off" data-attendee-name></label>
+                <label class="attendee-details__mine"><input type="checkbox" name="mine_{{ .RefID }}" value="1" {{ if .IsBuyer }}checked{{ end }} data-attendee-mine>{{ msg "attendee.mine" }}</label>
+              </div>
+              <div>
+                <label for="shirt_{{ .RefID }}" class="attendee-details__label">{{ msg "attendee.shirt" }}</label>
+                <select id="shirt_{{ .RefID }}" name="shirt_{{ .RefID }}" aria-label="{{ msg "attendee.shirt" }}" data-attendee-shirt>
+                  <option value="">{{ msg "attendee.select_size" }}</option>
+                  {{ range .ShirtSizes }}<option value="{{ .Code }}"{{ if .Legacy }} hidden{{ end }}{{ if eq .Code $row.TShirt }} selected{{ end }}>{{ .Label }}</option>{{ end }}
+                </select>
+                {{ if and .IsBuyer (eq .TShirt .ProfileShirt) .ProfileShirt }}<small data-profile-note>{{ msg "attendee.from_profile" }}</small>{{ end }}
+              </div>
+              <div>
+                <label for="diet_{{ .RefID }}" class="attendee-details__label">{{ msg "attendee.food" }}</label>
+                <select id="diet_{{ .RefID }}" name="diet_{{ .RefID }}" aria-label="{{ msg "attendee.food" }}" data-attendee-diet>
+                  <option value="">{{ msg "attendee.select_food" }}</option>
+                  <option value="none" {{ if eq .Diet "none" }}selected{{ end }}>{{ msg "attendee.none" }}</option>
+                  <option value="vegetarian" {{ if eq .Diet "vegetarian" }}selected{{ end }}>{{ msg "attendee.vegetarian" }}</option>
+                  <option value="vegan" {{ if eq .Diet "vegan" }}selected{{ end }}>{{ msg "attendee.vegan" }}</option>
+                  <option value="other" {{ if eq .Diet "other" }}selected{{ end }}>{{ msg "attendee.other" }}</option>
+                </select>
+                <label class="attendee-details__other" data-attendee-other>{{ msg "attendee.describe" }}<input name="other_{{ .RefID }}" value="{{ .DietOther }}" maxlength="500" data-attendee-other-input></label>
+                <input type="hidden" name="allergies_{{ .RefID }}" value="{{ .Allergies }}" data-attendee-allergies>
+              </div>
+              </div>
+            </fieldset>
+          {{ end }}
+        {{ if .HasSupporters }}
+        <section class="attendee-details__supporters" aria-labelledby="supporter-heading">
+          <h3 id="supporter-heading">{{ msg "attendee.supporter_thanks" }}</h3>
+          <p>{{ msg "attendee.booklet_intro" }}</p>
+          {{ range $index, $row := .Rows }}{{ if .IsSupporter }}
+          <fieldset class="attendee-details__booklet" data-booklet-ticket="{{ .RefID }}">
+            <legend>{{ msg "attendee.ticket_number" (dict "Number" (add $index 1)) }} · {{ .TicketLabel }}</legend>
+            <div class="attendee-details__booklet-fields">
+              <label for="booklet_{{ .RefID }}">{{ msg "attendee.booklet_choice" }}
+                <select id="booklet_{{ .RefID }}" name="booklet_{{ .RefID }}" data-booklet-choice>
+                  <option value="named" {{ if ne .BookletChoice "private" }}selected{{ end }}>{{ msg "attendee.booklet_named" }}</option>
+                  <option value="private" {{ if eq .BookletChoice "private" }}selected{{ end }}>{{ msg "attendee.booklet_private" }}</option>
+                </select>
+              </label>
+              <label for="booklet_name_{{ .RefID }}" data-booklet-name-field>{{ msg "attendee.booklet_name" }}
+                <input id="booklet_name_{{ .RefID }}" name="booklet_name_{{ .RefID }}" value="{{ .BookletName }}" maxlength="100" placeholder="{{ msg "attendee.booklet_placeholder" }}" data-booklet-name>
+              </label>
+            </div>
+            <div class="attendee-details__profile" data-booklet-profile {{ if not (and .IsBuyer (eq .BookletChoice "named")) }}hidden{{ end }}>
+              {{ if .ProfilePhoto }}<img src="{{ speakerPhoto .ProfilePhoto }}" alt="" width="64" height="64">{{ else }}<span class="attendee-details__avatar-placeholder" aria-hidden="true">＋</span>{{ end }}
+              <div>
+                <p>{{ msg "attendee.profile_prompt" }}</p>
+                {{ if .ProfileHandle }}<small>@{{ .ProfileHandle }}</small>{{ end }}
+                <a href="/dashboard/profile" target="_blank" rel="noopener noreferrer">{{ msg "attendee.edit_profile" }} ↗</a>
+                <label class="attendee-details__avatar-choice"><input type="checkbox" name="booklet_avatar_{{ .RefID }}" value="1" {{ if .BookletUseAvatar }}checked{{ end }} data-booklet-avatar>{{ msg "attendee.booklet_avatar" }}</label>
+              </div>
+            </div>
+          </fieldset>
+          {{ end }}{{ end }}
+        </section>
+        {{ end }}
+        <div class="checkout-actions attendee-details__actions"><button type="submit">{{ msg "attendee.save" }}</button></div>
+      </form>
+      </div>
+      <footer class="checkout-footer"><span>bitcoin++ 🏆🧡🧑‍💻</span></footer>
+      </section>
+    </main>
+  </body>
+</html>

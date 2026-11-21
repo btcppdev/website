@@ -1,3 +1,14 @@
+/* The bright accent supports white labels at 19px bold or larger.
+   Use the ink tone for text on light surfaces and the compact tone for
+   small white labels. Keep these separate when changing the brand color. */
+:root {
+  --brand-accent: #db7900;
+  --brand-accent-hover: #bf6900;
+  --brand-accent-text: #a65b00;
+  --brand-accent-compact: #b35f00;
+  --brand-accent-large-text: #cf7300;
+}
+
 /* The homepage's serif accent, shared by visible brand copy and reports. */
 @font-face {
   font-family: "Source Serif 4";
@@ -11,4 +22,14 @@
   font-family: "Source Serif 4", Georgia, serif;
   font-style: italic;
   font-weight: 400;
+}
+
+/* Shared light surfaces; retain charcoal for text and the announcement ticker. */
+:root {
+  --brand-paper: #f9f6ee;
+  --brand-surface: #fffdf8;
+  --brand-ink: #343638;
+  --brand-muted: #65635e;
+  --brand-line: #d7d4cc;
+  --brand-selected: #fff0e3;
 }

@@ -1,0 +1,59 @@
+.checkout-form.attendee-details {
+  width: 100%;
+  max-width: 860px;
+  padding: 40px clamp(24px, 3.5vw, 64px);
+  color: #343638;
+}
+.attendee-details * { box-sizing: border-box; }
+.attendee-details__row { min-width: 0; margin: 0; padding: 0 0 24px; border: 0; }
+.attendee-details__row + .attendee-details__row { padding-top: 20px; border-top: 1px solid #d4d1c9; }
+.attendee-details__ticket { float: left; width: 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding: 0; margin-bottom: 12px; }
+.attendee-details__ticket a { color: #a65b00; font-size: 16px; font-weight: 600; text-decoration: none; }
+.attendee-details__ticket a:hover { text-decoration: underline; }
+.attendee-details__ticket span { font-size: 13px; color: #66635e; }
+.attendee-details__fields { clear: both; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, .8fr) minmax(0, 1fr); gap: 14px; }
+.attendee-details__fields > div { min-width: 0; }
+.attendee-details__label { display: flex; align-items: end; min-height: 36px; margin-bottom: 8px; font-size: 13px; line-height: 18px; font-weight: 600; }
+.attendee-details input:not([type=checkbox]):not([type=hidden]), .attendee-details select {
+  display: block; width: 100%; min-width: 0; height: 48px; padding: 10px;
+  border: 1px solid #a09e97; border-radius: 0; background: #fff; color: #343638;
+  font: 400 16px/1.4 "IBM Plex Sans", system-ui, sans-serif;
+}
+.attendee-details input:focus-visible, .attendee-details select:focus-visible, .attendee-details a:focus-visible { outline: 2px solid var(--brand-accent, #db7900); outline-offset: 2px; }
+.attendee-details__mine { display: flex; align-items: center; gap: 8px; padding-top: 10px; font-size: 13px; line-height: 1.4; }
+.attendee-details__mine input, .attendee-details__avatar-choice input { width: 16px; height: 16px; margin: 0; accent-color: var(--brand-accent, #db7900); flex-shrink: 0; }
+.attendee-details__fields small { display: block; color: #66635e; font-size: 12px; margin-top: 10px; }
+.attendee-details__other { display: grid; gap: 8px; margin-top: 14px; font-size: 13px; }
+.attendee-details [hidden] { display: none !important; }
+.attendee-details__actions { margin-top: 24px; flex-wrap: wrap; }
+.attendee-details__actions button { padding: 14px 24px; }
+.attendee-details__saved, .attendee-details__error { margin: 0; padding: 12px 16px; font-size: 14px; line-height: 1.5; border: 1px solid currentColor; }
+.attendee-details__saved { color: #316744; }
+.attendee-details__error { color: #9b271f; }
+.attendee-details__supporters { padding: 22px; border: 1px solid #a09e97; }
+.attendee-details__supporters h3 { margin: 0 0 8px; font: 700 23px/1.2 "IBM Plex Sans", system-ui, sans-serif; }
+.attendee-details__supporters > p { margin: 0 0 20px; color: #66635e; font-size: 15px; line-height: 1.5; }
+.attendee-details__booklet { border: 0; padding: 0; margin: 0; min-width: 0; }
+.attendee-details__booklet + .attendee-details__booklet { margin-top: 24px; padding-top: 24px; border-top: 1px solid #d4d1c9; }
+.attendee-details__booklet legend { padding: 0; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: #66635e; }
+.attendee-details__booklet-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.attendee-details__booklet-fields > label { display: grid; align-content: start; gap: 8px; font-size: 14px; font-weight: 600; }
+.attendee-details__booklet small { color: #66635e; font-size: 12px; font-weight: 400; }
+.attendee-details__profile { display: flex; gap: 16px; align-items: flex-start; margin-top: 20px; padding-top: 20px; border-top: 1px solid #d4d1c9; }
+.attendee-details__profile > div { min-width: 0; overflow-wrap: anywhere; }
+.attendee-details__profile img, .attendee-details__avatar-placeholder { width: 64px; height: 64px; flex: 0 0 64px; border-radius: 50%; object-fit: cover; }
+.attendee-details__avatar-placeholder { display: grid; place-items: center; border: 1px dashed var(--brand-accent, #db7900); color: #a65b00; font-size: 28px; }
+.attendee-details__profile p { margin: 0 0 6px; font-size: 14px; line-height: 1.5; }
+.attendee-details__profile small { display: block; margin-bottom: 6px; }
+.attendee-details__profile a { color: #a65b00; font-size: 14px; font-weight: 600; }
+.attendee-details__avatar-choice { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; margin-top: 14px; }
+.attendee-details__avatar-choice input { margin-top: 2px; }
+@media (max-width: 900px) {
+  .checkout-form.attendee-details { padding: 28px 20px; }
+}
+@media (max-width: 560px), (min-width: 901px) and (max-width: 1100px) {
+  .attendee-details__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .attendee-details__identity { grid-column: 1 / -1; }
+  .attendee-details__label { min-height: 18px; }
+  .attendee-details__supporters { padding: 20px 16px; }
+}

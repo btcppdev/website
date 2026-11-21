@@ -18,15 +18,15 @@
 
   <div class="profile-edit-toolbar">
     <div>
-      <span class="profile-edit-toolbar__live">● {{ if and (eq .Mode "create") (not .IsAdmin) }}ACCOUNT SETUP{{ else }}EDITING{{ end }}</span>
+      <span class="profile-edit-toolbar__live">● {{ if and (eq .Mode "create") (not .IsAdmin) }}Account setup{{ else }}Editing{{ end }}</span>
       <span>{{ if .Speaker }}{{ .Speaker.Name }}{{ else if .IsAdmin }}new speaker profile{{ else }}new bitcoin++ account{{ end }}</span>
       <span>{{ if eq .Mode "edit" }}identity section editable{{ else if .IsAdmin }}create speaker record{{ else }}profile required{{ end }}</span>
     </div>
     <div>
-      {{ if .PublicURL }}<a href="{{ .PublicURL }}">VIEW PUBLIC →</a>{{ end }}
-      {{ if and (eq .Mode "edit") (not .IsAdmin) }}<a href="/dashboard/profile/badges">MANAGE BADGES →</a>
-      <a href="/dashboard/profile/keys">PGP KEYS →</a>{{ end }}
-      <button type="submit" form="SpeakerProfileForm">{{ if eq .Mode "edit" }}SAVE CHANGES{{ else if .IsAdmin }}CREATE PROFILE{{ else }}CREATE ACCOUNT{{ end }}</button>
+      {{ if .PublicURL }}<a href="{{ .PublicURL }}">View public →</a>{{ end }}
+      {{ if and (eq .Mode "edit") (not .IsAdmin) }}<a href="/dashboard/profile/badges">Manage badges →</a>
+      <a href="/dashboard/profile/keys">PGP keys →</a>{{ end }}
+      <button type="submit" form="SpeakerProfileForm">{{ if eq .Mode "edit" }}Save changes{{ else if .IsAdmin }}Create profile{{ else }}Create account{{ end }}</button>
     </div>
   </div>
 
@@ -43,11 +43,9 @@
 
     <header class="profile-edit-hero">
       {{ if and (eq .Mode "create") (not .IsAdmin) }}
-      <p class="profile-edit-tag">§ NEW ACCOUNT</p>
       <h1>Finish setting up <span>your account.</span></h1>
       <p>We haven’t created your bitcoin++ account yet. Your {{ if .SetupProvider }}{{ .SetupProvider }}{{ else }}email{{ end }} sign-in is verified; add your details below, then choose Create account.{{ if eq .SetupPurpose "sponsor" }} You’ll continue to your sponsor invitation next.{{ end }}</p>
       {{ else }}
-      <p class="profile-edit-tag">§ YOUR PROFILE</p>
       <h1>{{ if .IsAdmin }}Create a <span>speaker record.</span>{{ else }}Arrange <span>your</span> record.{{ end }}</h1>
       <p>{{ if eq .Mode "edit" }}Edit the identity, links, and contact details that power your bitcoin++ public profile and event records.{{ else }}Create the speaker’s identity, contact details, and public profile information.{{ end }}</p>
       {{ end }}
@@ -58,9 +56,9 @@
     {{ end }}
 
     <div class="profile-edit-legend" aria-label="Profile visibility legend">
-      <span><i class="is-public"></i><b>PUBLIC</b><em>Shown on /whois when eligible</em></span>
-      <span><i class="is-members"></i><b>MEMBERS</b><em>Signed-in community later</em></span>
-      <span><i class="is-hidden"></i><b>HIDDEN</b><em>Only you</em></span>
+      <span><i class="is-public"></i><b>Public</b><em>Shown on /whois when eligible</em></span>
+      <span><i class="is-members"></i><b>Members</b><em>Signed-in community later</em></span>
+      <span><i class="is-hidden"></i><b>Hidden</b><em>Only you</em></span>
     </div>
 
     <form id="SpeakerProfileForm" method="POST" action="{{ if .FormAction }}{{ .FormAction }}{{ else }}/dashboard/profile{{ end }}" enctype="multipart/form-data" class="profile-edit-form">
@@ -69,19 +67,18 @@
         <div class="profile-edit-section__body">
           <div class="profile-edit-section__head">
             <div>
-              <p>§ IDENTITY</p>
               <h2>{{ if and (eq .Mode "create") (not .IsAdmin) }}Your profile{{ else }}Bio & links{{ end }}</h2>
               <span>{{ if .Speaker }}{{ if .Speaker.Bio }}bio {{ len .Speaker.Bio }} chars{{ else }}bio empty{{ end }} · links editable{{ else if .IsAdmin }}new speaker record{{ else }}used for your account and event participation{{ end }}</span>
             </div>
             <div class="profile-edit-section__status">
-              <span class="profile-privacy-pill"><i class="is-public"></i>PUBLIC</span>
-              <strong>EDITING</strong>
+              <span class="profile-privacy-pill"><i class="is-public"></i>Public</span>
+              <strong>Editing</strong>
             </div>
           </div>
 
           <div class="profile-edit-fields">
             <div class="profile-edit-photo">
-              <label for="PicFile">PHOTO {{ if and (eq .Mode "create") .RequireFullProfile }}*{{ end }}</label>
+              <label for="PicFile">Photo {{ if and (eq .Mode "create") .RequireFullProfile }}*{{ end }}</label>
               <div>
                 {{ if and .Speaker .Speaker.Photo }}
                 <img src="{{ speakerPhoto .Speaker.Photo }}" alt="{{ .Speaker.Name }}">
@@ -102,10 +99,10 @@
             </div>
 
             {{ if eq .Mode "create" }}
-            <label>DISPLAY NAME *
+            <label>Display name *
               <input id="Name" name="Name" type="text" required value="{{ .SetupName }}">
             </label>
-            <label>EMAIL {{ if .IsAdmin }}*{{ end }}
+            <label>Email {{ if .IsAdmin }}*{{ end }}
               {{ if .IsAdmin }}
               <input id="Email" name="Email" type="email" required>
               {{ else }}
@@ -113,10 +110,10 @@
               {{ end }}
             </label>
             {{ else }}
-            <label>DISPLAY NAME
+            <label>Display name
               <input id="Name" name="Name" type="text" required value="{{ .Speaker.Name }}">
             </label>
-            <label>EMAIL
+            <label>Email
               <span class="profile-edit-locked">{{ .Speaker.Email }}</span>
               {{ if not .IsAdmin }}
               <a class="profile-edit-email-manage" href="/dashboard/settings">Account settings →</a>
@@ -124,45 +121,45 @@
             </label>
             {{ end }}
 
-            <label class="profile-edit-wide">COMPANY / ORGANIZATION
+            <label class="profile-edit-wide">Company / organization
               <input id="Company" name="Company" type="text" value="{{ if .Speaker }}{{ .Speaker.Company }}{{ end }}" placeholder="e.g. alloc init">
               <small>Shown on your public profile. Leave blank to remove it.</small>
             </label>
 
-            <label class="profile-edit-wide">ORGANIZATION LOGO
+            <label class="profile-edit-wide">Organization logo
               <input id="OrgLogoFile" name="OrgLogoFile" type="file" accept="image/*">
               {{ if and .Speaker .Speaker.OrgLogo }}<img class="profile-edit-org-logo" src="{{ spacesURL (printf "sponsors/%s" .Speaker.OrgLogo) }}" alt="Current organization logo"><small>Upload a new image to replace this logo.</small>{{ end }}
               <small>Optional. Leave empty to keep your current logo.</small>
             </label>
             <input type="hidden" name="HiringFieldsSet" value="1">
-            <label><span><input type="checkbox" name="AvailToHire" value="on" {{ if and .Speaker .Speaker.AvailToHire }}checked{{ end }}> AVAILABLE FOR HIRE</span></label>
-            <label><span><input type="checkbox" name="LookingToHire" value="on" {{ if and .Speaker .Speaker.LookingToHire }}checked{{ end }}> I'M HIRING</span></label>
+            <label><span><input type="checkbox" name="AvailToHire" value="on" {{ if and .Speaker .Speaker.AvailToHire }}checked{{ end }}> Available for hire</span></label>
+            <label><span><input type="checkbox" name="LookingToHire" value="on" {{ if and .Speaker .Speaker.LookingToHire }}checked{{ end }}> I'm hiring</span></label>
 
-            <label class="profile-edit-wide">BIO
+            <label class="profile-edit-wide">Bio
               <textarea id="Bio" name="Bio" rows="5" maxlength="1200" placeholder="Who are you, what are you working on, and what should people ask you about?">{{ if .Speaker }}{{ .Speaker.Bio }}{{ end }}</textarea>
               <small>Public on your profile. Up to 1,200 characters.</small>
             </label>
 
-            <label>WEBSITE
+            <label>Website
               <input id="Website" name="Website" type="url" value="{{ if .Speaker }}{{ trim .Speaker.Website }}{{ end }}">
             </label>
-            <label>GITHUB URL
+            <label>GitHub URL
               <input id="Github" name="Github" type="url" value="{{ if .Speaker }}{{ trim .Speaker.Github }}{{ end }}">
             </label>
-            <label>TWITTER / X HANDLE
+            <label>Twitter / X handle
               <input id="Twitter" name="Twitter" type="text" value="{{ if .Speaker }}{{ .Speaker.Twitter.Handle }}{{ end }}" placeholder="without @">
             </label>
-            <label>NOSTR NPUB OR NPROFILE
+            <label>Nostr npub or nprofile
               <input id="Nostr" name="Nostr" type="text" value="{{ if .Speaker }}{{ .Speaker.Nostr }}{{ end }}" placeholder="npub1… or nprofile1…">
               <small>We save the public key in canonical npub form.</small>
             </label>
-            <label>INSTAGRAM
+            <label>Instagram
               <input id="Instagram" name="Instagram" type="text" value="{{ if .Speaker }}{{ .Speaker.Instagram }}{{ end }}">
             </label>
-            <label>LINKEDIN
+            <label>LinkedIn
               <input id="LinkedIn" name="LinkedIn" type="text" value="{{ if .Speaker }}{{ .Speaker.LinkedIn }}{{ end }}" placeholder="linkedin.com/in/...">
             </label>
-            <label>LEETCODE
+            <label>LeetCode
               <input id="LeetCode" name="LeetCode" type="text" value="{{ if .Speaker }}{{ .Speaker.LeetCode }}{{ end }}" placeholder="leetcode.com/u/...">
             </label>
           </div>
@@ -174,34 +171,50 @@
         <div class="profile-edit-section__body">
           <div class="profile-edit-section__head">
             <div>
-              <p>§ CONTACT</p>
               <h2>Event logistics</h2>
               <span>Used by organizers for speaker and volunteer coordination.</span>
             </div>
             <div class="profile-edit-section__status">
-              <span class="profile-privacy-pill is-muted"><i class="is-hidden"></i>PRIVATE</span>
-              <strong>EDITING</strong>
+              <span class="profile-privacy-pill is-muted"><i class="is-hidden"></i>Private</span>
+              <strong>Editing</strong>
             </div>
           </div>
           <div class="profile-edit-fields">
-            <label>PHONE (OPTIONAL)
+            <label>Phone (optional)
               <input id="Phone" name="Phone" type="tel" value="{{ if .Speaker }}{{ .Speaker.Phone }}{{ end }}">
             </label>
-            <label>SIGNAL {{ if .RequireFullProfile }}*{{ end }}
+            <label>Signal {{ if .RequireFullProfile }}*{{ end }}
               <input id="Signal" name="Signal" type="text" {{ if .RequireFullProfile }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Signal }}{{ end }}">
             </label>
-            <label>TELEGRAM
+            <label>Telegram
               <input id="Telegram" name="Telegram" type="text" value="{{ if .Speaker }}{{ .Speaker.Telegram }}{{ end }}">
             </label>
-            <label>T-SHIRT SIZE
+            <label>Preferred T-shirt size
               <select id="TShirt" name="TShirt">
-                {{ $cur := "" }}{{ if .Speaker }}{{ $cur = .Speaker.TShirt }}{{ end }}
+                {{ $cur := "" }}{{ if .Speaker }}{{ $cur = shirtSizeCode .Speaker.TShirt }}{{ end }}
                 <option value="" {{ if eq $cur "" }}selected{{ end }}>—</option>
-                {{ range shirtSizes }}
-                <option value="{{ .Code }}" {{ if eq $cur .Code }}selected{{ end }}>{{ .Label }}</option>
+                {{ range shirtSizes $cur }}
+                <option value="{{ .Code }}"{{ if .Legacy }} hidden{{ end }}{{ if eq $cur .Code }} selected{{ end }}>{{ .Label }}</option>
                 {{ end }}
               </select>
             </label>
+            {{ if not .IsAdmin }}
+            <input type="hidden" name="AttendeePreferencesSet" value="1">
+            <label>Food preference
+              <select id="DietaryPreference" name="DietaryPreference">
+                <option value="" {{ if eq .AttendeePreferences.Diet "" }}selected{{ end }}>Select preference</option>
+                <option value="none" {{ if eq .AttendeePreferences.Diet "none" }}selected{{ end }}>No preference</option>
+                <option value="vegetarian" {{ if eq .AttendeePreferences.Diet "vegetarian" }}selected{{ end }}>Vegetarian</option>
+                <option value="vegan" {{ if eq .AttendeePreferences.Diet "vegan" }}selected{{ end }}>Vegan</option>
+                <option value="other" {{ if eq .AttendeePreferences.Diet "other" }}selected{{ end }}>Other</option>
+              </select>
+              <small>Used to prefill your ticket details.</small>
+            </label>
+            <label data-profile-diet-other>Other food preference
+              <input id="DietaryOther" name="DietaryOther" value="{{ .AttendeePreferences.DietOther }}" maxlength="500">
+            </label>
+            <input type="hidden" name="FoodAllergies" value="{{ .AttendeePreferences.Allergies }}">
+            {{ end }}
           </div>
         </div>
       </section>
@@ -212,7 +225,6 @@
         <div class="profile-edit-section__body">
           <div class="profile-edit-section__head">
             <div>
-              <p>§ PAYOUT DETAILS</p>
               <div class="profile-edit-section__title">
                 <h2 id="payments-title">Awards & payments</h2>
                 <a id="copy-payments-link" class="profile-edit-copy-link" href="/dashboard/profile#payments" aria-label="Copy link to Awards & payments">Copy link</a>
@@ -221,20 +233,20 @@
               <span>Private. Used by authorized bitcoin++ organizers for prizes and reimbursements. Sponsors paying your winning prizes can see your payment addresses once your tax form is on file. Tax documents stay with organizers.</span>
             </div>
             <div class="profile-edit-section__status">
-              <span class="profile-privacy-pill is-muted"><i class="is-hidden"></i>PRIVATE</span>
-              {{ if .Speaker.TaxFormUploadedAt }}<strong>✓ TAX FORM ON FILE</strong>{{ else }}<strong>INCOMPLETE</strong>{{ end }}
+              <span class="profile-privacy-pill is-muted"><i class="is-hidden"></i>Private</span>
+              {{ if .Speaker.TaxFormUploadedAt }}<strong>✓ Tax form on file</strong>{{ else }}<strong>Incomplete</strong>{{ end }}
             </div>
           </div>
           <div class="profile-edit-fields">
-            <label>LIGHTNING ADDRESS
+            <label>Lightning address
               <input id="LightningAddress" name="LightningAddress" type="text" value="{{ .Speaker.LightningAddress }}" placeholder="you@example.com">
               <small>For Lightning prize payments. This is never shown on your public profile.</small>
             </label>
-            <label>ON-CHAIN BITCOIN ADDRESS
+            <label>On-chain bitcoin address
               <input id="BitcoinAddress" name="BitcoinAddress" type="text" value="{{ .Speaker.BitcoinAddress }}" placeholder="bc1…">
               <small>Optional fallback for on-chain payments.</small>
             </label>
-            <label>TAX FORM TYPE
+            <label>Tax form type
               <select id="TaxFormType" name="TaxFormType">
                 <option value="w9" {{ if eq .Speaker.TaxFormType "w9" }}selected{{ end }}>W-9 (US person)</option>
                 <option value="w8ben" {{ if eq .Speaker.TaxFormType "w8ben" }}selected{{ end }}>W-8BEN (non-US person)</option>
@@ -242,14 +254,14 @@
               <small>Choose W-9 if you are a U.S. person. Non-U.S. individuals should use W-8BEN.</small>
             </label>
             <div class="profile-edit-tax-forms">
-              <span>DOWNLOAD A BLANK IRS FORM</span>
+              <span>Download a blank IRS form</span>
               <div>
                 <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noopener noreferrer">W-9 PDF ↗</a>
                 <a href="https://www.irs.gov/pub/irs-pdf/fw8ben.pdf" target="_blank" rel="noopener noreferrer">W-8BEN PDF ↗</a>
               </div>
               <small>Fill out and sign the appropriate form, then upload the completed document here.</small>
             </div>
-            <label>TAX FORM DOCUMENT
+            <label>Tax form document
               <input id="TaxFormFile" name="TaxFormFile" type="file" accept="application/pdf,image/png,image/jpeg">
               {{ if .Speaker.TaxFormUploadedAt }}
               <small>On file: {{ .Speaker.TaxFormOriginalName }} · uploaded {{ .Speaker.TaxFormUploadedAt.Format "Jan 2, 2006" }}. Upload another file to replace it.</small>
@@ -267,7 +279,7 @@
         <div class="profile-edit-section__index">✉</div>
         <div class="profile-edit-section__body">
           <div class="profile-edit-section__head">
-            <div><p>§ STAY IN THE LOOP</p><h2>Newsletter</h2></div>
+            <div><h2>Newsletter</h2></div>
           </div>
           <label for="sub-newsletter" style="display:flex;align-items:center;gap:12px;line-height:1.5;cursor:pointer;">
             <input id="sub-newsletter" type="checkbox" name="Subscribe" value="on" checked style="width:18px;height:18px;flex-shrink:0;accent-color:#F57247;">
@@ -282,13 +294,12 @@
         <div class="profile-edit-section__body">
           <div class="profile-edit-section__head">
             <div>
-              <p>§ FROM YOUR RECORD</p>
               <h2>Talks & panels</h2>
               <span>Accepted and scheduled bitcoin++ talks are pulled automatically.</span>
             </div>
             <div class="profile-edit-section__status">
-              <span class="profile-privacy-pill"><i class="is-public"></i>PUBLIC</span>
-              <strong>✓ FROM YOUR RECORD</strong>
+              <span class="profile-privacy-pill"><i class="is-public"></i>Public</span>
+              <strong>✓ From your record</strong>
             </div>
           </div>
         </div>
@@ -299,18 +310,30 @@
       {{ if and (eq .Mode "create") (not .IsAdmin) }}
       <form class="profile-edit-actions__cancel-form" method="POST" action="/logout">
         <input type="hidden" name="csrf" value="{{ .CancelCSRF }}">
-        <button class="profile-edit-actions__cancel" type="submit">CANCEL</button>
+        <button class="profile-edit-actions__cancel" type="submit">Cancel</button>
       </form>
       {{ else }}
-      <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard{{ end }}">CANCEL</a>
+      <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard{{ end }}">Cancel</a>
       {{ end }}
-      <button type="submit" form="SpeakerProfileForm"{{ if and (eq .Mode "create") (not .IsAdmin) }} class="profile-edit-actions__create-account"{{ end }}>{{ if eq .Mode "edit" }}SAVE CHANGES{{ else if .IsAdmin }}CREATE PROFILE{{ else }}CREATE ACCOUNT{{ end }}</button>
+      <button type="submit" form="SpeakerProfileForm"{{ if and (eq .Mode "create") (not .IsAdmin) }} class="profile-edit-actions__create-account"{{ end }}>{{ if eq .Mode "edit" }}Save changes{{ else if .IsAdmin }}Create profile{{ else }}Create account{{ end }}</button>
     </div>
   </main>
 
   {{ block "footer" . }} {{ end }}
   {{ template "pic_cropper" . }}
   <script>
+    (function () {
+      const diet = document.getElementById('DietaryPreference');
+      const other = document.querySelector('[data-profile-diet-other]');
+      if (!diet || !other) return;
+      function sync() {
+        other.hidden = diet.value !== 'other';
+        other.querySelector('input').required = !other.hidden;
+      }
+      diet.addEventListener('change', sync);
+      window.addEventListener('pageshow', sync);
+      sync();
+    })();
     (function () {
       const link = document.getElementById('copy-payments-link');
       if (!link) return;

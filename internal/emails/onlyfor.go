@@ -3,6 +3,7 @@ package emails
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"text/template"
 	"time"
 
@@ -522,6 +523,13 @@ func SendOnlyForTicket(ctx *config.AppContext, conf *types.Conf, email string, p
 	}
 	buf.Reset()
 	buf.Write(bilingual)
+	if details, detailsErr := getters.GetTicketAttendeeDetails(ctx, ticketID); detailsErr == nil && strings.EqualFold(details.OwnerEmail, email) {
+		label := "Add shirt sizes and food preferences"
+		if language == "ko" {
+			label = "티셔츠 사이즈와 식사 선호 사항 입력"
+		}
+		fmt.Fprintf(&buf, "\n\n[%s](%s%s)\n", label, strings.TrimRight(uri, "/"), helpers.TicketDetailsURL(ctx, details)+"&lang="+language)
+	}
 
 	htmlBody, err := BuildHTMLEmail(ctx, buf.Bytes())
 	if err != nil {

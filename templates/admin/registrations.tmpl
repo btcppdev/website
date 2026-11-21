@@ -37,6 +37,13 @@
             {{ end }}
 
             {{ if .Registrations }}
+            {{ with .AttendeeTotals }}
+            <section class="mb-4 rounded-lg border border-gray-200 bg-white p-4 text-sm">
+                <h2 class="font-semibold">Bags &amp; catering</h2>
+                <p class="mt-2"><strong>T-shirts:</strong> {{ range .Shirts }}{{ .Label }} × {{ .Count }} · {{ end }}Not provided: {{ .MissingShirts }}</p>
+                <p class="mt-2"><strong>Meals:</strong> {{ range .Meals }}{{ .Label }} × {{ .Count }} · {{ end }}Not provided: {{ .MissingMeals }}</p>
+            </section>
+            {{ end }}
             <section class="mb-4">
                 <div class="bg-white shadow rounded-lg px-4 py-3 sm:px-6">
                     <input type="text" id="search-input" placeholder="Search by email, type, ticket, or payment ID..."
@@ -113,7 +120,19 @@
                                     <input type="checkbox" name="reg_emails" value="{{ .Email }}" class="reg-checkbox rounded border-gray-300">
                                 </td>
                                 {{ end }}
-                                <td class="px-6 py-4 text-sm text-gray-900">{{ .Email }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900">{{ .Email }}
+                                  {{ with .Attendee }}
+                                  {{ if .EffectiveName }}<div class="mt-1 font-semibold">{{ .EffectiveName }}</div>{{ end }}
+                                  <div class="mt-1 text-xs text-gray-600">Shirt: {{ if .ShirtLabel }}{{ .ShirtLabel }}{{ else }}Not provided{{ end }} · Food: {{ .DietLabel }}</div>
+                                  {{ if .DietOther }}<div class="mt-1 text-xs text-gray-600">{{ .DietOther }}</div>{{ end }}
+                                  {{ if .Allergies }}<div class="mt-1 text-xs text-gray-600">Allergies / food needs: {{ .Allergies }}</div>{{ end }}
+                                  {{ if .IsSupporter }}
+                                  <div class="mt-2 text-xs text-gray-600">Booklet: {{ if eq .BookletChoice "named" }}<strong>{{ .BookletName }}</strong>{{ else if eq .BookletChoice "private" }}Keep private{{ else }}Not provided{{ end }}
+                                    {{ if .BookletAvatar }}<a href="{{ speakerPhoto .BookletAvatar }}" target="_blank" rel="noopener noreferrer"><img src="{{ speakerPhoto .BookletAvatar }}" alt="Booklet avatar" width="40" height="40" style="border-radius:50%;object-fit:cover;margin-top:6px"></a>{{ else if .BookletUseAvatar }} · Avatar requested; profile photo missing{{ end }}
+                                  </div>
+                                  {{ end }}
+                                  {{ end }}
+                                </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ .Type }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">
                                     <div>{{ .ItemBought }}</div>

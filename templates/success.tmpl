@@ -1,48 +1,33 @@
 <!DOCTYPE html>
 <html lang="{{ locale }}">
   <head>
-    <title>bitcoin++ | {{ msg "confirmation.title" }}</title>
+    <title>bitcoin++ | {{ if .AttendeeDetailsPending }}{{ msg "attendee.confirming" }}{{ else }}{{ msg "confirmation.title" }}{{ end }}</title>
     {{ block "checkout_header" . }}{{ end }}
+    {{ if .AttendeeDetailsPending }}<script defer src="/static/js/ticket-confirmation.js?v=20261120"></script>{{ end }}
   </head>
   <body class="btcpp-checkout-page">
     <main class="checkout-shell checkout-shell--success">
-      <aside class="checkout-hero">
-        <picture>
-          {{ with confAVIF .Conf.Tag "leading" }}<source srcset="{{ . }}" type="image/avif">{{ end }}
-          <img src="{{ confOriginal .Conf.Tag "leading" }}" alt="">
-        </picture>
-        <div class="checkout-hero__shade"></div>
-        <div class="checkout-hero__content">
-          <a href="{{ localeURL (printf "/%s" .Conf.Tag) }}" class="checkout-brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
-          <div>
-            <p class="checkout-kicker">{{ msg "confirmation.received" }}</p>
-            <h1>{{ eventText .Conf.Tag .Conf.Desc }}</h1>
-            <p>{{ eventText .Conf.Tag .Conf.DateDesc }} · {{ eventText .Conf.Tag .Conf.Location }}</p>
-          </div>
-        </div>
-      </aside>
+      {{ template "checkout_confirmation_hero" (dict "Conf" .Conf "Pending" .AttendeeDetailsPending) }}
 
       <section class="checkout-panel">
-        <nav class="checkout-steps" aria-label="{{ msg "checkout.steps" }}" data-step="04/04" data-current="confirmed" data-current-label="{{ msg "checkout.confirmed" }}">
-          <span class="is-complete"><b>01</b> {{ msg "checkout.register" }}</span>
-          <span class="is-complete"><b>02</b> {{ msg "checkout.addons" }}</span>
-          <span class="is-complete"><b>03</b> {{ msg "checkout.pay" }}</span>
-          <span class="is-active"><b>04</b> {{ msg "checkout.confirmed" }}</span>
-        </nav>
+        {{ if not .AttendeeDetailsPending }}{{ template "checkout_confirmation_steps" . }}{{ end }}
 
         <div class="checkout-form checkout-confirmation">
           <div class="checkout-copy">
-            {{ if .Sponsored }}
-            <p class="checkout-confirmation__status">{{ msg "confirmation.sponsor_received" }}</p>
+            {{ if .AttendeeDetailsPending }}
+            <h2 data-ticket-confirmation>{{ msg "attendee.confirming" }}</h2>
+            <p>{{ msg "attendee.wait" }}</p>
+            <a href="">{{ msg "attendee.check_again" }}</a>
+            {{ else if .Sponsored }}
             <h2>{{ msg "confirmation.sponsor_title" }}</h2>
             <p>{{ msg "confirmation.sponsor_note" }}</p>
             {{ else }}
-            <p class="checkout-confirmation__status">{{ msg "confirmation.ticket_received" }}</p>
             <h2>{{ msg "confirmation.ticket_title" }}</h2>
             <p>{{ msg "confirmation.ticket_note" }}</p>
             {{ end }}
           </div>
 
+          {{ if not .AttendeeDetailsPending }}
           <div class="checkout-ticket-stub">
             <div>
               {{ if .Sponsored }}
@@ -71,13 +56,39 @@
             <a href="/dashboard">{{ msg "confirmation.dashboard" }}</a>
             <a href="{{ localeURL (printf "/%s#tickets" .Conf.Tag) }}">{{ msg "confirmation.another" }}</a>
           </div>
+          {{ end }}
         </div>
 
         <footer class="checkout-footer">
-          <span>{{ msg "confirmation.delivered" }}</span>
-          <a href="mailto:hello@btcpp.dev">{{ msg "checkout.contact" }}</a>
+          <span>{{ if .AttendeeDetailsPending }}bitcoin++ 🏆🧡🧑‍💻{{ else }}{{ msg "confirmation.delivered" }}{{ end }}</span>
         </footer>
       </section>
     </main>
   </body>
 </html>
+
+{{ define "checkout_confirmation_hero" }}
+      <aside class="checkout-hero">
+        <picture>
+          {{ with confAVIF .Conf.Tag "leading" }}<source srcset="{{ . }}" type="image/avif">{{ end }}
+          <img src="{{ confOriginal .Conf.Tag "leading" }}" alt="">
+        </picture>
+        <div class="checkout-hero__shade"></div>
+        <div class="checkout-hero__content">
+          <a href="{{ localeURL (printf "/%s" .Conf.Tag) }}" class="checkout-brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
+          <div>
+            <h1>{{ eventText .Conf.Tag .Conf.Desc }}</h1>
+            <p class="checkout-payment-status" role="status">{{ if .Pending }}{{ msg "attendee.confirming" }}{{ else }}{{ msg "confirmation.received" }}{{ end }}</p>
+            <p>{{ eventText .Conf.Tag .Conf.DateDesc }} · {{ eventText .Conf.Tag .Conf.Location }}</p>
+          </div>
+        </div>
+      </aside>
+{{ end }}
+{{ define "checkout_confirmation_steps" }}
+        <nav class="checkout-steps" aria-label="{{ msg "checkout.steps" }}" data-step="{{ if .HasAddOns }}04/04{{ else }}03/03{{ end }}" data-current="confirmed" data-current-label="{{ msg "checkout.confirmed" }}">
+          <span class="is-complete"><b>01</b> {{ msg "checkout.register" }}</span>
+          {{ if .HasAddOns }}<span class="is-complete"><b>02</b> {{ msg "checkout.addons" }}</span>{{ end }}
+          <span class="is-complete"><b>0{{ if .HasAddOns }}3{{ else }}2{{ end }}</b> {{ msg "checkout.pay" }}</span>
+          <span class="is-active"><b>0{{ if .HasAddOns }}4{{ else }}3{{ end }}</b> {{ msg "checkout.confirmed" }}</span>
+        </nav>
+{{ end }}

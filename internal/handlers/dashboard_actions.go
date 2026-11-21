@@ -781,6 +781,7 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 // DashboardEditSpeaker edits the person established by the session. A new
 // magic-link or OAuth email remains pending until this form creates its row.
 func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	email, encHMAC, err := validateVolEmail(r, ctx)
 	encEmail := ""
 	if err != nil {
@@ -849,6 +850,13 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		NextURL:      nextURL,
 		CancelCSRF:   cancelCSRF,
 		Year:         helpers.CurrentYear(),
+	}
+	if sp != nil {
+		page.AttendeePreferences, err = getters.GetPersonAttendeePreferences(ctx, sp.ID)
+		if err != nil {
+			http.Error(w, "Unable to load preferences", http.StatusInternalServerError)
+			return
+		}
 	}
 	if mode == "create" && isOAuthProfileSetup(nextURL) {
 		page.SetupPurpose = "oauth"
@@ -948,29 +956,30 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	up := getters.SpeakerUpdate{
-		OrgLogo:          logoPath,
-		AvailToHire:      r.FormValue("AvailToHire") == "on",
-		LookingToHire:    r.FormValue("LookingToHire") == "on",
-		HiringFieldsSet:  r.PostForm.Has("HiringFieldsSet"),
-		Name:             name,
-		Company:          strings.TrimSpace(r.FormValue("Company")),
-		CompanySet:       r.PostForm.Has("Company"),
-		Phone:            strings.TrimSpace(r.FormValue("Phone")),
-		Signal:           strings.TrimSpace(r.FormValue("Signal")),
-		Telegram:         strings.TrimSpace(r.FormValue("Telegram")),
-		Twitter:          strings.TrimSpace(r.FormValue("Twitter")),
-		Nostr:            strings.TrimSpace(r.FormValue("Nostr")),
-		Github:           strings.TrimSpace(r.FormValue("Github")),
-		Instagram:        strings.TrimSpace(r.FormValue("Instagram")),
-		LinkedIn:         strings.TrimSpace(r.FormValue("LinkedIn")),
-		LeetCode:         strings.TrimSpace(r.FormValue("LeetCode")),
-		Website:          strings.TrimSpace(r.FormValue("Website")),
-		Bio:              strings.TrimSpace(r.FormValue("Bio")),
-		BioSet:           true,
-		TShirt:           validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
-		LightningAddress: strings.TrimSpace(r.FormValue("LightningAddress")),
-		BitcoinAddress:   strings.TrimSpace(r.FormValue("BitcoinAddress")),
-		PayoutFieldsSet:  true,
+		AttendeePreferences: profileAttendeePreferences(r),
+		OrgLogo:             logoPath,
+		AvailToHire:         r.FormValue("AvailToHire") == "on",
+		LookingToHire:       r.FormValue("LookingToHire") == "on",
+		HiringFieldsSet:     r.PostForm.Has("HiringFieldsSet"),
+		Name:                name,
+		Company:             strings.TrimSpace(r.FormValue("Company")),
+		CompanySet:          r.PostForm.Has("Company"),
+		Phone:               strings.TrimSpace(r.FormValue("Phone")),
+		Signal:              strings.TrimSpace(r.FormValue("Signal")),
+		Telegram:            strings.TrimSpace(r.FormValue("Telegram")),
+		Twitter:             strings.TrimSpace(r.FormValue("Twitter")),
+		Nostr:               strings.TrimSpace(r.FormValue("Nostr")),
+		Github:              strings.TrimSpace(r.FormValue("Github")),
+		Instagram:           strings.TrimSpace(r.FormValue("Instagram")),
+		LinkedIn:            strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:            strings.TrimSpace(r.FormValue("LeetCode")),
+		Website:             strings.TrimSpace(r.FormValue("Website")),
+		Bio:                 strings.TrimSpace(r.FormValue("Bio")),
+		BioSet:              true,
+		TShirt:              validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+		LightningAddress:    strings.TrimSpace(r.FormValue("LightningAddress")),
+		BitcoinAddress:      strings.TrimSpace(r.FormValue("BitcoinAddress")),
+		PayoutFieldsSet:     true,
 	}
 	if hasNewPic {
 		up.Photo = imgproc.ShortID(picRaw) + picExt
@@ -1084,24 +1093,25 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		logoPath = imgproc.ShortID(logoRaw) + logoExt
 	}
 	in := getters.SpeakerInput{
-		OrgLogo:       logoPath,
-		AvailToHire:   r.FormValue("AvailToHire") == "on",
-		LookingToHire: r.FormValue("LookingToHire") == "on",
-		Company:       strings.TrimSpace(r.FormValue("Company")),
-		Name:          name,
-		Email:         email,
-		Phone:         strings.TrimSpace(r.FormValue("Phone")),
-		Signal:        strings.TrimSpace(r.FormValue("Signal")),
-		Telegram:      strings.TrimSpace(r.FormValue("Telegram")),
-		Twitter:       strings.TrimSpace(r.FormValue("Twitter")),
-		Nostr:         strings.TrimSpace(r.FormValue("Nostr")),
-		Github:        strings.TrimSpace(r.FormValue("Github")),
-		Instagram:     strings.TrimSpace(r.FormValue("Instagram")),
-		LinkedIn:      strings.TrimSpace(r.FormValue("LinkedIn")),
-		LeetCode:      strings.TrimSpace(r.FormValue("LeetCode")),
-		Website:       strings.TrimSpace(r.FormValue("Website")),
-		Bio:           strings.TrimSpace(r.FormValue("Bio")),
-		TShirt:        validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+		AttendeePreferences: profileAttendeePreferences(r),
+		OrgLogo:             logoPath,
+		AvailToHire:         r.FormValue("AvailToHire") == "on",
+		LookingToHire:       r.FormValue("LookingToHire") == "on",
+		Company:             strings.TrimSpace(r.FormValue("Company")),
+		Name:                name,
+		Email:               email,
+		Phone:               strings.TrimSpace(r.FormValue("Phone")),
+		Signal:              strings.TrimSpace(r.FormValue("Signal")),
+		Telegram:            strings.TrimSpace(r.FormValue("Telegram")),
+		Twitter:             strings.TrimSpace(r.FormValue("Twitter")),
+		Nostr:               strings.TrimSpace(r.FormValue("Nostr")),
+		Github:              strings.TrimSpace(r.FormValue("Github")),
+		Instagram:           strings.TrimSpace(r.FormValue("Instagram")),
+		LinkedIn:            strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:            strings.TrimSpace(r.FormValue("LeetCode")),
+		Website:             strings.TrimSpace(r.FormValue("Website")),
+		Bio:                 strings.TrimSpace(r.FormValue("Bio")),
+		TShirt:              validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if !strings.HasPrefix(nextURL, "/sponsor-invites/") && !isOAuthProfileSetup(nextURL) {
 		if missing := firstMissingProfileField(in.Signal, hasNewPic); missing != "" {
@@ -1143,6 +1153,16 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}
 	http.Redirect(w, r, dashboardProfileSuccessRedirect(encHMAC, encEmail, nextURL, flash), http.StatusSeeOther)
+}
+
+func profileAttendeePreferences(r *http.Request) *types.AttendeePreferences {
+	if !r.PostForm.Has("AttendeePreferencesSet") {
+		return nil
+	}
+	return &types.AttendeePreferences{
+		TShirt: r.PostForm.Get("TShirt"), Diet: r.PostForm.Get("DietaryPreference"),
+		DietOther: r.PostForm.Get("DietaryOther"), Allergies: r.PostForm.Get("FoodAllergies"),
+	}
 }
 
 // firstMissingProfileField returns the user-facing label of the first

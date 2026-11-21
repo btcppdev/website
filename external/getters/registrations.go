@@ -3,6 +3,7 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -123,10 +124,18 @@ func CheckIn(ctx *config.AppContext, ticket string) (string, bool, error) {
 	if checkedInAt.Valid {
 		return "", true, fmt.Errorf("Already checked in")
 	}
+	eligibility, err := CheckInEligibility(ctx, ticket)
+	if err != nil {
+		return "", false, err
+	}
+	if eligibility.NeedsProof() {
+		return ticketType, true, nil
+	}
 	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE registrations
 		SET checked_in_at = now()
 		WHERE ref_id = $1 AND checked_in_at IS NULL AND revoked = false
+		 AND (jsonb_array_length(checkin_requirements)=0 OR proof_checked_at IS NOT NULL OR full_ticket_upgraded_at IS NOT NULL)
 	`, ticket)
 	if err != nil {
 		return "", false, fmt.Errorf("check in registration: %w", err)
@@ -150,18 +159,12 @@ func GetRegistrationCheckIn(ctx *config.AppContext, ticket string) (*types.Regis
 	var shirtPickedUpAt pgtype.Timestamptz
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT r.ref_id, r.type, r.email::text,
-			coalesce(nullif(profile.name, ''), ''),
-			coalesce(
-				CASE WHEN upper(btrim(profile.tshirt)) IN (
-					'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
-				) THEN upper(btrim(profile.tshirt)) END,
-				''
-			),
+			attendee.attendee_name, attendee.tshirt,
 			r.conference_id::text, conferences.tag, r.revoked, r.checked_in_at,
 			r.conference_shirt_picked_up_at
 		FROM registrations r
 		JOIN conferences ON conferences.id = r.conference_id
-		LEFT JOIN people profile ON profile.id = r.person_id
+		JOIN registration_attendee_fulfillment attendee ON attendee.ref_id = r.ref_id
 		WHERE r.ref_id = $1
 	`, ticket).Scan(
 		&out.TicketRef, &out.TicketType, &out.Email,
@@ -191,18 +194,12 @@ func ListDevRegistrationCheckInPreviews(ctx *config.AppContext) ([]*types.Regist
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT r.ref_id, r.type, r.email::text,
-			coalesce(nullif(profile.name, ''), ''),
-			coalesce(
-				CASE WHEN upper(btrim(profile.tshirt)) IN (
-					'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
-				) THEN upper(btrim(profile.tshirt)) END,
-				''
-			),
+			attendee.attendee_name, attendee.tshirt,
 			r.conference_id::text, conferences.tag, r.revoked, r.checked_in_at,
 			r.conference_shirt_picked_up_at
 		FROM registrations r
 		JOIN conferences ON conferences.id = r.conference_id
-		LEFT JOIN people profile ON profile.id = r.person_id
+		JOIN registration_attendee_fulfillment attendee ON attendee.ref_id = r.ref_id
 		WHERE r.platform = 'dev-checkin-preview'
 		ORDER BY CASE r.type
 			WHEN 'genpop' THEN 1 WHEN 'local' THEN 2 WHEN 'sponsor' THEN 3
@@ -262,6 +259,7 @@ func BulkCheckInRegistrations(ctx *config.AppContext, confRef string, emails []s
 			AND checked_in_at IS NULL
 			AND revoked = false
 			AND lower(type) <> 'sponsored'
+			AND (jsonb_array_length(checkin_requirements)=0 OR proof_checked_at IS NOT NULL OR full_ticket_upgraded_at IS NOT NULL)
 	`, confRef, clean)
 	if err != nil {
 		return 0, fmt.Errorf("bulk check in registrations: %w", err)
@@ -419,14 +417,40 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 	if entry.ReservationID != "" {
 		var ticketID, providerID, provider, status string
 		var qty int
-		if err = tx.QueryRow(c, `SELECT ticket_id::text,quantity,provider,provider_id,status FROM ticket_reservations WHERE id=$1 AND conference_id=$2 FOR UPDATE`, entry.ReservationID, entry.ConfRef).Scan(&ticketID, &qty, &provider, &providerID, &status); err != nil {
+		var linesJSON []byte
+		var reservedEmail string
+		if err = tx.QueryRow(c, `SELECT ticket_id::text,quantity,provider,provider_id,status,ticket_lines,email FROM ticket_reservations WHERE id=$1 AND conference_id=$2 FOR UPDATE`, entry.ReservationID, entry.ConfRef).Scan(&ticketID, &qty, &provider, &providerID, &status, &linesJSON, &reservedEmail); err != nil {
 			return err
 		}
 		if qty != len(entry.Items) || provider != src || (providerID != "" && providerID != entry.ID) || (entry.TicketID != "" && ticketID != entry.TicketID) {
 			return fmt.Errorf("ticket payment does not match its reservation")
 		}
+		var lines []types.TicketCartLine
+		if err = json.Unmarshal(linesJSON, &lines); err != nil {
+			return err
+		}
+		if len(lines) > 0 {
+			var expected int64
+			var items []types.Item
+			for _, line := range lines {
+				if !strings.EqualFold(entry.Currency, line.Currency) {
+					return fmt.Errorf("ticket currency does not match reservation")
+				}
+				expected += int64(line.UnitCents) * int64(line.Quantity)
+				for n := uint(0); n < line.Quantity; n++ {
+					items = append(items, types.Item{TicketID: line.TicketID, DiscountRef: line.DiscountRef, Total: int64(line.UnitCents), Desc: line.Title, Type: line.Kind, BaseCents: line.BaseCents, OriginalCents: line.OriginalCents})
+				}
+			}
+			if len(items) != qty || expected != entry.Total || !strings.EqualFold(strings.TrimSpace(reservedEmail), email) {
+				return fmt.Errorf("ticket cart payment does not match reservation")
+			}
+			entry.Items = items
+			entry.Cart = true
+			entry.DiscountRef = ""
+		}
 		entry.TicketID = ticketID
 		if status == "fulfilled" {
+			entry.AlreadyFulfilled = true
 			return tx.Commit(c)
 		}
 		if _, err = tx.Exec(c, `UPDATE ticket_reservations SET status='fulfilled',provider_id=$2,updated_at=now() WHERE id=$1`, entry.ReservationID, entry.ID); err != nil {
@@ -440,6 +464,10 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 		}
 	}
 	for i, item := range entry.Items {
+		ticketID, discountRef := entry.TicketID, entry.DiscountRef
+		if entry.Cart {
+			ticketID, discountRef = item.TicketID, item.DiscountRef
+		}
 		refID := types.UniqueID(entry.Email, entry.ID, int32(i))
 		amountPaid := float64(item.Total) / 100
 		_, err := tx.Exec(c, `
@@ -469,8 +497,8 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 				locale = EXCLUDED.locale,
 				revoked = false
 			WHERE registrations.revoked_before_account_deletion IS NULL
-		`, refID, entry.ID, entry.ConfRef, entry.DiscountRef, item.Type, email,
-			item.Desc, amountPaid, entry.Currency, src, entry.Created, types.RegistrationLocale(entry.Locale), entry.TicketID)
+		`, refID, entry.ID, entry.ConfRef, discountRef, item.Type, email,
+			item.Desc, amountPaid, entry.Currency, src, entry.Created, types.RegistrationLocale(entry.Locale), ticketID)
 		if err != nil {
 			return fmt.Errorf("upsert registration %q: %w", refID, err)
 		}

@@ -25,7 +25,7 @@ func resolveTicketDiscount(app *config.AppContext, conf *types.Conf, ticket *typ
 	}
 	if offer != "" {
 		if code != "" {
-			return "", "", fmt.Errorf("choose either an eligibility offer or a discount code")
+			return "", "", fmt.Errorf("choose either a special offer or a discount code")
 		}
 		offers, err := getters.ListCheckoutOffers(app, conf.Ref, true)
 		if err != nil {
@@ -36,7 +36,7 @@ func resolveTicketDiscount(app *config.AppContext, conf *types.Conf, ticket *typ
 				return o.Code, o.Label, nil
 			}
 		}
-		return "", "", fmt.Errorf("this eligibility offer is no longer available")
+		return "", "", fmt.Errorf("this special offer is no longer available")
 	}
 	return effectiveDiscountCode(code, affiliate), code, nil
 }

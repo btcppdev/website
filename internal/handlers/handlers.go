@@ -591,9 +591,11 @@ func loadTemplates(ctx *config.AppContext) error {
 			}
 			return helpers.InviteLink(ctx, p.ID, p.InviteToken)
 		},
-		"formatTime":    formatRunOfShowTime,
-		"signedMinutes": formatSignedMinutes,
-		"shirtSizes":    types.ShirtSizeOptions,
+		"formatTime":     formatRunOfShowTime,
+		"signedMinutes":  formatSignedMinutes,
+		"shirtSizes":     types.ShirtSizeOptions,
+		"shirtSizeCode":  types.ShirtSizeChoiceCode,
+		"shirtSizeLabel": types.ShirtSizeLabel,
 		"inDev": func() bool {
 			return !ctx.Env.Prod
 		},
@@ -1147,6 +1149,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/tix/{tix}/checkout", func(w http.ResponseWriter, r *http.Request) {
 		HandleCheckout(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/{conf}/checkout", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceCheckout(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/tix/{tix}/apply-discount", func(w http.ResponseWriter, r *http.Request) {
 		HandleDiscount(w, r, app)
 	}).Methods("POST")
@@ -1156,6 +1161,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/conf-reload", func(w http.ResponseWriter, r *http.Request) {
 		ReloadConf(w, r, app)
 	}).Methods("GET")
+	registerCheckInUpgradeRoutes(r, app)
 	r.HandleFunc("/check-in/{ticket}", func(w http.ResponseWriter, r *http.Request) {
 		CheckIn(w, r, app)
 	}).Methods("GET", "POST")
@@ -1200,6 +1206,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/ticket/{ticket}/pdf", func(w http.ResponseWriter, r *http.Request) {
 		TicketPDF(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/ticket/{ticket}/details", func(w http.ResponseWriter, r *http.Request) {
+		TicketAttendeeDetails(w, r, app)
+	}).Methods("GET", "POST")
 
 	/* Register routes for newsletters */
 	missives.RegisterNewsletterHandlers(r, app)
@@ -2683,7 +2692,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/success", func(w http.ResponseWriter, r *http.Request) {
 		RenderConfSuccess(w, r, app)
-	}).Methods("GET")
+	}).Methods("GET", "POST")
 
 	// Create a file server to serve static files from the "static" directory.
 	// Wrap with a Cache-Control: max-age=3600 header so browsers
@@ -2796,6 +2805,10 @@ func discountSessionKey(confTag string) string {
 // gets credit.
 func affiliateSessionKey(confTag string) string {
 	return "aff:" + confTag
+}
+
+func checkoutAddOnsSessionKey(confTag string) string {
+	return "checkout-addons:" + confTag
 }
 
 func checkoutEmailSessionKey(confTag string) string {
@@ -4005,9 +4018,36 @@ func RenderTalks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 }
 
 func RenderConfSuccess(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	conf, err := helpers.FindConf(r, ctx)
 	if err != nil {
 		handle404(w, r, ctx)
+		return
+	}
+	attendee := completedTicketDetails(ctx, r, conf)
+	if r.URL.Query().Get("check_details") == "1" {
+		detailsURL := ""
+		if attendee != nil {
+			destination := *r.URL
+			query := destination.Query()
+			query.Del("check_details")
+			destination.RawQuery = query.Encode()
+			detailsURL = destination.RequestURI()
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"details_url": detailsURL})
+		return
+	}
+	if attendee != nil {
+		ctx.Session.Remove(r.Context(), discountSessionKey(conf.Tag))
+		ctx.Session.Remove(r.Context(), affiliateSessionKey(conf.Tag))
+		w.Header().Set("Cache-Control", "private, no-store")
+		renderTicketAttendeeDetails(w, r, ctx, attendee)
+		return
+	}
+	if r.Method == http.MethodPost {
+		http.Error(w, "Checkout session expired. Open ticket details from your dashboard or ticket email.", http.StatusForbidden)
 		return
 	}
 
@@ -4070,10 +4110,12 @@ func RenderConfSuccess(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 
 	err = renderCheckout(w, r, ctx, "success.tmpl", &SuccessPage{
-		Conf:      conf,
-		Ticket:    ticket,
-		Sponsored: sponsored,
-		Year:      helpers.CurrentYear(),
+		AttendeeDetailsPending: getters.TicketReservationAwaitingConfirmation(ctx, ctx.Session.GetString(r.Context(), ticketDetailsReservationKey(conf.Tag)), conf.Ref),
+		HasAddOns:              ctx.Session.GetBool(r.Context(), checkoutAddOnsSessionKey(conf.Tag)),
+		Conf:                   conf,
+		Ticket:                 ticket,
+		Sponsored:              sponsored,
+		Year:                   helpers.CurrentYear(),
 	}, conf)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -5996,6 +6038,7 @@ func CheckIn(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 }
 
 func CheckInGet(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	/* Check for logged in */
 	pin := ctx.Session.GetString(r.Context(), "pin")
 
@@ -6073,6 +6116,12 @@ func CheckInGet(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		page.ConferenceImage = conferenceArtwork(conferenceForArtwork(ctx, checkInDetails.ConferenceTag), "leading")
 		page.CheckInComplete = checkInDetails.CheckedInAt != nil && !checkInDetails.Revoked
 		page.ShirtPickedUp = checkInDetails.ShirtPickedUpAt != nil
+	}
+	if checkInDetails != nil {
+		if err := populateCheckInEligibility(r, ctx, page); err != nil {
+			http.Error(w, "Unable to load ticket requirements", 500)
+			return
+		}
 	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, "checkin.tmpl", page)
 
@@ -6239,6 +6288,10 @@ func DevCheckInPreview(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		IsPreview:       true,
 		Year:            helpers.CurrentYear(),
 	}
+	if err := populateCheckInEligibility(r, ctx, page); err != nil {
+		http.Error(w, "Unable to load ticket requirements", 500)
+		return
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "checkin.tmpl", page); err != nil {
 		http.Error(w, "Unable to load check-in preview", http.StatusInternalServerError)
 		ctx.Err.Printf("/dev/check-in/%s template: %s", ticket, err)
@@ -6393,6 +6446,9 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		tixType = types.TicketTypeLocal
 	}
 	entry.Items, entry.Total, err = openNodeTicketItems(charge, tixType)
+	if err == nil && charge.Metadata.ReservationID != "" && entry.Total+charge.Metadata.AddOnCents != int64(fiatValueCents(charge.FiatVal)) {
+		err = fmt.Errorf("ticket payment subtotal does not match the charge")
+	}
 	if err != nil {
 		ctx.Err.Printf("Invalid OpenNode ticket charge %s: %s", charge.ID, err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -6467,6 +6523,8 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 			return
 		}
 	}
+
+	recordTicketCartDiscountUsage(ctx, conf, &entry)
 
 	// Increment discount usage counter
 	if entry.DiscountRef != "" {
@@ -6589,6 +6647,15 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+	if r.Form.Get("TicketCart") == "1" {
+		conf, tix, _, _, err := determineTixPrice(ctx, tixSlug)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		handleTicketCartDiscount(w, r, ctx, conf, tix, tixSlug)
+		return
+	}
 	discountCode := r.Form.Get("Discount")
 	affiliateCode := r.Form.Get("AffiliateCode")
 	count, err := getPrice(r.Form.Get("Count"))
@@ -6697,7 +6764,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.Error(w, "Ticket availability is temporarily unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	if inventory.Remaining(tix, conf.Tickets, time.Now()) == 0 {
+	if r.Method == http.MethodGet && inventory.Remaining(tix, conf.Tickets, time.Now()) == 0 {
 		http.Error(w, "This ticket option is no longer available. Please return to the event to choose another ticket.", http.StatusConflict)
 		return
 	}
@@ -6706,9 +6773,19 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.Error(w, "Unable to load ticket offers", http.StatusServiceUnavailable)
 		return
 	}
-	if !tix.DiscountsAllowed() {
-		offers = nil
+	// Checkout contains account contact details and must never be shared-cached.
+	w.Header().Set("Cache-Control", "private, no-store")
+	identity, authErr := auth.Resolve(r, ctx)
+	if authErr != nil {
+		ctx.Err.Printf("/tix/%s/checkout resolve account: %s", tixSlug, authErr)
+		http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusServiceUnavailable)
+		return
 	}
+	accountEmail := ""
+	if identity != nil {
+		accountEmail = strings.TrimSpace(firstNonEmpty(identity.PrimaryEmail, identity.LoginEmail))
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 
@@ -6768,6 +6845,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			}
 		}
 		page := &TixFormPage{
+			AccountEmail:    accountEmail,
 			Conf:            conf,
 			Offers:          offers,
 			Tix:             tix,
@@ -6787,9 +6865,14 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			Year:            helpers.CurrentYear(),
 			PaymentMethod:   checkoutDefaultPaymentMethod(r),
 		}
+		if err = populateTicketCart(ctx, page, inventory, nil); err != nil {
+			http.Error(w, "Unable to load ticket options", http.StatusServiceUnavailable)
+			return
+		}
 		if quoteErr := populateTicketCheckoutAddOns(r.Context(), ctx, page); quoteErr != nil {
 			ctx.Err.Printf("/tix/%s/checkout add-on FX quote unavailable: %s", tixSlug, quoteErr)
 		}
+		ctx.Session.Put(r.Context(), checkoutAddOnsSessionKey(conf.Tag), len(page.AddOnProducts) > 0)
 		err = renderCheckout(w, r, ctx, "collect-email.tmpl", page, conf)
 		if err != nil {
 			http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusInternalServerError)
@@ -6812,72 +6895,94 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			return
 		}
 
-		if form.Email == "" || form.Count < 1 || form.Count > 8 {
+		// A signed-in buyer's displayed delivery address is authoritative;
+		// do not let a hidden form field redirect their tickets elsewhere.
+		if accountEmail != "" {
+			form.Email = accountEmail
+		}
+
+		if form.Email == "" || (r.PostForm.Get("TicketCart") != "1" && (form.Count < 1 || form.Count > 8)) {
 			http.Redirect(w, r, i18n.CheckoutURL(checkoutLocale(r, conf), fmt.Sprintf("/tix/%s/checkout", tixSlug)), http.StatusSeeOther)
 			return
 		}
 
-		// Resolve the effective discount code: the typed one wins
-		// over the silent affiliate carry-through. Anyone typing a
-		// different code at checkout drops the prior affiliate's
-		// credit because the discount-ref written to Stripe
-		// metadata follows whichever code is actually applied.
-		effectiveCode, discountLabel, selectionErr := resolveTicketDiscount(ctx, conf, tix, form.Discount, form.AffiliateCode, form.OfferCode)
-		if selectionErr != nil {
-			http.Error(w, selectionErr.Error(), http.StatusUnprocessableEntity)
-			return
-		}
-
-		/*  Validate HMAC over the effective code (matches the
-		 *  HMAC computed on render, which signed over the same
-		 *  effective code — typed vs. silent — that resolves on
-		 *  this submit). */
-		expectedHMAC := calcTixHMAC(ctx, conf, tixPrice, form.DiscountPrice, effectiveCode)
-		if !hmac.Equal([]byte(expectedHMAC), []byte(form.HMAC)) {
-			ctx.Err.Printf("/tix/%s/checkout hmac mismatch. %s != %s", tixSlug, expectedHMAC, form.HMAC)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		discountRef, currentDiscountPrice, err := validateCheckoutDiscountPrice(ctx, conf, tixPrice, effectiveCode, form.DiscountPrice)
-		if err != nil {
-			ctx.Err.Printf("/tix/%s/checkout discount revalidation failed: %s", tixSlug, err)
-			page := &TixFormPage{
-				Conf:            conf,
-				Offers:          offers,
-				OfferCode:       form.OfferCode,
-				DiscountLabel:   discountLabel,
-				Tix:             tix,
-				TixSlug:         tixSlug,
-				TixPrice:        tixPrice,
-				Discount:        form.Discount,
-				AffiliateCode:   form.AffiliateCode,
-				DiscountPrice:   currentDiscountPrice,
-				CardPrice:       cardSurchargePrice(currentDiscountPrice, tix.CardSurchargeBPS),
-				CardSurcharge:   cardSurchargePrice(currentDiscountPrice, tix.CardSurchargeBPS) - currentDiscountPrice,
-				DiscountRef:     "",
-				TicketKind:      ticketKind,
-				SponsorCheckout: ticketKind == types.TicketTypeSponsored,
-				Err:             checkoutMessage(r, conf, "checkout.price_changed"),
-				HMAC:            calcTixHMAC(ctx, conf, tixPrice, currentDiscountPrice, effectiveCode),
-				Count:           form.Count,
-				Year:            helpers.CurrentYear(),
-				PaymentMethod:   form.PaymentMethod,
+		if r.PostForm.Get("TicketCart") == "1" {
+			if form.PaymentMethod != "btc" && form.PaymentMethod != "card" {
+				http.Error(w, "Choose a payment method", http.StatusUnprocessableEntity)
+				return
 			}
-			if quoteErr := populateTicketCheckoutAddOns(r.Context(), ctx, page); quoteErr != nil {
-				ctx.Err.Printf("/tix/%s/checkout refreshed add-on FX quote unavailable: %s", tixSlug, quoteErr)
-			}
-			err = renderCheckout(w, r, ctx, "collect-email.tmpl", page, conf)
+			form.CartLines, err = validateTicketCart(ctx, conf, tix, tixSlug, r.PostForm, &form)
 			if err != nil {
-				http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusInternalServerError)
-				ctx.Err.Printf("/tix/%s/checkout stale discount templ exec failed %s", tixSlug, err.Error())
+				http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+				return
 			}
-			return
+			form.DiscountRef = ""
+		} else {
+			// Resolve the effective discount code: the typed one wins
+			// over the silent affiliate carry-through. Anyone typing a
+			// different code at checkout drops the prior affiliate's
+			// credit because the discount-ref written to Stripe
+			// metadata follows whichever code is actually applied.
+			effectiveCode, discountLabel, selectionErr := resolveTicketDiscount(ctx, conf, tix, form.Discount, form.AffiliateCode, form.OfferCode)
+			if selectionErr != nil {
+				http.Error(w, selectionErr.Error(), http.StatusUnprocessableEntity)
+				return
+			}
+
+			/*  Validate HMAC over the effective code (matches the
+			 *  HMAC computed on render, which signed over the same
+			 *  effective code — typed vs. silent — that resolves on
+			 *  this submit). */
+			expectedHMAC := calcTixHMAC(ctx, conf, tixPrice, form.DiscountPrice, effectiveCode)
+			if !hmac.Equal([]byte(expectedHMAC), []byte(form.HMAC)) {
+				ctx.Err.Printf("/tix/%s/checkout hmac mismatch. %s != %s", tixSlug, expectedHMAC, form.HMAC)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			discountRef, currentDiscountPrice, err := validateCheckoutDiscountPrice(ctx, conf, tixPrice, effectiveCode, form.DiscountPrice)
+			if err != nil {
+				ctx.Err.Printf("/tix/%s/checkout discount revalidation failed: %s", tixSlug, err)
+				page := &TixFormPage{
+					AccountEmail:    accountEmail,
+					Conf:            conf,
+					Offers:          offers,
+					OfferCode:       form.OfferCode,
+					DiscountLabel:   discountLabel,
+					Tix:             tix,
+					TixSlug:         tixSlug,
+					TixPrice:        tixPrice,
+					Discount:        form.Discount,
+					AffiliateCode:   form.AffiliateCode,
+					DiscountPrice:   currentDiscountPrice,
+					CardPrice:       cardSurchargePrice(currentDiscountPrice, tix.CardSurchargeBPS),
+					CardSurcharge:   cardSurchargePrice(currentDiscountPrice, tix.CardSurchargeBPS) - currentDiscountPrice,
+					DiscountRef:     "",
+					TicketKind:      ticketKind,
+					SponsorCheckout: ticketKind == types.TicketTypeSponsored,
+					Err:             checkoutMessage(r, conf, "checkout.price_changed"),
+					HMAC:            calcTixHMAC(ctx, conf, tixPrice, currentDiscountPrice, effectiveCode),
+					Count:           form.Count,
+					Year:            helpers.CurrentYear(),
+					PaymentMethod:   form.PaymentMethod,
+				}
+				if quoteErr := populateTicketCheckoutAddOns(r.Context(), ctx, page); quoteErr != nil {
+					ctx.Err.Printf("/tix/%s/checkout refreshed add-on FX quote unavailable: %s", tixSlug, quoteErr)
+				}
+				ctx.Session.Put(r.Context(), checkoutAddOnsSessionKey(conf.Tag), len(page.AddOnProducts) > 0)
+				err = renderCheckout(w, r, ctx, "collect-email.tmpl", page, conf)
+				if err != nil {
+					http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusInternalServerError)
+					ctx.Err.Printf("/tix/%s/checkout stale discount templ exec failed %s", tixSlug, err.Error())
+				}
+				return
+			}
+			form.DiscountRef = discountRef
+			// Keep form.Discount in sync with the effective code so
+			// downstream Stripe metadata + entry.DiscountRef agree.
+			form.Discount = effectiveCode
+
 		}
-		form.DiscountRef = discountRef
-		// Keep form.Discount in sync with the effective code so
-		// downstream Stripe metadata + entry.DiscountRef agree.
-		form.Discount = effectiveCode
 
 		ctx.Session.Put(r.Context(), checkoutEmailSessionKey(conf.Tag), strings.ToLower(strings.TrimSpace(form.Email)))
 
@@ -6919,7 +7024,11 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		if form.PaymentMethod == "card" {
 			provider = "stripe"
 		}
-		form.ReservationID, err = getters.ReserveTickets(ctx, conf, tix, form.Count, form.Email, provider)
+		if len(form.CartLines) > 0 {
+			form.ReservationID, err = getters.ReserveTicketCart(ctx, conf, form.CartLines, form.Email, provider)
+		} else {
+			form.ReservationID, err = getters.ReserveTickets(ctx, conf, tix, form.Count, form.Email, provider)
+		}
 		if err != nil {
 			if shopOrderID != "" {
 				_ = getters.CancelShopOrder(ctx, shopOrderID, "", "ticket option unavailable")
@@ -6927,6 +7036,11 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
 		}
+		if len(form.CartLines) > 0 {
+			tix = form.CartLines[0].Ticket
+			ticketKind = form.CartLines[0].Kind
+		}
+		ctx.Session.Put(r.Context(), ticketDetailsReservationKey(conf.Tag), form.ReservationID)
 		if form.PaymentMethod == "card" {
 			cardPrice := cardSurchargePrice(form.DiscountPrice, tix.CardSurchargeBPS)
 			StripeInitWithDiscount(w, r, ctx, conf, tix, cardPrice, tixPrice, form.DiscountPrice, &form, ticketKind, addOns, addOnQuote, addOnTaxCents, shopOrderID)
@@ -7068,6 +7182,22 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 			},
 			Quantity: stripe.Int64(int64(form.Count)),
 		},
+	}
+	if len(form.CartLines) > 0 {
+		lineItems = nil
+		metadata["discount-ref"] = ""
+		metadata["pre-discount-cents"] = "0"
+		metadata["discounted-base-cents"] = "0"
+		metadata["card-surcharge-cents"] = "0"
+		metadata["ticket-kind"] = types.TicketTypeGeneral
+		for _, line := range form.CartLines {
+			lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
+				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{Name: stripe.String(eventName + " — " + line.Title), TaxCode: stripe.String(ticketStripeTaxCode(line.Ticket)), Metadata: map[string]string{"line-kind": "ticket", "tix-id": line.TicketID, "ticket-kind": line.Kind}},
+					TaxBehavior: stripe.String("exclusive"), UnitAmount: stripe.Int64(int64(line.UnitCents)), Currency: stripe.String(strings.ToLower(line.Currency)),
+				}, Quantity: stripe.Int64(int64(line.Quantity)),
+			})
+		}
 	}
 	for _, item := range addOns {
 		if item == nil || item.Product == nil || item.Variant == nil {
@@ -7529,6 +7659,8 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				}
 			}
 		}
+
+		recordTicketCartDiscountUsage(ctx, conf, &entry)
 
 		// Increment discount usage counter
 		if entry.DiscountRef != "" {
@@ -10768,6 +10900,7 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 
 	rows := registrationAdminRows(regs, conf.Loc())
+	attendeeTotals := attachAdminAttendeeDetails(ctx, conf.Ref, rows)
 
 	merchPickups, err := getters.ListShopPickupsForConference(ctx, conf.Ref)
 	if err != nil {
@@ -10779,12 +10912,13 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		onSubExpiry = conf.EndDate.In(conf.Loc()).Format("2006-01-02")
 	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, "admin/registrations.tmpl", &RegistrationsAdminPage{
-		Conf:          conf,
-		Registrations: rows,
-		MerchPickups:  merchPickups,
-		FlashMessage:  r.URL.Query().Get("flash"),
-		IsConfAdmin:   id.HasRoleForConf(conf.Tag, auth.RoleAdmin),
-		Year:          helpers.CurrentYear(),
+		Conf:           conf,
+		Registrations:  rows,
+		AttendeeTotals: attendeeTotals,
+		MerchPickups:   merchPickups,
+		FlashMessage:   r.URL.Query().Get("flash"),
+		IsConfAdmin:    id.HasRoleForConf(conf.Tag, auth.RoleAdmin),
+		Year:           helpers.CurrentYear(),
 		EmailCompose: &EmailComposeData{
 			Title:            "Email Attendees",
 			Description:      "Write a one-off email to registered attendees. Uses Go template syntax.",

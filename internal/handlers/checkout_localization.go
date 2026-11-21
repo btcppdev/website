@@ -45,7 +45,7 @@ func renderCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 func checkoutClientMessages(language string) (map[string]string, error) {
 	out := map[string]string{}
 	values := map[string]any{"Count": "{Count}", "Tickets": "{Tickets}", "Total": "{Total}"}
-	for _, key := range []string{"register", "addons", "bitcoin_price", "card_price", "ticket_one", "ticket_many", "pass_one", "pass_many", "continue", "no_addons", "tax_none", "tax_loading", "tax_done", "tax_error"} {
+	for _, key := range []string{"register", "addons", "bitcoin_price", "card_price", "ticket_one", "ticket_many", "pass_one", "pass_many", "continue", "no_addons", "tax_none", "tax_loading", "tax_done", "tax_error", "max_tickets", "quote_error"} {
 		value, err := conferenceCatalog.Message(language, "checkout."+key, values)
 		if err != nil {
 			return nil, err

@@ -200,7 +200,7 @@
   "checkout.tax_note": "행사장 수령 위치를 기준으로 세금이 계산됩니다.",
   "checkout.skip": "티켓만 구매하기 →",
   "checkout.secure": "안전한 결제 · 이메일로 티켓 발송",
-  "checkout.contact": "문의: hello@btcpp.dev",
+  "checkout.contact": "문의: inbox@btcpp.dev",
   "checkout.each": "/장",
   "checkout.bitcoin_price": "비트코인 결제 가격",
   "checkout.card_price": "카드 결제 가격",
@@ -247,5 +247,18 @@
   "email.ticket.intro": "## 한국어 · 티켓 안내\n\n{{.Event}}에 등록해 주셔서 감사합니다.\n\n- 일정: {{.Date}}\n- 장소: {{.Venue}} · {{.Location}}\n\n이메일에 첨부된 PDF가 티켓입니다. 행사장 등록 데스크에서 PDF의 QR 코드를 보여 주시면 명찰을 받으실 수 있습니다.\n\n[대시보드에서 티켓 확인 (영어)]({{.Dashboard}})\n\n[한국어 행사 안내]({{.EventURL}})",
   "email.reminder.intro": "## 한국어 · 행사 안내\n\n{{.Event}}에서 만나 뵙기를 기대합니다.\n\n- 일정: {{.Date}}\n- 장소: {{.Venue}} · {{.Location}}\n\n행사장 체크인을 위해 티켓의 QR 코드를 준비해 주세요. 티켓과 등록 정보는 대시보드에서 확인하실 수 있습니다.\n\n[대시보드 열기 (영어)]({{.Dashboard}})\n\n[한국어 행사 안내]({{.EventURL}})",
   "email.doors": "입장 시작 (행사장 현지 시간): {{.Time}}",
-  "email.english_follows": "주최 측의 최신 소식과 추가 안내는 아래 영어 원문을 확인해 주세요."
+  "email.english_follows": "주최 측의 최신 소식과 추가 안내는 아래 영어 원문을 확인해 주세요.",
+  "checkout.next_pay": "결제하기 →",
+  "checkout.special_offers": "특별 혜택",
+  "checkout.ticket_options": "티켓 선택",
+  "checkout.quantity": "수량",
+  "checkout.remaining": "{{.Count}}장 남음",
+  "checkout.max_tickets": "총 1~8장의 티켓을 선택하세요.",
+  "checkout.discounts_excluded": "할인이 적용되지 않습니다.",
+  "checkout.ticket_total": "티켓 소계",
+  "checkout.discount_scope": "혜택은 할인 가능한 티켓에만 적용됩니다.",
+  "checkout.free": "$0",
+  "checkout.quote_error": "티켓 가격을 업데이트하지 못했습니다. 혜택이나 할인 코드를 다시 선택해 주세요.",
+  "checkout.tickets_to": "티켓 수신 이메일",
+  "checkout.receipt_to": "영수증 수신 이메일"
 }

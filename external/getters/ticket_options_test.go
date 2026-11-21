@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -163,6 +164,46 @@ func TestEvergreenOffersAndSetupEdits(t *testing.T) {
 	}
 	if _, err = ReserveTickets(app, conf, ticketNamed(t, conf, "Student"), 1, "buyer@example.test", "stripe"); err == nil {
 		t.Fatal("paused ticket reserved")
+	}
+}
+
+func TestEvergreenOfferRestrictions(t *testing.T) {
+	app, conf, tickets := evergreenFixture(t)
+	offers, err := ListCheckoutOffers(app, conf.Ref, false)
+	if err != nil || len(offers) != 1 {
+		t.Fatalf("offers: %v %v", offers, err)
+	}
+	const note = "Proof of Eurocrypt ticket will be requested at the door."
+	offers[0].Restrictions = "  " + note + "  "
+	save := func(revision int64) error {
+		raw, _ := json.Marshal(eventplan.TicketSettings{Tickets: tickets, Offers: offers})
+		_, err := SaveEventPlanning(app, conf, revision, "", "tickets", raw)
+		return err
+	}
+	if err = save(1); err != nil {
+		t.Fatal(err)
+	}
+	for _, public := range []bool{false, true} {
+		loaded, err := ListCheckoutOffers(app, conf.Ref, public)
+		if err != nil || len(loaded) != 1 || loaded[0].Restrictions != note {
+			t.Fatalf("restrictions round trip: %v %v", loaded, err)
+		}
+	}
+	offers[0].Restrictions = strings.Repeat("x", 501)
+	if err = save(2); err == nil {
+		t.Fatal("oversized restriction accepted")
+	}
+	loaded, err := ListCheckoutOffers(app, conf.Ref, true)
+	if err != nil || len(loaded) != 1 || loaded[0].Restrictions != note {
+		t.Fatal("invalid update replaced saved restrictions", loaded, err)
+	}
+	offers[0].Restrictions = ""
+	if err = save(2); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err = ListCheckoutOffers(app, conf.Ref, true)
+	if err != nil || len(loaded) != 1 || loaded[0].Restrictions != "" {
+		t.Fatal("optional restrictions were not cleared", loaded, err)
 	}
 }
 func TestEvergreenAvailabilityAcrossStandardDeadlines(t *testing.T) {

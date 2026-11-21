@@ -39,7 +39,7 @@ func TestManagedSignerVaultChoicesFilterMemberships(t *testing.T) {
 }
 
 func TestManagedSignerVaultPickerTemplate(t *testing.T) {
-	tmpl, err := template.ParseFiles("../../templates/managed_signer_vaults.tmpl")
+	tmpl, err := template.ParseFiles("../../templates/managed_signer_vaults.tmpl", "../../templates/section/account_security.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}

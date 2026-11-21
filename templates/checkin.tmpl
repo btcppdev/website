@@ -3,6 +3,8 @@
 <head>
   <title>bitcoin++ check-in</title>
   {{ block "header" . }} {{ end }}
+  <link rel="stylesheet" href="/static/css/checkin-upgrade.css?v=20261121-bitcoin-orange">
+  <script defer src="/static/js/checkin-upgrade.js?v=20261120"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
 </head>
 <body class="checkin-page checkin-page--{{ .TicketTheme }}">
@@ -22,7 +24,6 @@
   <main class="checkin-shell">
     <section class="checkin-card checkin-card--ticket">
       {{ if .NeedsPin }}
-      <p class="checkin-kicker">§ check-in</p>
       <h1>Enter passcode.</h1>
       <form method="POST" class="checkin-pin-form">
         <input id="pin" type="password" name="pin" placeholder="Passcode" required autofocus>
@@ -30,10 +31,12 @@
       </form>
       {{ else }}
       <div class="checkin-status-row">
-        <p class="checkin-kicker">§ ticket scanned</p>
         {{ if .CheckInComplete }}<span class="checkin-status">✓ checked in</span>{{ else }}<span class="checkin-status is-alert">! needs attention</span>{{ end }}
       </div>
       <h1>{{ .TicketTypeLabel }}</h1>
+      {{ if eq .TicketType "supporter" }}
+      <p class="checkin-supporter-note">🧡 Supporter · helps fund student tickets</p>
+      {{ end }}
       {{ if or .AttendeeName .AttendeeEmail .TShirtSize }}
       <div class="checkin-person">
         {{ if .AttendeeName }}<strong>{{ .AttendeeName }}</strong>{{ end }}
@@ -46,18 +49,36 @@
         </div>
         <div>
           <dt>T-shirt</dt>
-          <dd>{{ if .TShirtSize }}{{ .TShirtSizeLabel }} <small>{{ .TShirtSize }}</small>{{ else }}Not provided{{ end }}</dd>
+          <dd>{{ if .TShirtSize }}{{ .TShirtSizeLabel }}{{ else }}Not provided{{ end }}</dd>
         </div>
       </dl>
       {{ end }}
-      {{ if .TicketRef }}<p class="checkin-ticket-ref">REF · {{ .TicketRef }}</p>{{ end }}
+      {{ if .TicketRef }}<p class="checkin-ticket-ref">Ref · {{ .TicketRef }}</p>{{ end }}
+      {{ if .Eligibility }}
+        {{ if .Eligibility.Upgraded }}<p class="checkin-proof-complete">✓ Upgraded to full ticket</p>
+        {{ else if .Eligibility.Requirements }}
+        <section class="checkin-proof" aria-label="Ticket requirements">
+          <h2>{{ if .Eligibility.Verified }}Proof checked{{ else }}Check proof{{ end }}</h2>
+          {{ range .Eligibility.Requirements }}<p><strong>{{ .Label }}</strong><span>{{ .Detail }}</span></p>{{ end }}
+          {{ if .Eligibility.NeedsProof }}
+          <form action="/check-in/{{ .TicketRef }}/proof" method="POST" class="checkin-proof-actions">
+            <input type="hidden" name="csrf" value="{{ .CSRF }}">
+            <input type="hidden" name="revision" value="{{ .Eligibility.Revision }}">
+            <button type="submit"{{ if .IsPreview }} disabled{{ end }}>Proof checked · check in</button>
+          </form>
+          {{ if .UpgradeError }}<p class="checkin-upgrade-error">{{ .UpgradeError }}</p>{{ else }}
+          <button type="button" class="checkin-upgrade-open" data-upgrade-open{{ if .IsPreview }} disabled{{ end }}>Upgrade to full ticket · {{ .UpgradePrice }}</button>
+          {{ end }}
+          {{ end }}
+        </section>
+        {{ end }}
+      {{ end }}
       {{ end }}
       {{ if .Msg }}<p class="checkin-message">{{ .Msg }}</p>{{ end }}
     </section>
 
     {{ if and .CheckInComplete (or .TShirtSize .MerchPickups) }}
     <section class="checkin-card checkin-card--merch">
-      <p class="checkin-kicker">§ merch pickup</p>
       <h2>Add to bag.</h2>
       <p class="checkin-card-intro">Check each item as it goes into the attendee’s bag, then complete the pickup.</p>
       <form method="POST" action="/check-in/{{ .TicketRef }}/pickups" class="checkin-pickup-form" data-pickup-form>
@@ -71,7 +92,7 @@
           {{ end }}
           <span class="checkin-pickup-copy">
             <strong>Conference T-shirt</strong>
-            <span>{{ .TShirtSizeLabel }} · {{ .TShirtSize }} · Qty 1</span>
+            <span>{{ .TShirtSizeLabel }} · Qty 1</span>
           </span>
           {{ if .ShirtPickedUp }}<span class="checkin-pill is-done">picked up</span>{{ end }}
         </label>
@@ -108,6 +129,21 @@
     </section>
     {{ end }}
   </main>
+  {{ if and .Eligibility .Eligibility.NeedsProof (not .IsPreview) (not .UpgradeError) }}
+  <dialog class="checkin-upgrade-dialog" data-upgrade-dialog data-upgrade-url="/check-in/{{ .TicketRef }}/upgrade" data-csrf="{{ .CSRF }}" data-revision="{{ .Eligibility.Revision }}" aria-labelledby="upgrade-title">
+    <h2 id="upgrade-title">Upgrade to full ticket</h2>
+    <p class="checkin-upgrade-amount" data-upgrade-amount>{{ .UpgradePrice }}</p>
+    <div class="checkin-upgrade-networks" role="group" aria-label="Bitcoin payment method">
+      <button type="button" data-network="lightning" aria-pressed="true">⚡ Lightning</button>
+      <button type="button" data-network="onchain" aria-pressed="false">₿ On-chain</button>
+    </div>
+    <img class="checkin-upgrade-qr" data-upgrade-qr alt="Lightning payment QR code" width="320" height="320" hidden>
+    <p data-upgrade-sats hidden></p>
+    <p role="status" aria-live="polite" data-upgrade-status>Preparing payment…</p>
+    <p class="checkin-upgrade-chain-note" data-upgrade-chain-note hidden>Wait for confirmation before admitting.</p>
+    <button type="button" class="checkin-upgrade-cancel" data-upgrade-cancel>Cancel</button>
+  </dialog>
+  {{ end }}
   <script>
     (function () {
       const form = document.querySelector('[data-pickup-form]');

@@ -15,19 +15,19 @@
         <div class="checkout-hero__content">
           <a href="{{ localeURL (printf "/%s" .Conf.Tag) }}" class="checkout-brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
           <div>
-            <p class="checkout-kicker">{{ eventText .Conf.Tag .Conf.DateDesc }}</p>
             <h1>{{ eventText .Conf.Tag .Conf.Desc }}</h1>
+            <p>{{ eventText .Conf.Tag .Conf.DateDesc }}</p>
             <p>{{ eventText .Conf.Tag .Conf.Location }}{{ if .Conf.Venue }} · {{ eventText .Conf.Tag .Conf.Venue }}{{ end }}</p>
           </div>
         </div>
       </aside>
 
       <section class="checkout-panel">
-        <nav class="checkout-steps" aria-label="{{ msg "checkout.steps" }}" data-step="01/04" data-current="register" data-current-label="{{ msg "checkout.register" }}">
+        <nav class="checkout-steps" aria-label="{{ msg "checkout.steps" }}" data-step="01/0{{ if .AddOnProducts }}4{{ else }}3{{ end }}" data-current="register" data-current-label="{{ msg "checkout.register" }}">
           <span class="is-active" data-checkout-nav="register"><b>01</b> {{ msg "checkout.register" }}</span>
-          <span data-checkout-nav="addons"><b>02</b> {{ msg "checkout.addons" }}</span>
-          <span data-checkout-nav="pay"><b>03</b> {{ msg "checkout.pay" }}</span>
-          <span data-checkout-nav="confirmed"><b>04</b> {{ msg "checkout.confirmed" }}</span>
+          {{ if .AddOnProducts }}<span data-checkout-nav="addons"><b>02</b> {{ msg "checkout.addons" }}</span>{{ end }}
+          <span data-checkout-nav="pay"><b>0{{ if .AddOnProducts }}3{{ else }}2{{ end }}</b> {{ msg "checkout.pay" }}</span>
+          <span data-checkout-nav="confirmed"><b>0{{ if .AddOnProducts }}4{{ else }}3{{ end }}</b> {{ msg "checkout.confirmed" }}</span>
         </nav>
 
         <form method="POST" action="{{ checkoutURL (printf "/tix/%s/checkout" .TixSlug) }}" class="checkout-form checkout-flow" data-checkout-flow data-sponsored="{{ .SponsorCheckout }}" data-tax-url="{{ checkoutURL (printf "/tix/%s/tax-quote" .TixSlug) }}" data-currency="{{ .Tix.Currency }}">
@@ -40,57 +40,100 @@
             <p>{{ msg "checkout.sponsor_intro" }}</p>
             {{ else }}
             <h2>{{ msg "checkout.register_title" }}</h2>
-            <p>{{ msg "checkout.register_intro" }}</p>
             {{ end }}
           </div>
 
+          {{ if .AccountEmail }}
+          <div class="checkout-field checkout-delivery">
+            <span>{{ if .SponsorCheckout }}{{ msg "checkout.receipt_to" }}{{ else }}{{ msg "checkout.tickets_to" }}{{ end }}</span>
+            <strong>{{ .AccountEmail }}</strong>
+            <input type="hidden" name="Email" value="{{ .AccountEmail }}">
+          </div>
+          {{ else }}
           <label class="checkout-field">
             <span>{{ msg "checkout.email" }} <em>{{ msg "checkout.required" }}</em></span>
             <input type="email" id="Email" name="Email" placeholder="hello@example.com" required>
             {{ if .SponsorCheckout }}
             <small>{{ msg "checkout.receipt_note" }}</small>
-            {{ else }}
-            <small>{{ msg "checkout.ticket_note" }}</small>
             {{ end }}
           </label>
+          {{ end }}
 
-          <div class="checkout-grid">
-            <label class="checkout-field">
-              <span>{{ if .SponsorCheckout }}{{ msg "checkout.sponsored_passes" }}{{ else }}{{ msg "checkout.tickets" }}{{ end }}</span>
-              <input type="number" name="Count" value="{{ .Count }}" min="1" max="8" required>
-            </label>
-
-            {{ if .Tix.DiscountsAllowed }}
-            <label class="checkout-field">
-              <span>{{ msg "checkout.discount" }} <em>{{ msg "checkout.optional" }}</em></span>
-              <input name="Discount" id="Discount" type="search"
-                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                hx-post="{{ checkoutURL (printf "/tix/%s/apply-discount" .TixSlug) }}"
-                hx-trigger="input changed delay:500ms, search"
-                hx-target="#discount_result"
-                hx-swap="outerHTML"
-                hx-include="[name='hidden_stuffs'], [name='Count'], [name='OfferCode']"
-                placeholder="{{ msg "checkout.discount_placeholder" }}"
-                {{ if ne .Discount "" }}value="{{ .Discount }}"{{ end }}>
-            </label>
+          {{ if .Cart }}
+          <input type="hidden" name="TicketCart" value="1">
+          <section class="checkout-cart-tabs checkout-cart-tabs--ticket" aria-label="{{ msg "checkout.ticket_options" }}">
+            <div class="checkout-ticket-options__heading"><span>{{ msg "checkout.ticket_options" }}</span><span>{{ msg "checkout.quantity" }}</span></div>
+            {{ range .TicketOptions }}
+            <div class="checkout-ticket-option{{ if .Count }} is-selected{{ end }}" data-ticket-option="{{ .Ticket.ID }}" data-ticket-name="{{ .Ticket.Tier }}">
+              <div>
+                <strong class="checkout-ticket-option__title">{{ .Ticket.Tier }}</strong>
+                {{ if .Ticket.Description }}<p>{{ .Ticket.Description }}</p>{{ end }}
+                <small>{{ msg "checkout.remaining" (dict "Count" .Remaining) }}{{ if not .Ticket.DiscountsAllowed }} · {{ msg "checkout.discounts_excluded" }}{{ end }}</small>
+                <span class="checkout-ticket-option__price" data-ticket-unit-price>{{ if eq $.PaymentMethod "card" }}{{ ticketCheckoutMoney .Card $.Tix }}{{ else }}{{ ticketCheckoutMoney .BTC $.Tix }}{{ end }}</span>
+              </div>
+              <div class="checkout-ticket-quantity">
+                <button type="button" data-ticket-minus aria-label="{{ msg "checkout.remove_product" (dict "Product" .Ticket.Tier) }}">−</button>
+                <input type="number" name="ticket_{{ .Ticket.ID }}" value="{{ .Count }}" min="0" max="{{ .Maximum }}" step="1" required aria-label="{{ .Ticket.Tier }} — {{ msg "checkout.quantity" }}">
+                <button type="button" data-ticket-plus aria-label="{{ msg "checkout.add_one_product" (dict "Product" .Ticket.Tier) }}">+</button>
+              </div>
+            </div>
             {{ end }}
-          </div>
-          {{ if .Tix.Description }}<p>{{ .Tix.Description }}</p>{{ end }}
-          {{ if not .Tix.DiscountsAllowed }}<p class="checkout-summary__note">Discounts do not apply to this ticket type.</p>{{ end }}
-          {{ if .Offers }}
+            <p class="checkout-ticket-options__error" data-ticket-selection-error hidden>{{ msg "checkout.max_tickets" }}</p>
+          </section>
+          {{ else }}
+          <section class="checkout-cart-tabs checkout-cart-tabs--ticket">
+            <div class="checkout-cart-tabs__panel">
+              <div class="checkout-ticket-line">
+                <span>
+                  <strong>{{ if .SponsorCheckout }}{{ msg "checkout.sponsored_pass" }}{{ else }}{{ eventText .Conf.Tag .Tix.Tier }}{{ end }}</strong>
+                  <small>{{ eventText .Conf.Tag .Conf.Desc }}</small>
+                </span>
+                <b>{{ .Tix.Symbol }}{{ .DiscountPrice }}{{ .Tix.PostSymbol }}</b>
+              </div>
+            </div>
+          </section>
+
+          {{ end }}
+
+          {{ if not .Cart }}
+          <label class="checkout-field">
+            <span>{{ if .SponsorCheckout }}{{ msg "checkout.sponsored_passes" }}{{ else }}{{ msg "checkout.tickets" }}{{ end }}</span>
+            <input type="number" name="Count" value="{{ .Count }}" min="1" max="8" required>
+          </label>
+          {{ end }}
+
           <fieldset class="checkout-offers">
-            <legend>Eligibility offers</legend>
-            <p>Check an offer to confirm you qualify. Choose one offer or enter a discount code.</p>
+            <legend>{{ msg "checkout.special_offers" }}</legend>
+            <label>
+              <input id="sub-newsletter" type="checkbox" name="Subscribe" checked>
+              <span><strong>{{ msg "checkout.subscribe" }}</strong> — {{ msg "checkout.free" }}</span>
+            </label>
             {{ range .Offers }}
             <label>
-              <input type="checkbox" name="OfferCode" value="{{ .Code }}" {{ if eq $.OfferCode .Code }}checked{{ end }}
+              <input type="checkbox" name="OfferCode" value="{{ .Code }}" {{ if $.Discount }}disabled{{ else if eq $.OfferCode .Code }}checked{{ end }}
                 hx-post="{{ checkoutURL (printf "/tix/%s/apply-discount" $.TixSlug) }}"
                 hx-trigger="change" hx-target="#discount_result" hx-swap="outerHTML"
-                hx-include="[name='hidden_stuffs'], [name='Count'], [name='Discount'], [name='OfferCode']">
-              <span>I confirm I qualify: <strong>{{ .Label }}</strong> — {{ .Percent }}% off</span>
+                hx-include="closest form" hx-sync="closest form:replace">
+              <span><strong>{{ .Label }}</strong> — {{ .Percent }}% off
+                {{ if .Restrictions }}<small>{{ .Restrictions }}</small>{{ end }}
+              </span>
             </label>
             {{ end }}
           </fieldset>
+
+          {{ if or .CartHasDiscounts .Tix.DiscountsAllowed }}
+          <label class="checkout-field">
+            <span>{{ msg "checkout.discount" }} <em>{{ msg "checkout.optional" }}</em></span>
+            <input name="Discount" id="Discount" type="search"
+              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+              hx-post="{{ checkoutURL (printf "/tix/%s/apply-discount" .TixSlug) }}"
+              hx-trigger="input changed delay:500ms, search"
+              hx-target="#discount_result"
+              hx-swap="outerHTML"
+              hx-include="closest form" hx-sync="closest form:replace"
+              placeholder="{{ msg "checkout.discount_placeholder" }}"
+              {{ if ne .Discount "" }}value="{{ .Discount }}"{{ end }}>
+          </label>
           {{ end }}
 
           <fieldset class="checkout-methods">
@@ -110,41 +153,26 @@
               </span>
             </label>
           </fieldset>
-          <p class="checkout-payment-instructions" data-payment-instructions="btc">{{ msg "checkout.btc_instructions" }}</p>
-          <p class="checkout-payment-instructions" data-payment-instructions="card">{{ msg "checkout.card_instructions" }}</p>
-
-          <label class="checkout-toggle">
-            <input id="sub-newsletter" type="checkbox" name="Subscribe" checked>
-            <span>{{ msg "checkout.subscribe" }}</span>
-          </label>
-
-          <section class="checkout-cart-tabs checkout-cart-tabs--ticket">
-            <div class="checkout-cart-tabs__panel">
-              <div class="checkout-ticket-line">
-                <span>
-                  <strong>{{ if .SponsorCheckout }}{{ msg "checkout.sponsored_pass" }}{{ else }}{{ eventText .Conf.Tag .Tix.Tier }}{{ end }}</strong>
-                  <small>{{ eventText .Conf.Tag .Conf.Desc }}</small>
-                </span>
-                <b>{{ .Tix.Symbol }}{{ .DiscountPrice }}{{ .Tix.PostSymbol }}</b>
-              </div>
-            </div>
-          </section>
 
           {{ template "tix_details.tmpl" . }}
 
           <div class="checkout-actions">
             <a href="{{ localeURL (printf "/%s#tickets" .Conf.Tag) }}">{{ msg "checkout.back" }}</a>
+            {{ if .AddOnProducts }}
             <a href="#checkout-addons" class="checkout-actions__primary" data-checkout-next>{{ msg "checkout.next_addons" }}</a>
+            {{ else }}
+            <button type="submit" data-checkout-submit>{{ msg "checkout.next_pay" }}</button>
+            {{ end }}
           </div>
           </section>
 
+          {{ if .AddOnProducts }}
           <section id="checkout-addons" class="checkout-flow__step checkout-flow__step--addons" data-checkout-step="addons">
             <div class="checkout-copy">
               <h2>{{ msg "checkout.merch_title" }}</h2>
               <p>{{ msg "checkout.merch_intro" }}</p>
             </div>
 
-            {{ if .AddOnProducts }}
             <div class="checkout-addons checkout-addons--step">
               {{ range .AddOnProducts }}
                 {{ $p := .Product }}
@@ -166,17 +194,6 @@
                   </article>
               {{ end }}
             </div>
-            {{ else }}
-            <div class="checkout-addons__empty">
-              {{ if .AddOnUnavailable }}
-              <strong>{{ msg "checkout.addons_unavailable" }}</strong>
-              <span>{{ msg "checkout.ticket_only" }}</span>
-              {{ else }}
-              <strong>{{ msg "checkout.no_products" }}</strong>
-              <span>{{ msg "checkout.ticket_only" }}</span>
-              {{ end }}
-            </div>
-            {{ end }}
 
             <div class="checkout-addon-summary" aria-live="polite">
               <div data-addon-summary-lines>
@@ -192,15 +209,15 @@
               <button type="submit" data-checkout-submit>{{ msg "checkout.skip" }}</button>
             </div>
           </section>
+          {{ end }}
         </form>
 
         <footer class="checkout-footer">
-          <span>{{ msg "checkout.secure" }}</span>
-          <a href="mailto:hello@btcpp.dev">{{ msg "checkout.contact" }}</a>
+          <span>bitcoin++ 🏆🧡🧑‍💻</span>
         </footer>
       </section>
     </main>
     <script type="application/json" id="checkout-messages">{{ checkoutMessages }}</script>
-    <script src="/static/js/ticket-checkout.js?v=20261120-evergreen" defer></script>
+    <script src="/static/js/ticket-checkout.js?v=20261121-sentence-case" defer></script>
   </body>
 </html>

@@ -41,7 +41,7 @@
       "tickets",
       "Tickets",
       "Make room for everyone.",
-      "Set standard tiers, evergreen ticket allocations, and eligibility offers. Prices use whole currency units.",
+      "Set standard tiers, evergreen ticket allocations, and special offers. Prices use whole currency units.",
     ],
     [
       "applications",
@@ -908,10 +908,10 @@
     );
     note(
       main,
-      "Checkable offers are advertised under standard tickets. Buyers confirm eligibility with a checkbox at checkout; no ticket reference is required. One offer or discount code can be used per purchase.",
+      "Special offers are advertised under standard tickets. Buyers select an offer at checkout. Add any proof requirements or other restrictions beneath its label. One offer or discount code can be used per purchase.",
     );
     arrayEditor(
-      "Checkable offer",
+      "Special Offer",
       offers,
       (s, o) => {
         const g = grid(s);
@@ -919,9 +919,9 @@
           g,
           o,
           "label",
-          "Eligibility label",
+          "Offer label",
           "text",
-          "For example: Eurocrypt ticket holders",
+          "For example: Eurocrypt ticket holder",
         );
         field(
           g,
@@ -931,9 +931,18 @@
           "number",
           "1–99; for example, 15 means 15% off.",
         );
+        const restrictions = field(
+          g,
+          o,
+          "restrictions",
+          "Restrictions (optional)",
+          "textarea",
+          "Shown beneath the offer at checkout. For example: Proof of Eurocrypt ticket will be requested at the door.",
+        );
+        restrictions.maxLength = 500;
         check(s, o, "enabled", "Advertise and enable this offer");
       },
-      () => ({ label: "", percent: 15, enabled: true }),
+      () => ({ label: "", restrictions: "", percent: 15, enabled: true }),
     );
     payload = () => ({
       tickets: [...standard, ...evergreen].map((t) => ({
