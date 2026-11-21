@@ -14392,7 +14392,7 @@ border-bottom: 1px solid var(--hack-ink);
 
 /* Unified account sign-in ------------------------------------------------- */
 .btcpp-login-page {
-	--auth-ink: #171713;
+	--auth-ink: #343638;
 	--auth-paper: #f4f0e8;
 	--auth-line: #d2cbc0;
 	--auth-orange: #ff9d00;
@@ -14405,8 +14405,8 @@ border-bottom: 1px solid var(--hack-ink);
 	grid-template-columns: minmax(280px, .8fr) minmax(480px, 1.2fr);
 	width: min(1120px, calc(100% - 40px));
 	margin: 52px auto 80px;
-	border: 1px solid var(--auth-ink);
-	box-shadow: 12px 12px 0 var(--auth-ink);
+	border: 1px solid #d7d4cc;
+	box-shadow: 12px 12px 0 rgba(52, 54, 56, .10);
 }
 
 .auth-poster {
@@ -14417,8 +14417,8 @@ border-bottom: 1px solid var(--hack-ink);
 	justify-content: space-between;
 	overflow: hidden;
 	padding: 38px;
-	background: var(--auth-ink);
-	color: #fff;
+	background: #fffdf8;
+	color: #343638;
 }
 
 .auth-poster::after {
@@ -14477,9 +14477,9 @@ border-bottom: 1px solid var(--hack-ink);
 	max-width: 220px;
 	font-family: "IBM Plex Mono", monospace;
 	font-size: 11px;
-	letter-spacing: .05em;
+	letter-spacing: normal;
 	line-height: 1.6;
-	text-transform: uppercase;
+	text-transform: none;
 }
 
 .auth-card {
@@ -14556,8 +14556,8 @@ border-bottom: 1px solid var(--hack-ink);
 
 .auth-method:hover,
 .auth-method:focus-visible {
-	border-color: var(--auth-ink);
-	box-shadow: 3px 3px 0 var(--auth-ink);
+	border-color: #d7d4cc;
+	box-shadow: 3px 3px 0 rgba(52, 54, 56, .10);
 	color: var(--auth-ink);
 	transform: translate(-2px, -2px);
 }
@@ -14630,8 +14630,8 @@ border-bottom: 1px solid var(--hack-ink);
 	color: #8b8479;
 	font-family: "IBM Plex Mono", monospace;
 	font-size: 10px;
-	letter-spacing: .08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .auth-divider::before,
@@ -14665,7 +14665,7 @@ border-bottom: 1px solid var(--hack-ink);
 }
 
 .auth-form input:focus {
-	border-color: var(--auth-ink);
+	border-color: #8b8880;
 	box-shadow: 0 0 0 2px var(--auth-orange);
 	outline: 0;
 }
@@ -14680,7 +14680,7 @@ border-bottom: 1px solid var(--hack-ink);
 
 .auth-primary,
 .auth-secondary {
-	border: 1px solid var(--auth-ink);
+	border: 1px solid #d7d4cc;
 	padding: 12px 16px;
 	font-weight: 700;
 }
@@ -14689,11 +14689,11 @@ border-bottom: 1px solid var(--hack-ink);
 	display: flex;
 	flex: 1;
 	justify-content: space-between;
-	background: var(--auth-ink);
-	color: #fff;
+	background: #fffdf8;
+	color: #343638;
 }
 
-.auth-primary:hover { background: #32322d; }
+.auth-primary:hover { background: #fffdf8; }
 .auth-form__actions a { color: #5f5a52; font-size: 12px; text-underline-offset: 3px; }
 
 .auth-email-link {
@@ -14756,7 +14756,7 @@ border-bottom: 1px solid var(--hack-ink);
 	border: 1px solid #8a4b00;
 	padding: 9px 12px;
 	background: var(--auth-orange);
-	color: #241300;
+	color: #343638;
 	font-weight: 750;
 }
 
@@ -14765,7 +14765,7 @@ border-bottom: 1px solid var(--hack-ink);
 		grid-template-columns: 1fr;
 		width: min(620px, calc(100% - 28px));
 		margin-top: 28px;
-		box-shadow: 7px 7px 0 var(--auth-ink);
+		box-shadow: 7px 7px 0 rgba(52, 54, 56, .10);
 	}
 
 	.auth-poster {

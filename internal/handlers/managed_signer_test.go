@@ -315,7 +315,7 @@ func TestManagedSignerCancellationPreservesVaultContext(t *testing.T) {
 }
 
 func TestManagedSignerPublishingReviewEscapesContent(t *testing.T) {
-	tmpl, err := template.ParseFiles("../../templates/managed_signer_authorize.tmpl")
+	tmpl, err := template.ParseFiles("../../templates/managed_signer_authorize.tmpl", "../../templates/section/account_security.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,5 +331,44 @@ func TestManagedSignerPublishingReviewEscapesContent(t *testing.T) {
 	}
 	if strings.Contains(output.String(), "<script>alert(1)</script>") {
 		t.Fatal("content rendered as executable HTML")
+	}
+}
+
+func TestManagedSignerAwardReviewPreservesRequest(t *testing.T) {
+	tmpl, err := template.ParseFiles("../../templates/managed_signer_authorize.tmpl", "../../templates/section/account_security.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []string{"sign", "sign_event"} {
+		t.Run(action, func(t *testing.T) {
+			page := ManagedSignerAuthorizationPage{
+				Action: action, EventKind: 8, BadgeName: "Builder <2026>", BadgeIdentifier: "builders-2026",
+				TenantName: "Example organization", PersonName: "Alex", Role: "manager",
+				RecipientCount: 2, VerifiedGrants: 1, EventHash: strings.Repeat("a", 64), Target: strings.Repeat("b", 48),
+				ApplicationName: "Badge Studio", ApplicationURL: "https://badges.example.test",
+				BatchRecipients: []ManagedSignerBatchRecipient{
+					{Pubkey: strings.Repeat("c", 64), GrantID: "grant-1", SubjectProfileURL: "https://example.test/whois/alex"},
+					{Pubkey: strings.Repeat("d", 64)},
+				},
+			}
+			var output bytes.Buffer
+			if err := tmpl.ExecuteTemplate(&output, "managed_signer_authorize.tmpl", page); err != nil {
+				t.Fatal(err)
+			}
+			for _, expected := range []string{
+				"Award <em>Builder &lt;2026&gt;</em>?", "2 recipients", "1 bitcoin++ grant verified",
+				"Review 2 recipients",
+				page.EventHash, page.Target, page.BatchRecipients[0].Pubkey, page.BatchRecipients[1].Pubkey,
+				page.BatchRecipients[0].SubjectProfileURL, page.ApplicationURL, "Award 2 badges →",
+				`name="decision" value="allow"`, `name="decision" value="deny"`,
+			} {
+				if !strings.Contains(output.String(), expected) {
+					t.Errorf("signing review missing %q", expected)
+				}
+			}
+			if strings.Contains(output.String(), "<dl>") || strings.Contains(output.String(), "<table") {
+				t.Fatal("signing review still renders a table")
+			}
+		})
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"github.com/alexedwards/scs/v2"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,6 +20,79 @@ func TestTemporaryPasswordAdminAuthorization(t *testing.T) {
 		if w.Code != 403 {
 			t.Fatalf("%s allowed: %d", role, w.Code)
 		}
+	}
+}
+
+func TestTemporaryPasswordSignedOutReturnsThroughLogin(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		t.Run(method, func(t *testing.T) {
+			session := scs.New()
+			app := &config.AppContext{Session: session}
+			w := httptest.NewRecorder()
+			session.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				AdminTemporaryPassword(w, r, app)
+			})).ServeHTTP(w, httptest.NewRequest(method, "/admin/people/temporary-password", nil))
+			location, err := url.Parse(w.Header().Get("Location"))
+			if err != nil || w.Code != http.StatusSeeOther || location.Path != "/login" || location.Query().Get("next") != "/admin/people/temporary-password" {
+				t.Fatalf("expected sign-in with return path, got %d %q", w.Code, w.Header().Get("Location"))
+			}
+		})
+	}
+}
+
+func TestTemporaryPasswordRequiresReauthentication(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		for _, proof := range []struct {
+			name string
+			at   time.Time
+		}{
+			{"missing", time.Time{}},
+			{"expired", time.Now().Add(-16 * time.Minute)},
+			{"future", time.Now().Add(2 * time.Minute)},
+		} {
+			t.Run(method+"/"+proof.name, func(t *testing.T) {
+				session := scs.New()
+				form := url.Values{"csrf": {"test-csrf"}, "email": {"attendee@example.test"}, "password": {"must-not-be-saved-or-forwarded"}}
+				req := httptest.NewRequest(method, "/admin/people/temporary-password", strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				q, err := session.Load(req.Context(), "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				req = req.WithContext(q)
+				session.Put(q, authMethodsCSRFKey, "test-csrf")
+				w := httptest.NewRecorder()
+				// No database or templates: a stale session must redirect before
+				// looking up an account, issuing a password or rendering a form.
+				serveAdminTemporaryPassword(w, req, &config.AppContext{Session: session}, &auth.Identity{
+					PersonID: "admin", Roles: auth.ParseRoles([]string{"global-admin"}), AuthenticatedAt: proof.at,
+				})
+				want := "/reauth?next=%2Fadmin%2Fpeople%2Ftemporary-password"
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != want {
+					t.Fatalf("expected reauthentication, got %d %q", w.Code, w.Header().Get("Location"))
+				}
+				if strings.Contains(w.Body.String(), form.Get("password")) || strings.Contains(w.Body.String(), form.Get("email")) {
+					t.Fatal("submitted credentials leaked into redirect")
+				}
+			})
+		}
+	}
+}
+
+func TestTemporaryPasswordRecentlyAuthenticatedAdminSeesForm(t *testing.T) {
+	session := scs.New()
+	req := httptest.NewRequest(http.MethodGet, "/admin/people/temporary-password", nil)
+	q, err := session.Load(req.Context(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(q)
+	session.Put(q, authMethodsCSRFKey, "test-csrf")
+	app := &config.AppContext{Session: session, TemplateCache: template.Must(template.New("temporary_password.tmpl").Parse(`form {{ .Admin }} {{ .CSRF }}`))}
+	w := httptest.NewRecorder()
+	serveAdminTemporaryPassword(w, req, app, &auth.Identity{PersonID: "admin", Roles: auth.ParseRoles([]string{"global-admin"}), AuthenticatedAt: time.Now()})
+	if w.Code != http.StatusOK || w.Header().Get("Location") != "" || !strings.Contains(w.Body.String(), "form true test-csrf") {
+		t.Fatalf("recently authenticated admin cannot resume: %d %s", w.Code, w.Body.String())
 	}
 }
 

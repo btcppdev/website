@@ -1,0 +1,382 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+/* Shared controls, taken from ticket checkout. Include once through head_meta
+   or directly on standalone pages. Existing component classes are adapters;
+   new actions can use .ui-button, .is-secondary, .is-compact, or .is-danger.
+   Antarctica (including its homepage feature) keeps its own identity.
+   Screen-only rules leave printed invoices, schedules and exports alone. */
+@media screen {
+  :root {
+    --ui-font: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ui-radius: 6px;
+    --ui-accent: var(--brand-accent, #db7900);
+    --ui-accent-hover: var(--brand-accent-hover, #bf6900);
+    --ui-compact-accent: var(--brand-accent-compact, #b35f00);
+    --ui-ink: #343638;
+    --ui-line: #d7d4cc;
+    --ui-field-line: #8b8880;
+    --ui-selected: #fff0e3;
+  }
+
+:root body:not(.antarctica):not(.expedition-admin) :is(button, input, select, textarea, form label):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])) {
+  font-family: var(--ui-font);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) :is(button, input[type="submit"], input[type="button"]):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])) {
+  border-radius: var(--ui-radius);
+}
+
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  .ui-button, .home-button, .site-button, .rebrand-button, .redesign-button,
+  .primary-button, .shop-button, .hack-button, .auth-primary, .auth-secondary,
+  .service-primary, .service-secondary, .ew-primary, .ew-secondary, .pub-primary,
+  .pub-secondary, .btcpp-editorial-button, .btcpp-form-button-primary,
+  .btcpp-form-button-secondary, .btcpp-form-submit, .btcpp-cropper-button,
+  .purchase-invoice-button, .organization-badge-button, .dashboard-volunteer-button,
+  .dashboard-inline-action, .profile-badge-control__actions button,
+  .organization-directory-search-button, .organization-directory-secondary-action,
+  .pgp-button, .checkin-pickup-submit, .hack-ballot-submit__button,
+  .hack-submit__button, .node-config-primary, .api-docs__button, .person-oauth-link, .profile-edit-toolbar a,
+  .dashboard-affiliate-cta__button, .sponsor-project-export a,
+  .sponsor-benefit-action button, .sponsor-invite-form button,
+  .sponsor-profile-form > button, .dashboard-hackathon-project__actions a.is-primary,
+  .dashboard-help-block__links a.is-accent, .dashboard-past-row__admin,
+  .organization-review-action, .organization-teammate-card--invite > button,
+  .affiliate-copy-btn, .affiliate-share-btn,
+  .checkout-actions > a, .checkout-actions > button,
+  button[type="submit"], input[type="submit"], input[type="button"],
+  form button:not([type]), button.rounded-md, a.rounded-md[class*="px-"],
+  button.bg-indigo-600, a.bg-indigo-600, button.bg-blue-600, a.bg-blue-600,
+  button.bg-gray-900, a.bg-gray-900, button.bg-green-600, a.bg-green-600,
+  button.bg-red-600, a.bg-red-600
+):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])):not([role="tab"]) {
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: .45em;
+  min-height: var(--ui-action-height, 52px);
+  max-width: 100%;
+  padding: var(--ui-action-padding, 14px 24px);
+  border: 1px solid var(--ui-action-border, var(--ui-action-bg, var(--ui-accent)));
+  border-radius: var(--ui-radius);
+  background: var(--ui-action-bg, var(--ui-accent));
+  color: var(--ui-action-color, #fff);
+  font: 700 var(--ui-action-size, 22px) / 1.25 var(--ui-font);
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: none;
+  transform: none;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+/* Keep existing display/visibility rules, especially hidden actions and tabs. */
+:root body:not(.antarctica):not(.expedition-admin) .ui-button:not([hidden]):not(.hidden) {
+  display: inline-flex;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  .ui-button, .home-button, .site-button, .rebrand-button, .redesign-button,
+  .primary-button, .shop-button, .hack-button, .auth-primary, .auth-secondary,
+  .service-primary, .service-secondary, .ew-primary, .ew-secondary, .pub-primary,
+  .pub-secondary, .btcpp-editorial-button, .btcpp-form-button-primary,
+  .btcpp-form-button-secondary, .btcpp-form-submit, .btcpp-cropper-button,
+  .purchase-invoice-button, .organization-badge-button, .dashboard-volunteer-button,
+  .dashboard-inline-action, .profile-badge-control__actions button,
+  .organization-directory-search-button, .organization-directory-secondary-action,
+  .pgp-button, .checkin-pickup-submit, .hack-ballot-submit__button,
+  .hack-submit__button, .node-config-primary, .api-docs__button, .person-oauth-link, .profile-edit-toolbar a,
+  .dashboard-affiliate-cta__button, .sponsor-project-export a,
+  .sponsor-benefit-action button, .sponsor-invite-form button,
+  .sponsor-profile-form > button, .dashboard-hackathon-project__actions a.is-primary,
+  .dashboard-help-block__links a.is-accent, .dashboard-past-row__admin,
+  .organization-review-action, .organization-teammate-card--invite > button,
+  .affiliate-copy-btn, .affiliate-share-btn,
+  .checkout-actions > a, .checkout-actions > button,
+  button[type="submit"], input[type="submit"], input[type="button"],
+  form button:not([type]), button.rounded-md, a.rounded-md[class*="px-"],
+  button.bg-indigo-600, a.bg-indigo-600, button.bg-blue-600, a.bg-blue-600,
+  button.bg-gray-900, a.bg-gray-900, button.bg-green-600, a.bg-green-600,
+  button.bg-red-600, a.bg-red-600
+):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])):not([role="tab"]):hover:not(:disabled):not([aria-disabled="true"]):not(.is-disabled) {
+  background: var(--ui-action-hover, var(--ui-accent-hover));
+  color: var(--ui-action-hover-color, var(--ui-action-color, #fff));
+  border-color: var(--ui-action-hover-border, var(--ui-action-hover, var(--ui-accent-hover)));
+  box-shadow: 0 3px 10px rgba(28, 28, 30, .14);
+  transform: none;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  .ui-button, .home-button, .site-button, .rebrand-button, .redesign-button,
+  .primary-button, .shop-button, .hack-button, .auth-primary, .auth-secondary,
+  .service-primary, .service-secondary, .ew-primary, .ew-secondary, .pub-primary,
+  .pub-secondary, .btcpp-editorial-button, .btcpp-form-button-primary,
+  .btcpp-form-button-secondary, .btcpp-form-submit, .btcpp-cropper-button,
+  .purchase-invoice-button, .organization-badge-button, .dashboard-volunteer-button,
+  .dashboard-inline-action, .profile-badge-control__actions button,
+  .organization-directory-search-button, .organization-directory-secondary-action,
+  .pgp-button, .checkin-pickup-submit, .hack-ballot-submit__button,
+  .hack-submit__button, .node-config-primary, .api-docs__button, .person-oauth-link, .profile-edit-toolbar a,
+  .dashboard-affiliate-cta__button, .sponsor-project-export a,
+  .sponsor-benefit-action button, .sponsor-invite-form button,
+  .sponsor-profile-form > button, .dashboard-hackathon-project__actions a.is-primary,
+  .dashboard-help-block__links a.is-accent, .dashboard-past-row__admin,
+  .organization-review-action, .organization-teammate-card--invite > button,
+  .affiliate-copy-btn, .affiliate-share-btn,
+  .checkout-actions > a, .checkout-actions > button,
+  button[type="submit"], input[type="submit"], input[type="button"],
+  form button:not([type]), button.rounded-md, a.rounded-md[class*="px-"],
+  button.bg-indigo-600, a.bg-indigo-600, button.bg-blue-600, a.bg-blue-600,
+  button.bg-gray-900, a.bg-gray-900, button.bg-green-600, a.bg-green-600,
+  button.bg-red-600, a.bg-red-600
+):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])):not([role="tab"]):focus-visible {
+  outline: 2px solid var(--ui-action-focus, var(--ui-accent));
+  outline-offset: 4px;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  .ui-button, .home-button, .site-button, .rebrand-button, .redesign-button,
+  .primary-button, .shop-button, .hack-button, .auth-primary, .auth-secondary,
+  .service-primary, .service-secondary, .ew-primary, .ew-secondary, .pub-primary,
+  .pub-secondary, .btcpp-editorial-button, .btcpp-form-button-primary,
+  .btcpp-form-button-secondary, .btcpp-form-submit, .btcpp-cropper-button,
+  .purchase-invoice-button, .organization-badge-button, .dashboard-volunteer-button,
+  .dashboard-inline-action, .profile-badge-control__actions button,
+  .organization-directory-search-button, .organization-directory-secondary-action,
+  .pgp-button, .checkin-pickup-submit, .hack-ballot-submit__button,
+  .hack-submit__button, .node-config-primary, .api-docs__button, .person-oauth-link, .profile-edit-toolbar a,
+  .dashboard-affiliate-cta__button, .sponsor-project-export a,
+  .sponsor-benefit-action button, .sponsor-invite-form button,
+  .sponsor-profile-form > button, .dashboard-hackathon-project__actions a.is-primary,
+  .dashboard-help-block__links a.is-accent, .dashboard-past-row__admin,
+  .organization-review-action, .organization-teammate-card--invite > button,
+  .affiliate-copy-btn, .affiliate-share-btn,
+  .checkout-actions > a, .checkout-actions > button,
+  button[type="submit"], input[type="submit"], input[type="button"],
+  form button:not([type]), button.rounded-md, a.rounded-md[class*="px-"],
+  button.bg-indigo-600, a.bg-indigo-600, button.bg-blue-600, a.bg-blue-600,
+  button.bg-gray-900, a.bg-gray-900, button.bg-green-600, a.bg-green-600,
+  button.bg-red-600, a.bg-red-600
+):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])):not([role="tab"]):is(:disabled, [aria-disabled="true"], .is-disabled) {
+  opacity: .55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Navigation and dense workspaces retain compact dimensions and accessible
+   white-label contrast; primary checkout actions keep the larger type. */
+:root body:not(.antarctica):not(.expedition-admin) :is(.site-nav, .btcpp-admin-main, .shop-admin-shell, .event-wizard,
+  .pub-shell, .dashboard-section, .profile-edit-toolbar, .report-tools) {
+  --ui-action-size: 16px;
+  --ui-action-height: 44px;
+  --ui-action-padding: 10px 16px;
+  --ui-action-bg: var(--ui-compact-accent);
+  --ui-action-hover: #9b5200;
+}
+
+:root body:not(.antarctica):not(.expedition-admin):is(.btcpp-admin-page, .btcpp-dashboard-page, .account-settings-page, .event-wizard) {
+  --ui-action-size: 16px;
+  --ui-action-height: 44px;
+  --ui-action-padding: 10px 16px;
+  --ui-action-bg: var(--ui-compact-accent);
+  --ui-action-hover: #9b5200;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) :where(.ui-button.is-compact, .shop-button.is-compact, .dashboard-inline-action,
+  .home-button, .home-subscribe button, .site-button, .pgp-button,
+  .organization-badge-button, .dashboard-volunteer-button, .affiliate-copy-btn, .affiliate-share-btn, .profile-badge-control__actions button):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])) {
+  --ui-action-size: 16px;
+  --ui-action-height: 48px;
+  --ui-action-padding: 12px 20px;
+  --ui-action-bg: var(--ui-compact-accent);
+  --ui-action-hover: #9b5200;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) .site-nav .site-button.site-nav__cta {
+  --ui-action-bg: var(--ui-accent);
+  --ui-action-hover: var(--ui-accent-hover);
+  --ui-action-height: 48px;
+  --ui-action-padding: 0 12px;
+  flex: 0 0 136px;
+  width: 136px;
+  height: 48px;
+}
+
+/* Account links share the header action type instead of the small menu type. */
+:root body:not(.antarctica):not(.expedition-admin) .site-nav .site-account__signin {
+  font: 700 16px / 1.25 var(--ui-font);
+  border-radius: var(--ui-radius);
+}
+
+/* Keep size and color variants equally specific: source order must let color
+   variants override the compact defaults as a complete foreground/background pair. */
+/* Secondary actions retain their quieter treatment. */
+:root body:not(.antarctica):not(.expedition-admin) :where(.is-secondary, .is-outline, .auth-secondary, .ew-secondary,
+  .pub-secondary, .service-secondary, .btcpp-form-button-secondary,
+  .btcpp-form-secondary-action button, .btcpp-cropper-button--secondary,
+  .organization-directory-secondary-action, .profile-edit-actions__cancel,
+  .checkout-actions__back, .checkout-actions > a:not(.checkout-actions__primary), .profile-edit-toolbar a,
+  .shop-button:not(.is-primary), .hack-button:not(.hack-button--accent),
+  .pgp-button:not(.is-primary), .organization-badge-button:not(.is-primary),
+  .api-docs__button:not(.is-primary), .dashboard-inline-action:not(.is-primary),
+  .organization-review-action:not(.is-primary), .affiliate-copy-btn, .affiliate-share-btn,
+  button.rounded-md.bg-gray-100, button.rounded-md.bg-gray-50,
+  a.rounded-md.bg-white, button.rounded-md.bg-white):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])) {
+  --ui-action-bg: transparent;
+  --ui-action-color: var(--ui-ink);
+  --ui-action-border: var(--ui-line);
+  --ui-action-hover: var(--ui-selected);
+  --ui-action-hover-border: var(--ui-accent);
+  --ui-action-size: 16px;
+}
+
+/* Dark sections need a light secondary label, including before hover. */
+:root body:not(.antarctica):not(.expedition-admin) :where(.is-secondary.is-on-dark, .is-outline.is-on-dark) {
+  --ui-action-color: #fff;
+  --ui-action-border: #fff;
+  --ui-action-hover-color: var(--ui-ink);
+}
+
+:root body:not(.antarctica):not(.expedition-admin) .home-subscribe button {
+  --ui-action-bg: #fffdf8;
+  --ui-action-color: #a65b00;
+  --ui-action-focus: #fffdf8;
+  --ui-action-border: #fffdf8;
+  --ui-action-hover: #fff0e3;
+}
+
+/* Destructive actions must remain distinguishable from normal actions. */
+:root body:not(.antarctica):not(.expedition-admin) :where(.is-danger, .hack-button--danger, .hack-button--danger-soft,
+  .btcpp-admin-danger-button, .btcpp-admin-soft-danger-button,
+  button[class*="text-red-"], a[class*="text-red-"],
+  button[class*="bg-red-"], a[class*="bg-red-"],
+  form[action$="/delete"] button[type="submit"]):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])) {
+  --ui-action-bg: #fff1ed;
+  --ui-action-color: #8d2c20;
+  --ui-action-border: #9a3224;
+  --ui-action-hover: #fbe0d8;
+  --ui-action-hover-border: #8d2c20;
+  --ui-action-size: 16px;
+}
+
+/* Option cards, tabs, steppers, calendar days and media controls keep their
+   component layout. The default action treatment is deliberately not applied
+   to every button element. */
+:root body:not(.antarctica):not(.expedition-admin) :is(.auth-method, .reauth-method) { border-radius: var(--ui-radius); }
+
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  input:not([type]), input[type="text"], input[type="email"],
+  input[type="password"], input[type="search"], input[type="tel"], input[type="url"],
+  input[type="number"], input[type="date"], input[type="datetime-local"],
+  input[type="time"], select, textarea
+):not(:where(.checkout-ticket-quantity *, .checkout-addon__stepper *, [data-site-controls="off"] *, [data-site-controls="off"], .home-expedition *)) {
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-field-line);
+  border-radius: 0;
+  background-color: #fff;
+  color: var(--ui-ink);
+  font: 400 16px / 1.2 var(--ui-font);
+  box-shadow: none;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) select:not(:where(.checkout-ticket-quantity *, .checkout-addon__stepper *, [data-site-controls="off"] *, [data-site-controls="off"], .home-expedition *)) { padding-right: 32px; }
+:root body:not(.antarctica):not(.expedition-admin) textarea:not(:where(.checkout-ticket-quantity *, .checkout-addon__stepper *, [data-site-controls="off"] *, [data-site-controls="off"], .home-expedition *)) { min-height: 96px; line-height: 1.5; resize: vertical; }
+
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  input:not([type]), input[type="text"], input[type="email"],
+  input[type="password"], input[type="search"], input[type="tel"], input[type="url"],
+  input[type="number"], input[type="date"], input[type="datetime-local"],
+  input[type="time"], select, textarea
+):not(:where(.checkout-ticket-quantity *, .checkout-addon__stepper *, [data-site-controls="off"] *, [data-site-controls="off"], .home-expedition *)):focus-visible {
+  border-color: var(--ui-accent);
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  input:not([type]), input[type="text"], input[type="email"],
+  input[type="password"], input[type="search"], input[type="tel"], input[type="url"],
+  input[type="number"], input[type="date"], input[type="datetime-local"],
+  input[type="time"], select, textarea
+):not(:where(.checkout-ticket-quantity *, .checkout-addon__stepper *, [data-site-controls="off"] *, [data-site-controls="off"], .home-expedition *)):disabled { background-color: #f1eee7; color: #65635e; cursor: not-allowed; }
+:root body:not(.antarctica):not(.expedition-admin) :is(
+  input:not([type]), input[type="text"], input[type="email"],
+  input[type="password"], input[type="search"], input[type="tel"], input[type="url"],
+  input[type="number"], input[type="date"], input[type="datetime-local"],
+  input[type="time"], select, textarea
+):not(:where(.checkout-ticket-quantity *, .checkout-addon__stepper *, [data-site-controls="off"] *, [data-site-controls="off"], .home-expedition *)):is([aria-invalid="true"], .is-invalid, [class*="border-red-"]) { border-color: #9a3224; }
+
+:root body:not(.antarctica):not(.expedition-admin) :is(input[type="checkbox"], input[type="radio"]):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])) { accent-color: var(--ui-accent); }
+
+/* Small helper labels in documentation controls still need readable contrast. */
+:root body.btcpp-api-docs-page :is(.api-reference__endpoints small,
+  .api-example__tabs button:not([aria-selected="true"])) {
+  color: var(--brand-muted, #65635e);
+}
+
+/* The ticket picker is the reference, including its compact quantity rows. */
+:root body:not(.antarctica):not(.expedition-admin) .checkout-ticket-quantity input { font-size: 14px; }
+
+
+
+/* The old admin utility overrides use !important for these two properties. */
+:root body.btcpp-admin-page:not(.antarctica):not(.expedition-admin) :is(
+  button[class*="bg-indigo"], button[class*="bg-blue"],
+  button[class*="bg-green"], button[class*="bg-gray"]
+):not(:where([data-site-controls="off"] *, [data-site-controls="off"])) {
+  font-size: var(--ui-action-size, 16px) !important;
+  color: var(--ui-action-color, #fff) !important;
+}
+
+/* Native upload controls use the compact action treatment too. */
+:root body:not(.antarctica):not(.expedition-admin) input[type="file"]:not(:where(.home-expedition *, [data-site-controls="off"], [data-site-controls="off"] *))::file-selector-button {
+  min-height: 44px;
+  margin-right: 12px;
+  padding: 10px 16px;
+  border: 1px solid var(--ui-compact-accent);
+  border-radius: var(--ui-radius);
+  background: var(--ui-compact-accent);
+  color: #fff;
+  font: 700 16px / 1.25 var(--ui-font);
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  :root body:not(.antarctica):not(.expedition-admin) .auth-primary { --ui-action-padding: 12px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root body:not(.antarctica):not(.expedition-admin) :is(
+  .ui-button, .home-button, .site-button, .rebrand-button, .redesign-button,
+  .primary-button, .shop-button, .hack-button, .auth-primary, .auth-secondary,
+  .service-primary, .service-secondary, .ew-primary, .ew-secondary, .pub-primary,
+  .pub-secondary, .btcpp-editorial-button, .btcpp-form-button-primary,
+  .btcpp-form-button-secondary, .btcpp-form-submit, .btcpp-cropper-button,
+  .purchase-invoice-button, .organization-badge-button, .dashboard-volunteer-button,
+  .dashboard-inline-action, .profile-badge-control__actions button,
+  .organization-directory-search-button, .organization-directory-secondary-action,
+  .pgp-button, .checkin-pickup-submit, .hack-ballot-submit__button,
+  .hack-submit__button, .node-config-primary, .api-docs__button, .person-oauth-link, .profile-edit-toolbar a,
+  .dashboard-affiliate-cta__button, .sponsor-project-export a,
+  .sponsor-benefit-action button, .sponsor-invite-form button,
+  .sponsor-profile-form > button, .dashboard-hackathon-project__actions a.is-primary,
+  .dashboard-help-block__links a.is-accent, .dashboard-past-row__admin,
+  .organization-review-action, .organization-teammate-card--invite > button,
+  .affiliate-copy-btn, .affiliate-share-btn,
+  .checkout-actions > a, .checkout-actions > button,
+  button[type="submit"], input[type="submit"], input[type="button"],
+  form button:not([type]), button.rounded-md, a.rounded-md[class*="px-"],
+  button.bg-indigo-600, a.bg-indigo-600, button.bg-blue-600, a.bg-blue-600,
+  button.bg-gray-900, a.bg-gray-900, button.bg-green-600, a.bg-green-600,
+  button.bg-red-600, a.bg-red-600
+):not(:where(.home-expedition *, [data-site-controls="off"] *, [data-site-controls="off"])):not([role="tab"]) { transition: none; }
+}
+}

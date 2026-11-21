@@ -3,6 +3,7 @@
 <head>
   <title>Account settings · bitcoin++</title>
   {{ block "header" . }} {{ end }}
+  <link rel="stylesheet" href="/static/css/passkey.css?v=20261121-feedback">
 </head>
 <body class="btcpp-profile-edit-page account-settings-page" data-reauth-required="{{ if .RecentAuthentication }}false{{ else }}true{{ end }}">
   {{ block "mainnav" . }} {{ end }}
@@ -108,13 +109,14 @@
           <div class="person-email-row settings-method-row{{ if not .Passkeys }} is-pending{{ end }}">
             <div>
               <strong>Passkey</strong>{{ if not .Passkeys }}<span class="is-pending">NOT ADDED</span>{{ end }}
-              <small data-passkey-status>Use this device, a synced passkey, or a hardware security key. A PIN or biometric check is required.</small>
+              <small>Use this device, a synced passkey, or a hardware security key. A PIN or biometric check is required.</small>
+              <p id="settings-passkey-feedback" class="passkey-feedback" role="status" aria-live="polite" hidden></p>
               <label class="mt-3">PASSKEY NAME
                 <input type="text" data-passkey-name maxlength="80" placeholder="My laptop" autocomplete="off">
               </label>
             </div>
             <div class="person-email-actions">
-              <button type="button" class="person-oauth-link" data-passkey-register>Add passkey</button>
+              <button type="button" class="person-oauth-link" data-passkey-register data-passkey-feedback="settings-passkey-feedback" aria-describedby="settings-passkey-feedback">Add passkey</button>
             </div>
           </div>
           {{ range .NostrCredentials }}
@@ -443,6 +445,6 @@
   {{ block "footer" . }} {{ end }}
   <script src="/static/js/account-reauth.js" defer></script>
   <script src="/static/js/nostr-login.js" defer></script>
-  <script src="/static/js/passkey.js" defer></script>
+  <script src="/static/js/passkey.js?v=20261121-feedback" defer></script>
 </body>
 </html>

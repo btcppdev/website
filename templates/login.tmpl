@@ -3,7 +3,8 @@
 <head>
   <title>Sign in · bitcoin++</title>
   {{ block "header" . }} {{ end }}
-  <link rel="stylesheet" href="/static/css/login-layout.css?v=3">
+  <link rel="stylesheet" href="/static/css/login-layout.css?v=20261121-inline-feedback">
+  <link rel="stylesheet" href="/static/css/passkey.css?v=20261121-feedback">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128272;</text></svg>">
 </head>
 <body class="btcpp-login-page">
@@ -12,9 +13,7 @@
   <main class="auth-shell auth-shell--simple">
     <section class="auth-card" id="login" data-preferred-method="{{ .PreferredMethod }}">
       <header class="auth-card__head">
-        <span class="auth-kicker">§ SIGN IN</span>
         <h1>Welcome.</h1>
-        <p>Sign in or create your free account.</p>
       </header>
 
       {{ if .FlashMessage }}
@@ -33,7 +32,7 @@
       <form id="auth-email-start" method="POST" action="/login" class="auth-form">
         <input type="hidden" name="Next" value="{{ .Next }}">
         <input type="hidden" name="csrf" value="{{ .CSRF }}">
-        <label>EMAIL<input id="auth-email" type="email" name="Email" autocomplete="email" placeholder="you@example.com" required></label>
+        <label>Email<input id="auth-email" type="email" name="Email" autocomplete="email" placeholder="you@example.com" required></label>
         <button id="auth-email-continue" class="auth-primary" type="submit">Continue with email <span>→</span></button>
       </form>
       <div id="auth-email-options">
@@ -44,20 +43,21 @@
           <form id="auth-password-form" method="POST" action="/login/password" class="auth-form">
             <input type="hidden" name="Next" value="{{ .Next }}">
             <input type="hidden" name="csrf" value="{{ .CSRF }}">
-            <label class="auth-password-email">EMAIL<input type="email" name="Email" autocomplete="username" required></label>
-            <div class="auth-password-heading"><label for="auth-password">PASSWORD</label><a href="/forgot-password">Forgot password?</a></div>
+            <label class="auth-password-email">Email<input type="email" name="Email" autocomplete="username" required></label>
+            <div class="auth-password-heading"><label for="auth-password">Password</label><a href="/forgot-password">Forgot password?</a></div>
             <input id="auth-password" type="password" name="Password" autocomplete="current-password" required>
             <div class="auth-form__actions"><button class="auth-primary" type="submit">Sign in with password →</button></div>
           </form>
         </details>
       </div>
       <div class="auth-divider"><span>or</span></div>
-      <div class="auth-methods auth-methods--native">
-        <button type="button" class="auth-method" data-passkey-login data-next="{{ .Next }}">
+      <div class="auth-methods auth-methods--native" data-login-method="passkey">
+        <button type="button" class="auth-method" data-passkey-login data-passkey-feedback="login-passkey-feedback" aria-describedby="login-passkey-feedback" data-next="{{ .Next }}">
           <span class="auth-method__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.5 9.5a5.5 5.5 0 1 0-4 5.3V18h2v2h2v2h3v-3h-3v-4.2a5.5 5.5 0 0 0 0-5.3Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="9.5" r="1.2" fill="currentColor"/></svg></span>
-          <span class="auth-method__copy"><strong>Sign in with a passkey</strong><small data-passkey-status>Touch ID, Face ID, or a security key</small></span>
+          <span class="auth-method__copy"><strong>Sign in with a passkey</strong><small>Touch ID, Face ID, or a security key</small></span>
           <span class="auth-method__arrow" aria-hidden="true">→</span>
         </button>
+        <p id="login-passkey-feedback" class="passkey-feedback" role="status" aria-live="polite" hidden></p>
       </div>
       <details class="auth-email-link auth-more-options">
         <summary>More sign-in options</summary>
@@ -99,7 +99,7 @@
       </div>
       {{ if .DevLoginEnabled }}
       <details class="auth-dev"><summary>Developer tools</summary>
-        <div><strong>LOCAL DEVELOPMENT</strong><span>No email is sent.</span></div>
+        <div><strong>Local development</strong><span>No email is sent.</span></div>
         <form method="POST" action="/login">
           <input type="hidden" name="Next" value="{{ .Next }}">
           <input type="hidden" name="csrf" value="{{ .CSRF }}">
@@ -112,8 +112,8 @@
   </main>
 
   {{ block "footer" . }} {{ end }}
-  <script src="/static/js/login-layout.js?v=2" defer></script>
+  <script src="/static/js/login-layout.js?v=20261121-inline-feedback" defer></script>
   <script src="/static/js/nostr-login.js" defer></script>
-  <script src="/static/js/passkey.js" defer></script>
+  <script src="/static/js/passkey.js?v=20261121-feedback" defer></script>
 </body>
 </html>

@@ -1,9 +1,48 @@
-.btcpp-login-page .auth-shell--simple {
-  display: block;
-  max-width: 560px;
-  margin: 48px auto;
-  padding: 0 20px;
+/* Account pages also load their controls when the site header does not. */
+@import url("site-controls.css?v=20261121-header-orange");
+
+/* Local font keeps account panels consistent under the signer's self-only CSP.
+   IBM Plex Sans, SIL Open Font License; see static/fonts/ibm-plex-sans-OFL.txt. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../fonts/ibm-plex-sans-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+
+/* One form panel; the old two-column shell must not add another frame. */
+.btcpp-login-page:has(.auth-shell--simple) {
+  --auth-paper: var(--brand-paper, #f9f6ee);
+  --ui-action-size: 16px;
+  --ui-action-height: 48px;
+  --ui-action-padding: 12px 20px;
+  --ui-action-bg: var(--brand-accent-compact, #b35f00);
+  --ui-action-hover: #9b5200;
+}
+.btcpp-login-page .auth-shell--simple {
+  box-sizing: border-box;
+  display: block;
+  width: min(520px, calc(100% - 48px));
+  max-width: none;
+  margin: 48px auto;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+.btcpp-login-page .auth-shell--simple .auth-card {
+  box-sizing: border-box;
+  padding: 40px;
+  border: 1px solid var(--brand-line, #d7d4cc);
+  border-radius: 6px;
+  background: var(--brand-surface, #fffdf8);
+}
+.btcpp-login-page .auth-shell--simple h1 { font-size: 48px; letter-spacing: -.035em; }
+.btcpp-login-page .auth-shell--simple .auth-card__head p { font-size: 16px; }
+.btcpp-login-page .auth-shell--simple .auth-form label { font-size: 14px; }
+.btcpp-login-page .auth-shell--simple .auth-method__copy strong { font-size: 16px; }
+.btcpp-login-page .auth-shell--simple .auth-method__copy small { font-size: 13px; }
 .auth-shell--simple .auth-card { width: 100%; min-width: 0; }
 .auth-shell--simple .auth-password-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .auth-shell--simple .auth-password-heading label { margin: 0; }
@@ -39,7 +78,9 @@
 .alerts-cancel-form .auth-primary:hover { background: #f2efe7; }
 @media (max-width: 600px) {
 	.alerts-upgrade-page .auth-card { padding: 28px 24px; }
-  .btcpp-login-page .auth-shell--simple { margin: 24px auto; padding: 0 16px; }
+  .btcpp-login-page .auth-shell--simple { width: calc(100% - 32px); margin: 24px auto; padding: 0; }
+  .btcpp-login-page .auth-shell--simple .auth-card { padding: 28px 24px; }
+  .btcpp-login-page .auth-shell--simple h1 { font-size: 40px; }
   .auth-shell--simple .alerts-billing-address { grid-template-columns: 1fr; }
 }
 
@@ -49,3 +90,122 @@
 .btcpp-login-page .auth-dev form { grid-template-columns: minmax(0, 1fr); }
 .btcpp-login-page .auth-primary,
 .btcpp-login-page .auth-secondary { box-sizing: border-box; width: 100%; }
+
+/* OAuth consent uses the same single panel, with readable permission rows. */
+.oauth-consent .auth-card h1 { overflow-wrap: anywhere; }
+.oauth-consent__app { display: block; }
+.oauth-consent .oauth-consent-scopes { gap: 0; margin: 28px 0; padding: 0; list-style: none; }
+.oauth-consent .oauth-consent-scopes li {
+  border: 0;
+  color: var(--brand-ink, #343638);
+  font: 400 16px/1.55 "IBM Plex Sans", system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+.oauth-consent .oauth-consent-scopes__description { color: inherit; font: inherit; }
+.oauth-consent .auth-form__actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.oauth-consent .auth-primary { overflow-wrap: anywhere; }
+.oauth-consent .auth-primary span { flex-shrink: 0; }
+.oauth-consent .oauth-consent__note { margin: 20px 0 0; color: var(--brand-muted, #65635e); font-size: 14px; line-height: 1.5; }
+
+/* Account confirmations, recovery and signer approvals share the sign-in panel. */
+.oauth-consent__app {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+}
+.btcpp-login-page .auth-shell--simple h1 em { color: inherit; }
+.account-flow .auth-card { overflow-wrap: anywhere; font: 400 16px/1.55 "IBM Plex Sans", system-ui, sans-serif; }
+.account-flow .auth-card *, .account-flow .auth-card *::before, .account-flow .auth-card *::after { box-sizing: border-box; }
+.account-flow .auth-card > h1 { margin-bottom: 20px; }
+.account-flow .auth-card p { margin: 0 0 20px; }
+.account-flow .auth-card__head p { margin: 12px 0 0; }
+.account-flow .auth-form { margin-top: 20px; }
+/* Keep cancellation as a CSRF-protected POST, presented like the return links. */
+.btcpp-login-page .auth-form__actions .auth-text-link {
+  display: inline;
+  justify-self: start;
+  align-self: start;
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--brand-accent-compact, #b35f00);
+  font: 400 12px/1.55 "IBM Plex Sans", system-ui, sans-serif;
+  text-align: left;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.btcpp-login-page .auth-form__actions .auth-text-link:hover { text-decoration: underline; }
+.btcpp-login-page .auth-form__actions .auth-text-link:focus-visible { outline: 2px solid var(--brand-accent-compact, #b35f00); outline-offset: 4px; }
+.account-flow .auth-form p { margin: 0; }
+.account-flow .auth-form label, .account-flow .auth-secret { font: 600 14px/1.5 "IBM Plex Sans", system-ui, sans-serif; letter-spacing: normal; }
+.account-flow .auth-secret { display: grid; gap: 8px; }
+.account-flow .auth-secret input { width: 100%; min-width: 0; }
+.account-flow .auth-card .auth-note { margin: 20px 0 0; color: var(--brand-muted, #65635e); font-size: 14px; }
+.account-flow .auth-card a:not(.reauth-method) { color: var(--brand-accent-compact, #b35f00); text-underline-offset: 4px; }
+.account-flow .auth-card :is(a, button, summary):focus-visible { outline: 2px solid var(--brand-accent-compact, #b35f00); outline-offset: 4px; }
+.account-flow .auth-identity { margin: 0 0 24px; padding: 16px 0; border-block: 1px solid var(--brand-line, #d7d4cc); }
+.account-flow .auth-identity small { display: block; margin-top: 4px; color: var(--brand-muted, #65635e); font-size: 14px; }
+.account-flow .auth-alert { border-radius: 6px; }
+.account-flow .auth-alert--success { background: var(--brand-paper, #f9f6ee); border-color: var(--brand-line, #d7d4cc); color: var(--brand-ink, #343638); }
+.btcpp-login-page .auth-shell--simple.auth-shell--wide { width: min(760px, calc(100% - 48px)); }
+.account-flow--signer .auth-card h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.account-flow--signer .managed-signer-consent__intro { font-size: 16px; }
+.account-flow--signer :is(.managed-signer-consent__note, .managed-signer-permissions p) { color: var(--brand-muted, #65635e); font-size: 14px; }
+.account-flow--signer .managed-signer-consent__explanation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin: 24px 0; }
+.account-flow--signer .managed-signer-consent__explanation div { padding: 0; border: 0; background: transparent; }
+.account-flow--signer .managed-signer-consent__explanation > :only-child { grid-column: 1 / -1; }
+.account-flow--signer .managed-signer-consent__explanation h2 { font-size: 16px; }
+.account-flow--signer .managed-signer-consent__explanation p { margin: 0; font-size: 14px; }
+.account-flow--signer dl { margin: 24px 0; border-top: 1px solid var(--brand-line, #d7d4cc); }
+.account-flow--signer dl > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--brand-line, #d7d4cc); }
+.account-flow--signer dt { font-size: 14px; color: var(--brand-muted, #65635e); }
+.account-flow--signer dd { margin: 0; min-width: 0; }
+.account-flow--signer dd a { display: block; font-weight: 600; }
+.account-flow--signer code { font: 13px/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+.account-flow--signer .managed-signer-permissions { margin: 28px 0; }
+.account-flow--signer .managed-signer-permissions ul { padding: 0; margin: 0; list-style: none; }
+.oauth-consent .oauth-consent-scopes li,
+.account-flow--signer .managed-signer-permissions li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--brand-line, #d7d4cc); }
+.oauth-consent .oauth-consent-scopes__check,
+.account-flow--signer .managed-signer-permissions__check { color: var(--brand-accent-compact, #b35f00); font: 700 16px/1.55 "IBM Plex Sans", system-ui, sans-serif; }
+.account-flow--signer .managed-signer-permissions strong { display: block; margin: 0 0 4px; }
+.account-flow--signer .managed-signer-permissions li p { margin: 0; }
+.account-flow--signer .managed-signer-consent__error { padding: 14px; border: 1px solid #d8968d; border-radius: 6px; background: #fff1ef; color: #8e2f24; font-size: 14px; }
+.account-flow--signer :where(.auth-card) details { margin: 20px 0; border: 1px solid var(--brand-line, #d7d4cc); border-radius: 6px; background: transparent; }
+.account-flow--signer :where(.auth-card) summary { padding: 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.account-flow--signer :where(.auth-card) details ol { max-height: 240px; overflow: auto; padding: 0 16px 16px 36px; }
+.account-flow--signer :where(.auth-card) details li { margin: 8px 0; }
+.account-flow--signer :where(.auth-card) dd details { margin: 0; }
+@media (max-width: 600px) {
+  .btcpp-login-page .auth-shell--simple.auth-shell--wide { width: calc(100% - 32px); }
+  .account-flow--signer .managed-signer-consent__explanation { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .account-flow--signer dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
+
+/* Signing reviews lead with the badge and people; exact data stays expandable. */
+.account-flow--signer .signer-review { margin: 28px 0; }
+.account-flow--signer .signer-review__recipients { margin: 0 0 24px; }
+.account-flow--signer .signer-review__recipients > strong { display: block; margin-bottom: 4px; font-size: 24px; line-height: 1.25; font-weight: 600; }
+.account-flow--signer .signer-review__recipients p,
+.account-flow--signer .signer-review__application { color: var(--brand-muted, #65635e); font-size: 14px; }
+.account-flow--signer .signer-review__verified { color: var(--brand-accent-compact, #b35f00); font-weight: 700; }
+.account-flow--signer .signer-review__content { margin-bottom: 20px; white-space: pre-wrap; }
+.account-flow--signer .signer-review__technical { padding: 0 14px 14px; font-size: 14px; }
+.account-flow--signer .signer-review__technical strong { display: block; margin-bottom: 4px; }
+.account-flow--signer .signer-review__technical > :last-child { margin-bottom: 0; }
+.account-flow--signer .signer-review__grant { display: block; margin-top: 4px; color: var(--brand-muted, #65635e); font-size: 12px; }
+
+/* Minimal security chrome also works inside the signer's restrictive CSP. */
+.auth-security-brand { width: min(760px, calc(100% - 48px)); margin: 32px auto 0; padding: 0; border: 0; background: transparent; }
+.auth-security-brand a { display: inline-flex; }
+.auth-security-brand img { display: block; width: 152px; height: 44px; object-fit: contain; }
+.auth-security-footer { margin: 0 auto; padding: 0 24px 32px; text-align: center; color: var(--brand-muted, #65635e); font: 400 13px/1.5 "IBM Plex Sans", system-ui, sans-serif; }
+@media (max-width: 600px) { .auth-security-brand { width: calc(100% - 32px); margin-top: 24px; } }
+
+/* Passkey feedback stays beside its control in both sign-in layouts. */
+.auth-methods--native .passkey-feedback { margin: 0; }

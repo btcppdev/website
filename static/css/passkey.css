@@ -1,0 +1,12 @@
+.passkey-feedback {
+  margin: 12px 0 20px;
+  padding: 12px 14px;
+  border: 1px solid #d7d4cc;
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #343638;
+  font: 400 14px/1.5 "IBM Plex Sans", system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+.passkey-feedback[hidden] { display: none; }
+.passkey-feedback.is-error { border-color: #9a3224; background: #fff1ed; color: #8d2c20; }

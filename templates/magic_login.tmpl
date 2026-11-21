@@ -3,19 +3,13 @@
 <head>
   <title>Confirm sign in · bitcoin++</title>
   {{ block "header" . }} {{ end }}
+  <link rel="stylesheet" href="/static/css/login-layout.css?v=20261121-account-flows">
 </head>
-<body class="btcpp-login-page">
+<body class="btcpp-login-page account-flow">
   {{ block "mainnav" . }} {{ end }}
-  <main class="auth-shell">
-    <aside class="auth-poster" aria-hidden="true">
-      <div class="auth-poster__eyebrow">BITCOIN++ / ACCESS</div>
-      <div class="auth-poster__mark">++</div>
-      <div><p>One profile.</p><p>Every event.</p><p class="auth-poster__accent">Your keys.</p></div>
-      <span class="auth-poster__note">Talks · tickets · hackathons · volunteering</span>
-    </aside>
+  <main class="auth-shell auth-shell--simple">
     <section class="auth-card" id="magic-login">
       <header class="auth-card__head">
-        <span class="auth-kicker">§ EMAIL SIGN IN</span>
         {{ if .TokenValid }}
         <h1>Ready to <em>continue?</em></h1>
         <p>Confirm below to use this one-time link and open your account.</p>

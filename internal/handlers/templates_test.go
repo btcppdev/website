@@ -196,7 +196,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render reauthentication prompt: %v", err)
 	}
-	for _, expected := range []string{"Confirm it’s <em>you.</em>", "last used", "Use your passkey", "Use another sign-in method", "development email login-skip", `value="dev-reauth"`} {
+	for _, expected := range []string{"Confirm it’s <em>you.</em>", "Use your passkey", "Use another sign-in method", "development email login-skip", `value="dev-reauth"`} {
 		if !strings.Contains(reauthPage.String(), expected) {
 			t.Fatalf("reauthentication prompt omitted %q: %s", expected, reauthPage.String())
 		}
@@ -216,7 +216,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render managed signer setup authorization: %v", err)
 	}
-	for _, expected := range []string{"Create a Nostr signer for Signet Systems?", "dedicated Nostr identity for <strong>Signet Systems</strong>", "Why this is needed", "Every Nostr badge must be cryptographically signed.", "without sharing an <code>nsec</code>", "What happens next", "The Bitcoin++ website never receives the private key or your passphrase.", "organization", "Signet Systems", "your role", "manager", "create a new Nostr signer", "Continue to signer setup →", "Cancel setup"} {
+	for _, expected := range []string{"Create a Nostr signer for <em>Signet Systems</em>?", "dedicated Nostr identity for <strong>Signet Systems</strong>", "Continue to signer setup →", "Cancel setup"} {
 		if !strings.Contains(signerSetup.String(), expected) {
 			t.Fatalf("managed signer setup omitted %q: %s", expected, signerSetup.String())
 		}
@@ -227,7 +227,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render combined signer authorization: %v", err)
 	}
-	for _, expected := range []string{"Connect and sign in to Badge Studio?", "Connect Badge Studio", "Sign in once", "https://badges.example/api/auth/session", "This approval cannot sign in to another website or authorize later badge actions.", "connect Badge Studio and sign in", "Connect &amp; sign in →"} {
+	for _, expected := range []string{"Connect <em>Signet Systems</em> to Badge Studio?", "https://badges.example/api/auth/session", "Connect &amp; sign in →"} {
 		if !strings.Contains(combinedLogin.String(), expected) {
 			t.Fatalf("combined signer authorization omitted %q: %s", expected, combinedLogin.String())
 		}

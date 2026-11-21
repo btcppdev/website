@@ -3,25 +3,19 @@
 <head>
   <title>Authorize {{ .Client.Name }} · bitcoin++</title>
   {{ block "header" . }} {{ end }}
+  <link rel="stylesheet" href="/static/css/login-layout.css?v=20261121-permissions-regular">
 </head>
-<body class="btcpp-login-page">
+<body class="btcpp-login-page oauth-consent">
   {{ block "mainnav" . }} {{ end }}
-  <main class="auth-shell">
-    <aside class="auth-poster" aria-hidden="true">
-      <div class="auth-poster__eyebrow">BITCOIN++ / AUTHORIZATION</div>
-      <div class="auth-poster__mark">++</div>
-      <div><p>Your account.</p><p>Your data.</p><p class="auth-poster__accent">Your choice.</p></div>
-      <span class="auth-poster__note">You can revoke this connection later.</span>
-    </aside>
+  <main class="auth-shell auth-shell--simple" aria-labelledby="oauth-consent-title">
     <section class="auth-card">
       <header class="auth-card__head">
-        <span class="auth-kicker">§ CONNECT APP</span>
-        <h1>Authorize <em>{{ .Client.Name }}?</em></h1>
-        <p>This application is asking for the following access to your bitcoin++ account.</p>
+        <h1 id="oauth-consent-title">Authorize <span class="oauth-consent__app">{{ .Client.Name }}?</span></h1>
+        <p>This application is asking for the following access to your bitcoin++ account. You can revoke this connection later.</p>
       </header>
-      <ul class="oauth-consent-scopes">
+      <ul role="list" class="oauth-consent-scopes" aria-label="Requested permissions">
         {{ range .Scopes }}
-        <li><strong>{{ . }}</strong><span>{{ index $.ScopeDescriptions . }}</span></li>
+        <li><span class="oauth-consent-scopes__check" aria-hidden="true">✓</span><span class="oauth-consent-scopes__description">{{ with index $.ScopeDescriptions . }}{{ . }}{{ else }}{{ . }}{{ end }}</span></li>
         {{ end }}
       </ul>
       <form method="POST" action="/oauth/authorize" class="auth-form">
@@ -33,10 +27,8 @@
         <input type="hidden" name="state" value="{{ .State }}">
         <input type="hidden" name="code_challenge" value="{{ .CodeChallenge }}">
         <input type="hidden" name="code_challenge_method" value="S256">
-        <div class="auth-form__actions">
-          <button class="auth-primary" type="submit" name="decision" value="allow">Authorize {{ .Client.Name }} <span>→</span></button>
-          <button class="auth-secondary" type="submit" name="decision" value="deny">Cancel</button>
-        </div>
+        <button class="auth-primary" type="submit" name="decision" value="allow">Authorize {{ .Client.Name }} <span>→</span></button>
+        <div class="auth-form__actions"><button class="auth-text-link" data-site-controls="off" type="submit" name="decision" value="deny">Cancel →</button></div>
       </form>
     </section>
   </main>

@@ -1,0 +1,15 @@
+{{ define "account_security_head" }}
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/css/mini.css">
+<link rel="stylesheet" href="/static/css/site-chrome.css?v=20261121-ticker-colors">
+<script src="/static/js/brand-wordmark.js?v=20260831-1" defer></script>
+<link rel="stylesheet" href="/static/css/custom.css?v=20261121-no-eyebrows">
+<link rel="stylesheet" href="/static/css/brand-typography.css?v=20261121-light-surfaces">
+<link rel="stylesheet" href="/static/css/site-controls.css?v=20261121-header-orange">
+{{ end }}
+{{ define "account_security_brand" }}
+<header class="auth-security-brand"><a href="/" aria-label="bitcoin++ home"><img src="/static/img/logo_blk.svg" alt="bitcoin++" width="152" height="44"></a></header>
+{{ end }}
+{{ define "account_security_footer" }}
+<footer class="auth-security-footer">bitcoin++ · account security · {{ .Year }}</footer>
+{{ end }}

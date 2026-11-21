@@ -51,18 +51,19 @@ func serveAdminTemporaryPassword(w http.ResponseWriter, r *http.Request, ctx *co
 		http.Error(w, "Unable to secure form", 500)
 		return
 	}
-	page := TemporaryPasswordPage{Admin: true, CSRF: csrf}
 	if r.Method == http.MethodPost {
 		limitRequestBody(w, r, maxFormBodyBytes)
 		if err := r.ParseForm(); err != nil || !secureTokenEqual(csrf, r.FormValue("csrf")) {
 			http.Error(w, "Invalid form token", 403)
 			return
 		}
-		if admin.AuthenticatedAt.IsZero() || time.Since(admin.AuthenticatedAt) > 15*time.Minute {
-			page.Error = "Sign in again before issuing a temporary password."
-			renderTemporaryPassword(w, ctx, page)
-			return
-		}
+	}
+	if !recentAuthentication(admin) {
+		http.Redirect(w, r, reauthenticationURL("/admin/people/temporary-password", false), http.StatusSeeOther)
+		return
+	}
+	page := TemporaryPasswordPage{Admin: true, CSRF: csrf}
+	if r.Method == http.MethodPost {
 		page.Email = strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 		resolved, err := getters.ResolvePersonByEmail(ctx, page.Email)
 		if err != nil || resolved.IsConflict() || resolved.Alias == nil {

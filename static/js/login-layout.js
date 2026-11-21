@@ -54,7 +54,8 @@
     const control = standard.querySelector(selector);
     // A formerly used provider may no longer be configured. Show normal choices.
     if (!control) return;
-    move(control);
+    // Keep a method’s separate feedback beside it when promoting or restoring it.
+    move(control.closest('[data-login-method]') || control);
   }
   document.getElementById('auth-preferred-label').textContent = labels[method];
   standard.hidden = true;
