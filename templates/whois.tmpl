@@ -4,26 +4,25 @@
     {{ template "rebrand_header" . }}
     {{ $socialCard := .SocialCardURL }}{{ if not $socialCard }}{{ $socialCard = "/static/img/rebrand/breakthroughs.jpg" }}{{ end }}
     {{ template "site_seo" (dict "Title" "whois @ bitcoin++" "Description" "A directory of bitcoin++ speakers, builders, and hackathon participants." "Path" "/whois" "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
-    <link rel="stylesheet" href="/static/css/archive-rain.css">
+    <link rel="stylesheet" href="/static/css/archive-rain.css?v=20261121-bitcoin-orange">
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
-  <body class="btcpp-redesign btcpp-rebrand-page whois-page">
+  <body class="btcpp-redesign btcpp-rebrand-page whois-page whois-page--directory">
     {{ template "mainnav" . }}
     {{ template "archive_rain" .ArchiveRain }}
 
     <main class="whois-shell">
       <section class="whois-hero">
         <div>
-          <p class="whois-section-tag">§ WHO'S HERE</p>
           <h1>The <span>people</span> of bitcoin++.</h1>
         </div>
         <p class="whois-hero__copy">{{ .AllCount }} builders, researchers, and hackers who have taken the stage or the hackathon table at bitcoin++ events. Find a co-speaker, collaborator, or someone who runs what you run.</p>
         <form class="whois-search" action="/whois" method="GET" role="search">
           <label for="whois-q">⌕</label>
           <input id="whois-q" type="search" name="q" value="{{ .Query }}" placeholder="Search people, talks, projects, cities, handles...">
-          <button type="submit">SEARCH</button>
-          {{ if .Query }}<a href="/whois">CLEAR</a>{{ end }}
+          <button type="submit">Search</button>
+          {{ if .Query }}<a href="/whois">Clear</a>{{ end }}
         </form>
       </section>
 
@@ -44,7 +43,7 @@
             {{ end }}
           </div>
           {{ if or .Query .Topic .Event }}<a class="whois-filters__clear" href="/whois">clear filters</a>{{ end }}
-          <strong class="whois-filters__count">{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Event }} · FILTERED{{ end }}</strong>
+          <strong class="whois-filters__count">{{ len .People }} Member{{ if ne (len .People) 1 }}s{{ end }}{{ if or .Query .Topic .Event }} · Filtered{{ end }}</strong>
         </div>
 
         <div class="whois-results">
@@ -67,9 +66,9 @@
                 {{ end }}
               </div>
               <div class="whois-card__stats">
-                <span><b>{{ len .Editions }}</b> ED</span>
-                <span><b>{{ len .Talks }}</b> TALKS</span>
-                <span><b>{{ len .Projects }}</b> PROJ</span>
+                <span><b>{{ len .Editions }}</b> Editions</span>
+                <span><b>{{ len .Talks }}</b> Talks</span>
+                <span><b>{{ len .Projects }}</b> Projects</span>
               </div>
             </a>
             {{ end }}

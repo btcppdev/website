@@ -17,9 +17,10 @@
   border: 1px solid #d6d0c6;
 }
 .org-shop-nav a[aria-current] {
-  background: #f9af5e;
-  border-color: #ba864f;
+  background: #fff0e3;
+  border-color: #db7900;
   font-weight: bold;
+  color: #a65b00;
 }
 .org-shop-actions {
   display: flex;
@@ -126,30 +127,30 @@
 }
 .org-shop .ew-primary {
   background: var(--organization-orange);
-  color: var(--organization-ink) !important;
+  color: #fff !important;
 }
 .org-shop .ew-primary:hover {
-  background: #ffc17f;
+  background: #bf6900;
 }
 
 .org-earnings {
   margin: 22px 0;
   padding: 22px 26px;
-  border: 1px solid var(--organization-ink);
-  background: #191917;
-  color: #fffdfa;
+  border: 1px solid #d7d4cc;
+  background: #fffdf8;
+  color: #343638;
   box-shadow: 5px 5px 0 var(--organization-orange);
 }
 .org-earnings-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.org-earnings .dashboard-kicker { color: #f9af5e; }
+.org-earnings .dashboard-kicker { color: var(--brand-accent-text, #a65b00); }
 .org-earnings dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 18px 0 0; gap: 20px; }
-.org-earnings dl > div { padding: 0 18px 0 0; border-right: 1px solid #49463f; }
+.org-earnings dl > div { padding: 0 18px 0 0; border-right: 1px solid #d7d4cc; }
 .org-earnings dl > div:last-child { border-right: 0; padding-right: 0; }
-.org-earnings dt { color: #c8c1b5; font: 500 11px/1.5 "IBM Plex Mono", monospace; }
+.org-earnings dt { color: #65635e; font: 500 11px/1.5 "IBM Plex Mono", monospace; }
 .org-earnings dd { margin: 8px 0 0; color: inherit; font-size: clamp(22px, 2.5vw, 30px); font-weight: 700; overflow-wrap: anywhere; }
-.org-earnings .org-earnings-net { color: #f9af5e; }
-.org-earnings p { margin: 18px 0 0; color: #c8c1b5; font-size: 12px; }
-.org-payout-policy { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 30px; align-items: center; border: 1px solid var(--organization-ink); padding: 26px; background: #fff1dc; }
+.org-earnings .org-earnings-net { color: var(--brand-accent-text, #a65b00); }
+.org-earnings p { margin: 18px 0 0; color: #65635e; font-size: 12px; }
+.org-payout-policy { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 30px; align-items: center; border: 1px solid #d7d4cc; padding: 26px; background: #fff1dc; }
 .org-payout-policy > div:first-child { text-align: center; }
 .org-payout-policy strong { display: block; font: 700 clamp(44px, 6vw, 72px)/1.2 "IBM Plex Sans", sans-serif; letter-spacing: -.06em; }
 .org-payout-policy h2 { margin: 0 0 12px; font-size: 25px; }
@@ -166,3 +167,5 @@
   .org-payout-policy { grid-template-columns: 1fr; gap: 18px; padding: 20px; }
   .org-payout-policy > div:first-child { text-align: left; }
 }
+
+.org-shop .ew-primary { font-size: 20px; font-weight: 700; }

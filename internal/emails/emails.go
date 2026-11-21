@@ -238,7 +238,7 @@ func SendTickets(ctx *config.AppContext, tickets []*types.Ticket, confRef, email
 	mail := &mailer.MailRequest{
 		JobKey:      "btcpp-" + ticketJob,
 		ToAddr:      email,
-		FromAddr:    "hello@btcpp.dev",
+		FromAddr:    "inbox@btcpp.dev",
 		FromName:    "bitcoin++ ✨",
 		Title:       title,
 		HTMLBody:    htmlBody.String(),
@@ -273,7 +273,7 @@ func ComposeAndSendMail(ctx *config.AppContext, mail *Mail) error {
 	/* Build a mail to send */
 	fromAddr, fromName := strings.TrimSpace(mail.FromAddr), strings.TrimSpace(mail.FromName)
 	if fromAddr == "" {
-		fromAddr = "hello@btcpp.dev"
+		fromAddr = "inbox@btcpp.dev"
 	}
 	if fromName == "" {
 		fromName = "bitcoin++ ✨"

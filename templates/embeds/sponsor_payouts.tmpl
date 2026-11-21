@@ -1,7 +1,7 @@
 {{ define "sponsor_payouts" }}
 <section class="sponsor-dashboard-section dashboard-workspace-panel" id="payouts">
   <div class="sponsor-dashboard-section__head">
-    <div><div class="dashboard-kicker">§ Hackathon payouts</div><h2>Pay your prize winners.</h2></div>
+    <div><h2>Pay your prize winners.</h2></div>
     <p>Payment instructions for your organization's Bitcoin prizes, after hackathon results are finalized.</p>
   </div>
   {{ if .Payouts }}
@@ -10,13 +10,13 @@
     <li><strong>Send from your wallet.</strong> For recipients marked “Ready to pay,” send the exact sats shown using either listed address.</li>
     <li><strong>Record your payment.</strong> Once your wallet confirms success, save the transaction ID or payment hash below and mark that share as paid.</li>
   </ol>
-  <p class="sponsor-dashboard-note">Already paid? Record it below instead of sending again. This records your confirmation; it does not send or verify a payment. Need help? <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.</p>
+  <p class="sponsor-dashboard-note">Already paid? Record it below instead of sending again. This records your confirmation; it does not send or verify a payment. Need help? <a href="mailto:inbox@btcpp.dev">inbox@btcpp.dev</a>.</p>
   <div class="sponsor-event-grid sponsor-payout-grid">
     {{ range .Payouts }}
     <article class="sponsor-event-card dashboard-workspace-widget">
       <header class="sponsor-event-card__header">
-        <div class="sponsor-event-card__eyebrow"><span>{{ .ConferenceTitle }}</span><span>Winner</span></div>
         <h3>{{ .ProjectTitle }}</h3>
+        <div class="sponsor-event-card__meta"><span>{{ .ConferenceTitle }}</span><span>Winner</span></div>
         <p>{{ .AwardTitle }} · {{ .PrizeTitle }}</p>
       </header>
       <div class="sponsor-payout-total"><span>Prize total for this project</span><strong>{{ if .PrizeSats }}{{ sats .PrizeSats }} sats{{ else }}Awaiting amount{{ end }}</strong></div>
@@ -62,7 +62,7 @@
     {{ end }}
   </div>
   {{ else }}
-  <div class="sponsor-dashboard-empty">No finalized Bitcoin prize winners yet. Your winners and payout instructions will appear here after organizers finalize the results. For help with a prize, contact <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.</div>
+  <div class="sponsor-dashboard-empty">No finalized Bitcoin prize winners yet. Your winners and payout instructions will appear here after organizers finalize the results. For help with a prize, contact <a href="mailto:inbox@btcpp.dev">inbox@btcpp.dev</a>.</div>
   {{ end }}
 </section>
 {{ end }}

@@ -1,0 +1,114 @@
+@font-face {
+  font-family: "Insider Montserrat";
+  src: url("../fonts/montserrat-latin.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Insider's own newsroom identity, matching beta.btcpp.dev. */
+.home-shell > section.home-insider {
+  --insider-ink: #f4f0e7;
+  --insider-muted: #d1cdc4;
+  --insider-accent: #ff8c50;
+  background: #050505;
+  color: var(--insider-ink);
+  padding: var(--home-section-space) var(--home-inline-space);
+  font-family: "Insider Montserrat", "Avenir Next", sans-serif;
+}
+
+.home-insider__logo {
+  margin-top: var(--home-layout-gap);
+  position: relative;
+  display: block;
+  width: 216px;
+  max-width: 100%;
+  aspect-ratio: 582 / 207;
+  overflow: hidden;
+}
+
+/* Use the original square logo with the same lockup crop as Insider. */
+.home-insider__logo img {
+  position: absolute;
+  left: -5.84%;
+  top: -106.3%;
+  width: 111.7%;
+  max-width: none;
+  height: auto;
+}
+
+.home-insider__grid {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: var(--home-layout-gap);
+}
+
+.home-insider__copy h2 {
+  margin: 0;
+  color: var(--insider-ink);
+  font: 800 clamp(34px, 3.8vw, 48px) / 1.03 "Insider Montserrat", "Avenir Next", sans-serif;
+  letter-spacing: -.04em;
+}
+
+.home-insider__copy h2 span { color: #ff6719; }
+
+.home-insider__copy p {
+  margin: var(--home-copy-gap) 0 var(--home-action-gap);
+  max-width: 36ch;
+  color: var(--insider-muted);
+  font: 20px / 1.45 "Times New Roman", Times, Georgia, serif;
+}
+
+.home-insider__link,
+.home-insider__episode-meta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--insider-accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+.home-insider__link { font-size: 16px; }
+.home-insider a:hover { color: #fff; }
+.home-insider a:focus-visible,
+.home-insider button:focus-visible { outline: 2px solid #ff8c50; outline-offset: 5px; }
+
+.home-insider__episode { min-width: 0; margin: 0; }
+.home-insider__player { position: relative; background: #10100f; border: 1px solid #353430; }
+.home-insider__player video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+
+.home-insider__play {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid #89867e;
+  padding: 10px 14px;
+  background: #10100ff2;
+  color: #fff;
+  font: 600 13px / 1.2 "Insider Montserrat", sans-serif;
+  cursor: pointer;
+}
+.home-insider__play[hidden] { display: none; }
+.home-insider__play:hover { border-color: #ff8c50; }
+.home-insider__play [data-insider-play-icon] { font-family: sans-serif; }
+.home-insider__episode figcaption { padding-top: 16px; }
+.home-insider__episode h3 { margin: 0; color: var(--insider-ink); font: 700 16px / 1.35 "Insider Montserrat", sans-serif; }
+.home-insider__episode-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #b9b5ad; font-size: 12px; line-height: 1.4; }
+.home-insider__episode-meta a { white-space: nowrap; gap: 5px; }
+
+@media (max-width: 760px) {
+  .home-insider__grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .home-insider__copy h2 { max-width: 16ch; font-size: clamp(34px, 7vw, 44px); }
+  .home-insider__copy p { max-width: 40ch; }
+  .home-insider__logo { width: 192px; }
+  .home-insider__episode-meta { flex-wrap: wrap; }
+}

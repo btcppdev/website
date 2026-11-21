@@ -5,13 +5,13 @@
   {{ block "header" . }}{{ end }}
   {{ template "admin_favicon" "" }}
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/css/antarctica-admin.css?v=20261024">
+  <link rel="stylesheet" href="/static/css/antarctica-admin.css?v=20261121-sentence-case">
 </head>
 <body class="expedition-admin">
   <main class="expedition-admin__shell">
     <a class="expedition-admin__back" href="/admin">← Global administration</a>
     <header class="expedition-admin__hero">
-      <div><p class="expedition-admin__eyebrow">Cold Storage Edition · January 24–February 5, 2028</p><h1>Antarctica checkout</h1><p>Manage reservations, booking terms and launch readiness.</p></div>
+      <div><h1>Antarctica checkout</h1><p>Manage reservations, booking terms and launch readiness.</p></div>
       <a class="ea-button ea-button--secondary" href="/antarctica">View expedition ↗</a>
     </header>
     {{ if .Flash }}<div class="ea-notice" role="status">{{ .Flash }}</div>{{ end }}

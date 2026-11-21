@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="en"><head><title>Purchase invoice · bitcoin++</title>{{ block "header" . }}{{ end }}</head>
 <body class="btcpp-profile-edit-page account-settings-page purchase-invoice-page"><main class="profile-edit-shell person-emails-page">
 <p><a href="/dashboard/orders">← Purchases &amp; billing</a></p>
-<header class="profile-edit-hero account-settings-hero"><div class="account-settings-hero__copy"><p class="profile-edit-tag">§ YOUR PURCHASE</p><h1>Purchase <span>invoice.</span></h1></div></header>
+<header class="profile-edit-hero account-settings-hero"><div class="account-settings-hero__copy"><h1>Purchase <span>invoice.</span></h1></div></header>
 {{ if .Notice }}<p role="alert">{{ .Notice }}. Contact inbox@btcpp.dev with your order reference if you need help.</p>{{ end }}
 {{ if .Invoice }}
 <p>Invoice <strong>{{ .Invoice.Number }}</strong> · issued {{ .Invoice.IssuedAt.UTC.Format "Jan 2, 2006" }}</p>

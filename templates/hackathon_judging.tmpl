@@ -3,7 +3,7 @@
 <head>
   <title>Judging - {{ .Competition.Title }} - bitcoin++ hackathon</title>
   {{ block "header" . }} {{ end }}
-  <link rel="stylesheet" href="/static/css/hackathon-judging.css?v=2">
+  <link rel="stylesheet" href="/static/css/hackathon-judging.css?v=20261121-sentence-case">
   <script src="/static/js/hackathon-live-results.js" defer></script>
 </head>
 <body class="hack-redesign">
@@ -32,7 +32,6 @@
     <section class="hack-section hack-judging-results">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Deliberation results</div>
           <h2>Review the <span class="hack-serif">rankings.</span></h2>
         </div>
         <div class="hack-section__deck">Read-only results for completed judging rounds. Standings update as deliberation changes.</div>
@@ -133,7 +132,6 @@
         <div class="hack-current-round__label">Current judging round</div>
         <div class="hack-current-round__body">
           <div>
-            <div class="hack-label">Judging</div>
             <h2>Judging is not <span class="hack-serif">open.</span></h2>
           </div>
           <div class="hack-current-round__meta">
@@ -150,7 +148,6 @@
       {{ if .Competition.ResultsFinalizedAt }}
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Sponsor Awards</div>
           <h2>Judging <span class="hack-serif">complete.</span></h2>
         </div>
         <div class="hack-section__deck">Hackathon results are finalized. Sponsor award winner selection is now closed.</div>
@@ -158,7 +155,6 @@
       {{ else }}
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Sponsor Awards</div>
           <h2>Pick sponsor award <span class="hack-serif">winners.</span></h2>
         </div>
         <div class="hack-section__deck">Sponsor judges select winners directly for each assigned award, up to its recipient limit. These selections do not affect ranked scoring.</div>
@@ -183,7 +179,7 @@
 
             {{ if $awardees }}
             <div class="hack-sponsor-judge-card__section">
-              <div class="hack-label">Selected winners</div>
+              <h3 class="hack-subsection-title">Selected winners</h3>
               <div class="hack-list">
                 {{ range $awardees }}
                 <div class="hack-list__row">
@@ -235,7 +231,6 @@
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Projects</div>
           <h2>Eligible <span class="hack-serif">submissions.</span></h2>
         </div>
         <div class="hack-section__deck">{{ len .Projects }} eligible project{{ if ne (len .Projects) 1 }}s{{ end }}.</div>

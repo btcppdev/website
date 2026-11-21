@@ -277,7 +277,7 @@ func sendPersonMergeConfirmationEmail(ctx *config.AppContext, request *types.Per
 	if !ctx.InProduction {
 		ctx.Infos.Printf("[dev] account merge link for %s: %s", request.TargetEmail, confirmationURL)
 	}
-	markdown := fmt.Sprintf("# Add this email to your bitcoin++ account\n\n%s (%s) asked to add %s to their bitcoin++ account. Because this email already has a profile, you will review which profile details to keep before the accounts are combined. Tickets, talks, volunteer work, orders, and other account history move automatically.\n\n[Review and merge accounts](button#%s)\n\nThis link expires in 30 minutes. If you did not expect this request, you can ignore this email or contact hello@btcpp.dev.\n\n— bitcoin++", markdownEmailText(request.RequesterName), markdownEmailText(request.RequesterEmail), markdownEmailText(request.TargetEmail), confirmationURL)
+	markdown := fmt.Sprintf("# Add this email to your bitcoin++ account\n\n%s (%s) asked to add %s to their bitcoin++ account. Because this email already has a profile, you will review which profile details to keep before the accounts are combined. Tickets, talks, volunteer work, orders, and other account history move automatically.\n\n[Review and merge accounts](button#%s)\n\nThis link expires in 30 minutes. If you did not expect this request, you can ignore this email or contact inbox@btcpp.dev.\n\n— bitcoin++", markdownEmailText(request.RequesterName), markdownEmailText(request.RequesterEmail), markdownEmailText(request.TargetEmail), confirmationURL)
 	return sendPersonAccountEmail(ctx, request.TargetEmail, "Confirm your bitcoin++ account merge", markdown, "person-merge-target-"+request.ID+"-"+token[:12])
 }
 
@@ -424,7 +424,7 @@ func sendAccountSecurityNotice(ctx *config.AppContext, personID, recipient, subj
 
 func accountSecurityNoticeMarkdown(subject, detail string, occurredAt time.Time) string {
 	timestamp := occurredAt.UTC().Format("2006-01-02 15:04:05 UTC")
-	return fmt.Sprintf("# %s\n\n%s\n\n**Time:** %s\n\nIf you did not make this change, contact hello@btcpp.dev immediately.\n\n— bitcoin++", subject, detail, timestamp)
+	return fmt.Sprintf("# %s\n\n%s\n\n**Time:** %s\n\nIf you did not make this change, contact inbox@btcpp.dev immediately.\n\n— bitcoin++", subject, detail, timestamp)
 }
 
 func identitySecurityEmail(viewer *auth.Identity) string {

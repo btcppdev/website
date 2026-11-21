@@ -26,8 +26,8 @@
   border-radius: 4px;
   color: #73529b;
   font: 700 11px/1.2 system-ui, sans-serif;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   white-space: nowrap;
 }
 .managed-signer-vaults main {

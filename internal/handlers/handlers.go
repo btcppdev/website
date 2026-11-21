@@ -5426,7 +5426,7 @@ func ContactPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 
 		mail := &emails.Mail{
 			JobKey:   fmt.Sprintf("contact-%s-%d", email, time.Now().Unix()),
-			Email:    "hello@btcpp.dev",
+			Email:    "inbox@btcpp.dev",
 			ReplyTo:  email,
 			Title:    fmt.Sprintf("Contact Form: %s", name),
 			SendAt:   time.Now(),

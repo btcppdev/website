@@ -8,7 +8,6 @@
   {{ block "mainnav" . }}{{ end }}
   <main class="dashboard-main sponsor-invite-page">
     <article class="sponsor-invite-card">
-      <div class="dashboard-kicker">● Organization invitation</div>
       <h1>Join {{ .Invite.OrganizationName }}.</h1>
       <p class="sponsor-invite-card__intro">This invitation adds you to the organization as a <strong>{{ .Invite.Role }}</strong>. It was issued to <strong>{{ .Invite.Email }}</strong>.</p>
       {{ if .Error }}

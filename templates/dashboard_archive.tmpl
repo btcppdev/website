@@ -11,7 +11,6 @@
     <section class="dashboard-archive-hero">
       <div class="dashboard-archive-hero__grid">
         <div>
-          <div class="dashboard-kicker">§ Your permanent record</div>
           {{ if .ArchiveOwnerName }}
           <h1>{{ .ArchiveOwnerName }}'s <span>bitcoin++ archive.</span></h1>
           {{ else }}
@@ -73,7 +72,7 @@
           </div>
         </div>
         <div class="dashboard-archive-entry__sessions">
-          <div class="dashboard-kicker">Your sessions</div>
+          <h3 class="dashboard-section-title">Your sessions</h3>
           {{ $archiveTalks := archiveTalks $eb.SpeakerConf }}
           {{ if $archiveTalks }}
           {{ range $archiveTalks }}

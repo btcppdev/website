@@ -16,8 +16,8 @@
             {{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }}">{{ else }}<span>{{ printf "%.1s" .Organization.Name }}</span>{{ end }}
           </div>
           <div class="dashboard-workspace-hero__copy sponsor-dashboard-hero__copy">
-            <div class="dashboard-kicker">● {{ .Organization.Name }} · sponsor projects</div>
             <h1>Hackathon projects.</h1>
+            <p class="dashboard-workspace-hero__meta">{{ .Organization.Name }}</p>
             <p>{{ if .CanViewAllHackathonSubmissions }}Review every submitted project available through this sponsorship.{{ else }}Review teams that entered an approved {{ .Organization.Name }} challenge.{{ end }}</p>
           </div>
         </div>
@@ -30,7 +30,7 @@
 
       <section class="sponsor-dashboard-section dashboard-workspace-panel">
         <div class="sponsor-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Hackathon projects</div><h2>{{ if .CanViewAllHackathonSubmissions }}All submitted projects.{{ else }}Teams building for your challenges.{{ end }}</h2></div>
+          <div><h2>{{ if .CanViewAllHackathonSubmissions }}All submitted projects.{{ else }}Teams building for your challenges.{{ end }}</h2></div>
           <div class="sponsor-project-export">
             <p>Contact details appear only when included in the sponsorship terms or explicitly shared by that participant.</p>
             {{ if .CanExportParticipants }}<a href="/dashboard/sponsor/{{ .Organization.Ref }}/hackathon-projects.csv">Download participant CSV ↓</a>{{ end }}

@@ -207,7 +207,7 @@
       <div class="flex justify-end gap-3"><button type="button" id="schedule-time-cancel">Cancel</button><button type="submit" class="rounded bg-indigo-600 px-4 py-2 text-white">Save time</button></div>
     </form>
   </dialog>
-  <script src="/static/js/schedule.js" defer></script>
+  <script src="/static/js/schedule.js?v=20261121-sentence-case" defer></script>
 </body>
 </html>
 
@@ -267,7 +267,7 @@
     <p class="text-xs font-semibold text-gray-900 leading-tight">{{ $p.Title }}</p>
     <div class="flex items-center gap-1 shrink-0">
       {{ if $sp.HasDrift }}<span title="Edited since the last cal invite was sent — needs a Send Cal Updates click."
-           class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-200 text-amber-900">EDITED</span>{{ end }}
+           class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-200 text-amber-900">Edited</span>{{ end }}
       {{ template "schedule_status_pill" $p.Status }}
     </div>
   </div>
@@ -313,7 +313,7 @@
 */}}
 {{ define "schedule_avail" }}
 {{ if .NoAvail }}
-<p class="mt-1"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800">NOAVAIL</span></p>
+<p class="mt-1"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800">Unavailable</span></p>
 {{ else if .AvailDays }}
 <p class="mt-1 flex flex-wrap gap-1">
   {{ range .AvailDays }}

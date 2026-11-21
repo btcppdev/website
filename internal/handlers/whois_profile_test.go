@@ -62,17 +62,17 @@ func TestProjectOnlyWhoIsProfileShowsEventBadges(t *testing.T) {
 	}
 
 	html := output.String()
-	if !strings.Contains(html, `EVENT BADGES`) || !strings.Contains(html, `href="/toronto"`) {
+	if !strings.Contains(html, `class="whois-event-badges"`) || !strings.Contains(html, `href="/toronto"`) {
 		t.Fatalf("project-only WhoIs profile is missing event badges: %s", html)
 	}
-	if strings.Contains(html, `TALKS & PANELS`) {
+	if strings.Contains(html, `On stage.`) {
 		t.Fatalf("project-only WhoIs profile unexpectedly renders the talks section: %s", html)
 	}
 	if strings.Contains(html, `archive-rain`) {
 		t.Fatalf("individual WhoIs profile unexpectedly renders archive rain: %s", html)
 	}
-	eventBadgesIndex := strings.Index(html, `§01 · EVENT BADGES`)
-	hackathonProjectsIndex := strings.Index(html, `§02 · HACKATHON PROJECTS`)
+	eventBadgesIndex := strings.Index(html, `id="editions"`)
+	hackathonProjectsIndex := strings.Index(html, `class="whois-project-list"`)
 	if eventBadgesIndex == -1 || hackathonProjectsIndex == -1 || eventBadgesIndex > hackathonProjectsIndex {
 		t.Fatalf("WhoIs profile sections are out of order: event badges index %d, hackathon projects index %d", eventBadgesIndex, hackathonProjectsIndex)
 	}
@@ -173,7 +173,7 @@ func TestWhoIsProfileBadgesShowcaseAtBottomWithIssuer(t *testing.T) {
 	if len(originalProfile.Issued) != 2 {
 		t.Fatalf("public profile filtering mutated shared Badge Studio data: %+v", profile.Issued)
 	}
-	if eventIndex, badgeIndex := strings.Index(html, "§01 · EVENT BADGES"), strings.Index(html, "Badges earned."); eventIndex == -1 || badgeIndex == -1 || badgeIndex < eventIndex {
+	if eventIndex, badgeIndex := strings.Index(html, `id="editions"`), strings.Index(html, "Badges earned."); eventIndex == -1 || badgeIndex == -1 || badgeIndex < eventIndex {
 		t.Fatalf("badge showcase is not the final profile section: event index %d, badge index %d", eventIndex, badgeIndex)
 	}
 }

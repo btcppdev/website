@@ -3,19 +3,20 @@
   <head>
     <title>Order {{ .Order.PublicID }} · bitcoin++</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
-    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css?v=refund-contact-1">
-    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
-    <link rel="stylesheet" href="/static/css/admin-order.css?v=1">
-  </head>
+    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20261121-ticker-colors">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css?v=20261121-no-eyebrows">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20261121-no-eyebrows">
+    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20261121-stable-header">
+    <link rel="stylesheet" href="/static/css/admin-order.css?v=20261121-sentence-case">
+  <link rel="stylesheet" href="/static/css/site-controls.css?v=20261121-header-orange">
+</head>
   <body class="shop-page shop-admin-page">
     {{ template "mainnav" . }}
 
     <main class="shop-admin shop-admin--order">
       <nav class="order-breadcrumb" aria-label="Breadcrumb"><a href="/admin">Admin</a><span aria-hidden="true">/</span><a href="/admin/merch/orders">Orders</a><span aria-hidden="true">/</span><span aria-current="page">Order details</span></nav>
       <header class="order-heading">
-        <div><p class="shop-kicker">ORDER DETAILS</p><h1>{{ if .Order.BuyerName }}{{ .Order.BuyerName }}{{ else }}Customer order{{ end }}</h1><p class="order-reference">Order <code>{{ .Order.PublicID }}</code></p></div>
+        <div><h1>{{ if .Order.BuyerName }}{{ .Order.BuyerName }}{{ else }}Customer order{{ end }}</h1><p class="order-reference">Order <code>{{ .Order.PublicID }}</code></p></div>
         <div class="order-heading__actions"><span class="order-status">{{ .Order.Status }}</span>
           <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/receipt"><button class="shop-button" type="submit">Resend receipt</button></form>
         </div>
@@ -75,7 +76,6 @@
       </section>
       {{ if .ManualRefund }}
       <section class="shop-admin-form shop-manual-refund">
-        <p class="shop-kicker">Manual refund contact</p>
         <h2>Request a Bitcoin refund address</h2>
         <p>Contact the buyer and send the refund outside this app. “Record manual refund” only updates the order after you have sent it.</p>
         <div class="shop-refund-contact">
@@ -121,7 +121,7 @@
         {{ if shopOrderHasFulfillment .Order "ship" }}
         {{ if .CanCreateEasyshipShipment }}
         <div class="shop-admin-form">
-          <p class="shop-kicker">Easyship</p>
+          <h3>Easyship</h3>
           {{ with .EasyshipRateQuote }}
           <p>Selected service: <strong>{{ .CourierName }}{{ if .ServiceName }} · {{ .ServiceName }}{{ end }}</strong></p>
           {{ end }}

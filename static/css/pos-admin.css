@@ -3,10 +3,10 @@
 .pos-admin h1 { font-size:26px; font-weight:700; margin:6px 0; }
 .pos-admin h2 { font-size:14px; font-weight:600; margin:0 0 4px; }
 .pos-admin p { color:#666; font-size:13px; }
-.pos-admin .eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#666; }
-.pos-admin button,.pos-admin .button { display:inline-block; border:1px solid #111; border-radius:6px; background:#111; color:#fff; font-size:13px; font-weight:600; padding:10px 14px; min-height:44px; text-decoration:none; cursor:pointer; }
-.pos-admin .secondary { background:#fff; color:#111; }
-.pos-admin button:hover,.pos-admin .button:hover { background:#333; color:white; }
+.pos-admin .eyebrow { font-size:11px; text-transform:none; letter-spacing:normal; color:#666; }
+.pos-admin button,.pos-admin .button { display:inline-block; border:1px solid #d7d4cc; border-radius:6px; background:var(--brand-accent-compact, #b35f00); color:#fff; font-size:13px; font-weight:600; padding:10px 14px; min-height:44px; text-decoration:none; cursor:pointer; }
+.pos-admin .secondary { background:#fff; color:#343638; }
+.pos-admin button:hover,.pos-admin .button:hover { background:var(--brand-accent-compact, #b35f00); color:#fff; }
 .pos-admin input:not([type=hidden]):not([type=checkbox]) { width:100%; border:1px solid #d1d5db; border-radius:6px; padding:9px 10px; font-size:16px; background:white; min-height:44px; }
 .pos-admin label { display:block; font-size:12px; font-weight:600; }
 .pos-admin label input { margin-top:6px; }
@@ -18,7 +18,7 @@
 .pos-admin .stock-card { display:grid; grid-template-columns:minmax(240px,2fr) minmax(100px,1fr) minmax(100px,1fr) minmax(100px,1fr); gap:16px; align-items:center; background:white; border:1px solid #e5e7eb; border-radius:6px; padding:16px; }
 .pos-admin .stock-card>*,.pos-admin .stock-product>* { min-width:0; }
 .pos-admin .stock-product { display:flex; gap:14px; align-items:center; }
-.pos-admin .stock-thumb { width:76px; height:76px; flex:0 0 76px; object-fit:contain; background:#f6f3ee; border:1px solid #e5e7eb; border-radius:4px; }
+.pos-admin .stock-thumb { width:76px; height:76px; flex:0 0 76px; object-fit:contain; background:#f9f6ee; border:1px solid #e5e7eb; border-radius:4px; }
 .pos-admin .stock-product p { font-size:11px; margin:0; overflow-wrap:anywhere; }
 .pos-admin .stock { display:block; font-size:11px; color:#666; margin-top:5px; }
 .pos-admin .local { display:block; font-size:11px; color:#76716a; font-weight:400; }

@@ -1,6 +1,6 @@
 {{ define "organization_shop_payouts" }}
 <section class="org-payout-policy" aria-label="Your revenue share">
-  <div><span class="dashboard-kicker">Your share</span><strong>{{ .SupplierPercent }}%</strong></div>
+  <div><strong>{{ .SupplierPercent }}%</strong></div>
   <div><h2>You set the price. You keep {{ .SupplierPercent }}%.</h2><p>bitcoin++ keeps {{ .FeePercent }}% of merchandise sales after discounts. Tax and shipping are separate. We round the fee to the nearest cent per order line; you receive the remainder.</p>{{ with .ExamplePayout }}<p>For a {{ merchMoney .PriceCents nil }} item, you receive {{ merchMoney .SupplierCents nil }} and bitcoin++ keeps {{ merchMoney .FeeCents nil }}.</p>{{ end }}</div>
 </section>
 <form method="post" action="{{ .Base }}" data-shop-form data-payout-form autocomplete="off">
@@ -46,7 +46,7 @@
 
 {{ define "organization_shop_earnings" }}
 <aside class="org-earnings" data-earnings data-fee-bps="{{ .Page.FeeBPS }}" data-base-price-cents="{{ .Page.Product.BasePriceCents }}" aria-label="Earnings estimate">
-  <div class="org-earnings-heading"><span class="dashboard-kicker">Per item sold</span><strong>Your earnings</strong></div>
+  <div class="org-earnings-heading"><strong>Your earnings</strong></div>
   <dl aria-live="polite" aria-atomic="true">
     <div><dt>Customer price</dt><dd data-earnings-price>{{ if .Estimate.Valid }}{{ merchMoney .Estimate.PriceCents nil }}{{ else }}—{{ end }}</dd></div>
     <div><dt>bitcoin++ · {{ .Page.FeePercent }}%</dt><dd data-earnings-fee>{{ if .Estimate.Valid }}{{ merchMoney .Estimate.FeeCents nil }}{{ else }}—{{ end }}</dd></div>

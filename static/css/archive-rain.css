@@ -15,7 +15,7 @@
   height: var(--rain-card-size);
   overflow: hidden;
   border: 1px solid rgba(10, 10, 10, .38);
-  background: #f6f3ee;
+  background: #f9f6ee;
   box-shadow: 4px 4px 0 rgba(10, 10, 10, .16);
   opacity: .5;
   animation: archive-fall var(--rain-duration) linear var(--rain-delay) infinite;
@@ -24,7 +24,7 @@
 
 .archive-rain__card.is-speaker,
 .archive-rain__card.is-merch {
-  background: #f9af5e;
+  background: var(--brand-accent-compact, #b35f00);
 }
 
 .archive-rain__card img {

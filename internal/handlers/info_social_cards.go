@@ -6,7 +6,7 @@ func contactSocialCard() imgproc.SiteSocialCard {
 	card := imgproc.SiteSocialCard{
 		Kind: "contact", Eyebrow: "Get in touch", Title: "Contact us.",
 		Subtitle: "Events, speaking, sponsorships, and technical bitcoin.",
-		Callout:  "hello@btcpp.dev",
+		Callout:  "inbox@btcpp.dev",
 	}
 	applySiteSocialCardPalette(&card, nil)
 	return card

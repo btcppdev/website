@@ -12,7 +12,6 @@
   <main class="profile-edit-shell person-emails-page">
     <header class="profile-edit-hero account-settings-hero">
       <div class="account-settings-hero__copy">
-        <p class="profile-edit-tag">§ ACCOUNT CONTROL ROOM</p>
         <h1>Account <span>settings.</span></h1>
         <p>Manage sign-in methods, verified email addresses, connected applications, and credentials used by API clients.</p>
       </div>
@@ -41,7 +40,6 @@
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
           <div>
-            <p>§ SIGN-IN METHODS</p>
             <h2>Connected accounts</h2>
           </div>
         </div>
@@ -158,7 +156,7 @@
     <section id="settings-apps" class="profile-edit-section is-open">
       <div class="profile-edit-section__index">APP</div>
       <div class="profile-edit-section__body">
-        <div class="profile-edit-section__head"><div><p>§ AUTHORIZED APPS</p><h2>Third-party access</h2></div></div>
+        <div class="profile-edit-section__head"><div><h2>Third-party access</h2></div></div>
         <p><small>These applications can use bitcoin++ on your behalf within the listed scopes. Revoking access invalidates their access and refresh tokens.</small></p>
         <div class="person-email-list">
           {{ range .OAuthConsents }}
@@ -178,7 +176,7 @@
     <section id="settings-oauth-server" class="profile-edit-section is-open">
       <div class="profile-edit-section__index">O₂</div>
       <div class="profile-edit-section__body">
-        <div class="profile-edit-section__head"><div><p>§ OAUTH SERVER</p><h2>Registered applications</h2></div></div>
+        <div class="profile-edit-section__head"><div><h2>Registered applications</h2></div></div>
         <p><small>Public clients are for browser and native apps and must use PKCE. Confidential clients are only for servers that can keep a client secret.</small></p>
         {{ if .NewOAuthClientID }}
         <div class="profile-edit-flash">
@@ -276,7 +274,6 @@
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
           <div>
-            <p>§ API ACCESS</p>
             <h2>Personal API tokens</h2>
           </div>
         </div>
@@ -352,7 +349,6 @@
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
           <div>
-            <p>§ VERIFIED EMAILS</p>
             <h2>{{ len .Emails }} attached</h2>
           </div>
         </div>
@@ -407,7 +403,6 @@
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
           <div>
-            <p>§ ADD EMAIL</p>
             <h2>Add second email</h2>
           </div>
         </div>

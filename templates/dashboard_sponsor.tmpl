@@ -14,7 +14,7 @@
 
       {{ if gt (len .SponsorMemberships) 1 }}
       <nav class="sponsor-organization-switcher" aria-label="Switch sponsor organization">
-        <header><div><span>§ Sponsor workspaces</span><strong>Switch organization</strong></div><a href="/dashboard/orgs">View all organizations →</a></header>
+        <header><div><strong>Switch organization</strong></div><a href="/dashboard/orgs">View all organizations →</a></header>
         <div class="sponsor-organization-switcher__list">
           {{ range .SponsorMemberships }}
           <a href="/dashboard/sponsor/{{ .OrganizationID }}" class="sponsor-organization-switcher__item{{ if eq .OrganizationID $.Organization.Ref }} is-active{{ end }}"{{ if eq .OrganizationID $.Organization.Ref }} aria-current="page"{{ end }}>
@@ -37,8 +37,8 @@
             {{ end }}
           </div>
           <div class="dashboard-workspace-hero__copy sponsor-dashboard-hero__copy">
-            <div class="dashboard-kicker">● Sponsor workspace · {{ .Membership.Role }}</div>
             <h1>{{ .Organization.Name }}</h1>
+            <p class="dashboard-workspace-hero__meta">{{ .Membership.Role }}</p>
             <p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}Manage your bitcoin++ sponsorship, team, tickets, and hackathon activity.{{ end }}</p>
           </div>
         </div>
@@ -62,7 +62,7 @@
 
       <section class="sponsor-dashboard-section dashboard-workspace-panel" id="sponsorships">
         <div class="sponsor-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Upcoming</div><h2>Active sponsorships.</h2></div>
+          <div><h2>Active sponsorships.</h2></div>
           <p>Benefits shown here come from the event agreement, not just the public tier name.</p>
         </div>
         {{ if .Upcoming }}
@@ -70,8 +70,8 @@
           {{ range .Upcoming }}
           <article class="sponsor-event-card dashboard-workspace-widget">
             <header class="sponsor-event-card__header">
-              <div class="sponsor-event-card__eyebrow"><span>{{ .Sponsorship.Level }} sponsor</span><span>{{ .Sponsorship.Status }}</span></div>
               <h3>{{ .Conference.Desc }}</h3>
+              <div class="sponsor-event-card__meta"><span>{{ .Sponsorship.Level }} sponsor</span><span>{{ .Sponsorship.Status }}</span></div>
               <p>{{ .Conference.DateDesc }}{{ if .Conference.Location }} · {{ .Conference.Location }}{{ end }}</p>
             </header>
             <dl>
@@ -180,7 +180,7 @@
 
       <section class="sponsor-dashboard-section dashboard-workspace-panel" id="challenges">
         <div class="sponsor-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Hackathon challenges</div><h2>Your issued challenges.</h2></div>
+          <div><h2>Your issued challenges.</h2></div>
           <p>Owners and managers can edit pending and approved challenges until hacking begins. After that, challenge terms are read-only.</p>
         </div>
         {{ if .PrizeProposals }}
@@ -188,8 +188,8 @@
           {{ range .PrizeProposals }}
           <article class="sponsor-event-card dashboard-workspace-widget">
             <header class="sponsor-event-card__header">
-              <div class="sponsor-event-card__eyebrow"><span>{{ if .ConferenceTitle }}{{ .ConferenceTitle }}{{ else }}Hackathon{{ end }}</span><span class="is-{{ .Status }}">{{ .Status }}</span></div>
               <h3>{{ .Title }}</h3>
+              <div class="sponsor-event-card__meta"><span>{{ if .ConferenceTitle }}{{ .ConferenceTitle }}{{ else }}Hackathon{{ end }}</span><span class="is-{{ .Status }}">{{ .Status }}</span></div>
               {{ if .CompetitionTitle }}<p>{{ .CompetitionTitle }}</p>{{ end }}
             </header>
             {{ if .Description }}<p class="sponsor-challenge-description">{{ .Description }}</p>{{ end }}
@@ -249,7 +249,7 @@
 
       <section class="sponsor-dashboard-section dashboard-workspace-panel" id="prize-entrants">
         <div class="sponsor-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Hackathon projects</div><h2>{{ if .CanViewAllHackathonSubmissions }}All submitted projects.{{ else }}Teams building for your challenges.{{ end }}</h2></div>
+          <div><h2>{{ if .CanViewAllHackathonSubmissions }}All submitted projects.{{ else }}Teams building for your challenges.{{ end }}</h2></div>
           <div class="sponsor-project-export">
             <p>{{ if .CanViewAllHackathonSubmissions }}Your sponsorship includes access to hackathon participant contact information{{ else }}Every project below explicitly entered an approved prize sponsored by {{ .Organization.Name }}. Contact details appear only through the included submission terms or an additional participant choice.{{ end }}</p>
             <a href="/dashboard/sponsor/{{ .Organization.Ref }}/projects">View all {{ len .PrizeEntries }} project{{ if ne (len .PrizeEntries) 1 }}s{{ end }} →</a>
@@ -271,7 +271,7 @@
       {{ if .Past }}
       <section class="sponsor-dashboard-section dashboard-workspace-panel" id="history">
         <div class="sponsor-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Trophy case</div><h2>Past sponsorships.</h2></div>
+          <div><h2>Past sponsorships.</h2></div>
         </div>
         <div class="sponsor-trophy-grid">
           {{ range .Past }}

@@ -10,7 +10,6 @@
   <main class="affiliate-shell">
     <section class="affiliate-hero">
       <a class="affiliate-back" href="/dashboard">&larr; back to dashboard</a>
-      <div class="dashboard-kicker">§ Affiliate program</div>
       <h1>Get paid to bring your <span>crew.</span></h1>
       <p>Every ticket sold through your code carries a <strong>20% discount pool</strong>. You decide how it splits: keep it as your cut in sats, or pass it on so your friends pay less.</p>
     </section>
@@ -23,7 +22,7 @@
 
     <section class="affiliate-payout">
       <div>
-        <div class="dashboard-kicker">§ Available for payout</div>
+        <p>Available for payout</p>
         <strong>{{ if .Stats }}{{ sats .Stats.EarnedSats }}{{ else }}0{{ end }}<span>sats</span></strong>
         <p>Cash-out support is coming soon. For now, this tracks lifetime unpaid affiliate earnings from completed ticket purchases.</p>
       </div>
@@ -37,7 +36,6 @@
     <section class="affiliate-split">
       <div class="affiliate-section-head">
         <div>
-          <div class="dashboard-kicker">§ How the split works</div>
           <h2>You choose how the 20% is shared.</h2>
           <p>Five settings per code. Keep more for yourself, or turn the whole pool into a deeper discount to get more of your crew through the door.</p>
         </div>
@@ -60,7 +58,6 @@
     <section class="affiliate-code-panel">
       <div class="affiliate-section-head">
         <div>
-          <div class="dashboard-kicker">§ Your code</div>
           <h2>{{ if .Code }}{{ .Code.CodeName }}{{ else }}Create affiliate code{{ end }}</h2>
         </div>
         {{ if .Code }}
@@ -85,7 +82,7 @@
         </div>
         <div class="affiliate-code-card__split">
           <div class="affiliate-code-card__split-label">
-            <span style="color:#f9af5e;">you keep {{ usub 20 .Code.Amount }}%</span>
+            <span style="color:#a65b00;">you keep {{ usub 20 .Code.Amount }}%</span>
             <span style="color:#1f8a5b;">buyer saves {{ .Code.Amount }}%</span>
           </div>
           <div class="affiliate-split-bar is-large" aria-hidden="true">
@@ -129,7 +126,6 @@
     <section class="affiliate-campaign">
       <div class="affiliate-section-head">
         <div>
-          <div class="dashboard-kicker">§ Campaign by edition</div>
           <h2>How your code is performing.</h2>
         </div>
       </div>

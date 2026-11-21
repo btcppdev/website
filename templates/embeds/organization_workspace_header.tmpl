@@ -7,8 +7,8 @@
       {{ if $page.Organization.LogoLight }}<img src="{{ $page.Organization.LogoLight | safeURL }}" alt="{{ $page.Organization.Name }}">{{ else }}<span>{{ printf "%.1s" $page.Organization.Name }}</span>{{ end }}
     </div>
     <div class="dashboard-workspace-hero__copy">
-      <div class="dashboard-kicker">● Organization workspace · {{ $page.Membership.Role }}</div>
       <h1>{{ $page.Organization.Name }}</h1>
+      <p class="dashboard-workspace-hero__meta">{{ $page.Membership.Role }}</p>
       <p>{{ if $page.Organization.Tagline }}{{ $page.Organization.Tagline }}{{ else }}Manage this organization’s members, identity, and bitcoin++ activity.{{ end }}</p>
     </div>
   </div>

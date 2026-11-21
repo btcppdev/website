@@ -8,7 +8,6 @@
   {{ block "mainnav" . }} {{ end }}
   <main class="profile-edit-shell person-emails-page">
     <header class="profile-edit-hero">
-      <p class="profile-edit-tag">§ VOLUNTEER</p>
       <h1>Confirm your <span>application.</span></h1>
     </header>
     {{ if .Error }}
@@ -33,7 +32,7 @@
       <section class="profile-edit-section is-open">
         <div class="profile-edit-section__index">✓</div>
         <div class="profile-edit-section__body">
-          <div class="profile-edit-section__head"><div><p>§ VERIFY EMAIL</p><h2>Volunteer at {{ .Conf.Desc }}?</h2></div></div>
+          <div class="profile-edit-section__head"><div><h2>Volunteer at {{ .Conf.Desc }}?</h2></div></div>
           <p>Confirm that <strong>{{ .Volunteer.Email }}</strong> submitted this application. It will only be added to the volunteer roster and your bitcoin++ profile after confirmation.</p>
           <form method="POST" action="/volunteer/confirm" class="person-merge-review person-email-verification-form">
             <input type="hidden" name="token" value="{{ .Token }}">

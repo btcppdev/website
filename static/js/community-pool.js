@@ -9,7 +9,7 @@
     const ctx = canvas.getContext('2d'); if (!ctx) { canvas.remove(); return; }
     const w = innerWidth, h = innerHeight, ratio = Math.min(devicePixelRatio || 1, 2);
     canvas.width = w * ratio; canvas.height = h * ratio; ctx.scale(ratio, ratio);
-    const colors = ['#f9af5e', '#fa6a19', '#ffffff', '#111111'];
+    const colors = ['#db7900', '#ed9b50', '#ffffff', '#111111'];
     const pieces = Array.from({length:90}, () => ({x:w/2,y:h*.65,vx:(Math.random()-.5)*16,vy:-5-Math.random()*12,c:colors[Math.floor(Math.random()*colors.length)],r:Math.random()*6}));
     const start = performance.now(); let previous=start;
     function draw(now) {

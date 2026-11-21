@@ -11,18 +11,18 @@
 .service-checkout h1{font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.04em;margin:16px 0 24px}
 .service-checkout h2{font-size:24px;margin:0 0 8px}
 .service-checkout p{line-height:1.65;margin:0 0 24px}
-.service-kicker{font-family:monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.service-kicker{font-family:monospace;font-size:12px;letter-spacing:normal;text-transform:none}
 .service-checkout form{display:grid;gap:20px;margin:32px 0}
 .service-checkout details{border-bottom:1px solid #d6d0c7;padding:0 0 16px}
 .service-checkout summary{cursor:pointer;font-weight:600;line-height:1.5}
 .service-checkout details div{max-height:320px;overflow:auto;padding:20px 0;font-size:14px;line-height:1.65}
 .service-checkout label:has(input[type=checkbox]){display:flex;align-items:flex-start;gap:12px;font-size:14px;line-height:1.6}
 .service-checkout input[type=checkbox]{flex:none;margin:5px 0;width:18px;height:18px;accent-color:#b93629}
-.service-checkout button{padding:18px 24px;background:#171717;color:#fff;border:1px solid #171717;font:inherit;font-weight:600;cursor:pointer;text-align:center}
+.service-checkout button{padding:18px 24px;background:var(--brand-accent-compact, #b35f00);color:#fff;border:1px solid #d7d4cc;font:inherit;font-weight:600;cursor:pointer;text-align:center}
 .service-checkout button:hover{background:#b93629}
 .service-checkout :focus-visible{outline:3px solid #b93629;outline-offset:4px}
-.service-summary{border:1px solid #171717;background:#fffdf8;box-shadow:8px 8px 0 #e3ddd3;overflow:hidden}
-.service-summary img{width:100%;height:auto;display:block;border-bottom:1px solid #171717}
+.service-summary{border:1px solid #d7d4cc;background:#fffdf8;box-shadow:8px 8px 0 #e3ddd3;overflow:hidden}
+.service-summary img{width:100%;height:auto;display:block;border-bottom:1px solid #d7d4cc}
 .service-summary__body{padding:28px}
 .service-wordmark{font-family:ServiceUbuntu,sans-serif;font-weight:700;font-style:italic;letter-spacing:-.07em}
 .service-summary dl{margin:24px 0 0}
@@ -41,7 +41,7 @@
 .service-checkout-actions{display:grid;gap:14px;margin:32px 0}
 .service-checkout .service-checkout-actions form{margin:0}
 .service-checkout-actions>a{justify-self:start;padding:8px 0}
-.service-checkout button.service-secondary{background:transparent;color:#171717}
+.service-checkout button.service-secondary{background:transparent;color:#343638}
 .service-checkout button.service-secondary:hover{background:#e8e1d7}
 .service-checkout-reference{display:grid;gap:12px;border-top:1px solid #d6d0c7;margin:32px 0;padding-top:24px}
 .service-checkout-reference code{font-size:13px;line-height:1.6;overflow-wrap:anywhere;user-select:all}
@@ -54,7 +54,7 @@
 .service-checkout .alerts-cancel-form{border-top:1px solid #d6d0c7;padding-top:28px}
 .service-checkout .alerts-cancel-form button{background:transparent;color:#9e2d21;border-color:#9e2d21}
 .service-checkout .alerts-cancel-form button:hover{background:#f9e3df}
-.service-checkout a.service-primary{display:inline-block;padding:16px 24px;background:#171717;color:white;text-decoration:none}
+.service-checkout a.service-primary{display:inline-block;padding:16px 24px;background: #b35f00;color: #fff;text-decoration:none}
 .service-order-page .receipt-brand{font-family:ServiceUbuntu,sans-serif;font-weight:700;font-style:italic}
 @media(max-width:760px){.service-checkout .service-summary{grid-row:auto}.service-checkout h1{overflow-wrap:break-word}.service-checkout button{width:100%;min-height:48px}.service-checkout summary{padding:8px 0}}
-@media print{.service-order-page .service-checkout{display:block;margin:0;padding:0;max-width:none}.service-order-page .service-summary,.service-order-page details{display:none}.service-order-page .service-checkout__head{color:black}}
+@media print{.service-order-page .service-checkout{display:block;margin:0;padding:0;max-width:none}.service-order-page .service-summary,.service-order-page details{display:none}.service-order-page .service-checkout__head{color:#343638}}

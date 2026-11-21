@@ -4,13 +4,13 @@
   <title>social posts @ bitcoin++</title>
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" .Conf }}
-  <link rel="stylesheet" href="/static/css/social-admin.css?v=1">
+  <link rel="stylesheet" href="/static/css/social-admin.css?v=20261121-sentence-case">
 </head>
 <body class="btcpp-admin-page social-admin-page">
   {{ block "mainnav" . }} {{ end }}
   <main class="social-admin-shell">
     <a class="social-back" href="/{{ .Conf.Tag }}/admin">← {{ .Conf.Desc }} dashboard</a>
-    <header class="social-page-heading"><div><p class="social-eyebrow">{{ .Conf.Tag }} / publishing</p><h1>Social posts</h1><p>{{ .Conf.Desc }} · {{ .Conf.DateDesc }}</p></div><span class="social-channels">X · Instagram · LinkedIn</span></header>
+    <header class="social-page-heading"><div><h1>Social posts</h1><p>{{ .Conf.Desc }} · {{ .Conf.DateDesc }}</p></div><span class="social-channels">X · Instagram · LinkedIn</span></header>
     {{ if .FlashMessage }}<div class="social-notice" role="status">{{ .FlashMessage }}</div>{{ end }}
     {{ if .FlashError }}<div class="social-notice social-notice-error" role="alert">{{ .FlashError }}</div>{{ end }}
     {{ if not .PublishingOK }}<div class="social-notice">No publishing account is configured. Ask a site administrator to connect one in Publishing.</div>{{ else }}

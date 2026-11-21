@@ -1,11 +1,11 @@
 :root {
-  --fk-bg: #EFEAE2;
-  --fk-paper: #F6F3EE;
-  --fk-ink: #0A0A0A;
+  --fk-bg: #f1eee5;
+  --fk-paper: #f9f6ee;
+  --fk-ink: #343638;
   --fk-muted: #666;
-  --fk-line: #0A0A0A;
+  --fk-line: #d7d4cc;
   --fk-soft-line: #E2DDD2;
-  --fk-accent: #f9af5e;
+  --fk-accent: var(--brand-accent, #db7900);
   --fk-accent-soft: #FBF0DE;
   --fk-error: #B42318;
   --fk-success: #027A48;
@@ -107,7 +107,7 @@ body.btcpp-form-page {
 .btcpp-form-page .font-semibold { font-weight: 600; }
 .btcpp-form-page .font-bold { font-weight: 700; }
 .btcpp-form-page .tracking-tight { letter-spacing: 0; }
-.btcpp-form-page .uppercase { text-transform: uppercase; }
+.btcpp-form-page .uppercase { text-transform: none; }
 .btcpp-form-page .appearance-none { appearance: none; }
 .btcpp-form-page .object-cover { object-fit: cover; }
 .btcpp-form-page .overflow-hidden { overflow: hidden; }
@@ -117,12 +117,12 @@ body.btcpp-form-page {
 .btcpp-form-page .rounded {
   border-radius: 0;
 }
-.btcpp-form-page .border { border: 1px solid var(--fk-ink); }
+.btcpp-form-page .border { border: 1px solid #d7d4cc; }
 .btcpp-form-page .border-gray-200,
 .btcpp-form-page .border-gray-300,
 .btcpp-form-page .border-green-200,
 .btcpp-form-page .border-red-200 {
-  border-color: var(--fk-ink);
+  border-color: #d7d4cc;
 }
 .btcpp-form-page .shadow,
 .btcpp-form-page .shadow-sm {
@@ -141,6 +141,7 @@ body.btcpp-form-page {
 .btcpp-form-page .bg-green-600,
 .btcpp-form-page .bg-bitcoin {
   background-color: var(--fk-accent);
+  color: #fff !important;
 }
 .btcpp-form-page .text-gray-500,
 .btcpp-form-page .text-gray-600,
@@ -154,8 +155,8 @@ body.btcpp-form-page {
   color: var(--fk-ink);
 }
 .btcpp-form-page .text-red-700 { color: var(--fk-error); }
-.btcpp-form-page .text-bitcoin { color: var(--fk-accent); }
-.btcpp-form-page .text-white { color: var(--fk-ink); }
+.btcpp-form-page .text-bitcoin { color: var(--brand-accent-text, #a65b00); }
+.btcpp-form-page .text-white { color: #fff; }
 .btcpp-form-page .outline,
 .btcpp-form-page .focus\:outline:focus,
 .btcpp-form-page .focus-visible\:outline:focus-visible {
@@ -215,7 +216,7 @@ body.btcpp-form-page {
 .btcpp-form-page .ring-gray-300,
 .btcpp-form-page .ring-gray-900\/5 { box-shadow: 0 0 0 1px var(--fk-soft-line); }
 .btcpp-form-page .has-\[\:checked\]\:bg-bitcion:has(:checked),
-.btcpp-form-page .has-\[\:checked\]\:bg-bitcoin:has(:checked) { background: var(--fk-accent); }
+.btcpp-form-page .has-\[\:checked\]\:bg-bitcoin:has(:checked) { background: var(--fk-accent); color: #fff; }
 .btcpp-form-page .has-\[\:focus-visible\]\:outline:has(:focus-visible) { outline-style: solid; }
 .btcpp-form-page .has-\[\:focus-visible\]\:outline-2:has(:focus-visible) { outline-width: 2px; }
 .btcpp-form-page .group:has(:checked) .group-has-\[\:checked\]\:translate-x-3\.5 { transform: translateX(.875rem); }
@@ -309,26 +310,6 @@ body.btcpp-form-page {
   padding-right: 0;
 }
 
-.btcpp-form-page .btcpp-form-heading::before,
-.btcpp-form-page #form .mx-auto.max-w-2xl.text-center::before {
-  content: attr(data-form-kicker);
-  display: inline-block;
-  margin-bottom: 18px;
-  border: 1px solid var(--fk-ink);
-  background: var(--fk-paper);
-  padding: 7px 10px;
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  line-height: 1;
-}
-
-.btcpp-form-page .btcpp-form-heading:not([data-form-kicker])::before,
-.btcpp-form-page #form .mx-auto.max-w-2xl.text-center:not([data-form-kicker])::before {
-  content: "BITCOIN++";
-}
-
 .btcpp-form-page h1,
 .btcpp-form-page h2 {
   color: var(--fk-ink);
@@ -352,8 +333,8 @@ body.btcpp-form-page {
   display: grid;
   gap: 0;
   margin-top: 28px;
-  border-top: 1px solid var(--fk-ink);
-  border-bottom: 1px solid var(--fk-ink);
+  border-top: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .btcpp-form-page .btcpp-form-meta__item {
@@ -365,9 +346,9 @@ body.btcpp-form-page {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: normal;
   line-height: 1.35;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-form-page .btcpp-form-meta__item:last-child {
@@ -388,10 +369,10 @@ body.btcpp-form-page {
   max-width: none;
   min-width: 0;
   margin: 0;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   background: var(--fk-paper);
   padding: 32px;
-  box-shadow: 8px 8px 0 var(--fk-ink);
+  box-shadow: 8px 8px 0 rgba(52, 54, 56, .10);
 }
 
 .btcpp-form-page form .grid {
@@ -409,14 +390,14 @@ body.btcpp-form-page {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: normal;
   line-height: 1.35;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-form-page label[for]::after,
 .btcpp-form-page legend::after {
-  color: var(--fk-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .btcpp-form-page .block.text-sm\/6.text-gray-600,
@@ -444,7 +425,7 @@ body.btcpp-form-page {
   width: 100%;
   max-width: 100%;
   min-height: 52px;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #8b8880;
   border-radius: 0;
   outline: 0;
   background: #fff;
@@ -483,7 +464,7 @@ body.btcpp-form-page {
 .btcpp-form-page input:focus,
 .btcpp-form-page select:focus,
 .btcpp-form-page textarea:focus {
-  border-color: var(--fk-ink);
+  border-color: #8b8880;
   box-shadow: 3px 3px 0 var(--fk-accent);
 }
 
@@ -530,7 +511,7 @@ body.btcpp-form-page {
 .btcpp-form-choice__box {
   width: 18px;
   height: 18px;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #8b8880;
   background: #fff;
 }
 
@@ -541,6 +522,7 @@ body.btcpp-form-page {
 .btcpp-form-choice__control input:checked + .btcpp-form-choice__box {
   background: var(--fk-accent);
   box-shadow: inset 0 0 0 4px #fff;
+  color: #fff;
 }
 
 .btcpp-form-choice__control input[type="checkbox"]:checked + .btcpp-form-choice__box {
@@ -553,9 +535,10 @@ body.btcpp-form-page {
   width: 6px;
   height: 10px;
   margin: 1px auto 0;
-  border: solid var(--fk-ink);
+  border: solid #8b8880;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
+  border-color: #fff;
 }
 
 .btcpp-form-choice label {
@@ -587,7 +570,7 @@ body.btcpp-form-page {
 .btcpp-form-page form > .grid > .flex.gap-x-4 > .flex.h-6.items-center .group span {
   width: 18px;
   height: 18px;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   border-radius: 0;
   background: #fff;
   box-shadow: none;
@@ -596,6 +579,7 @@ body.btcpp-form-page {
 
 .btcpp-form-page form > .grid > .flex.gap-x-4 > .flex.h-6.items-center .group:has(input:checked) span {
   background: var(--fk-accent);
+  color: #fff;
 }
 
 .btcpp-form-page form > .grid > .flex.gap-x-4 > .flex.h-6.items-center .group:has(input:checked) span::after {
@@ -604,7 +588,7 @@ body.btcpp-form-page {
   width: 6px;
   height: 10px;
   margin: 1px auto 0;
-  border: solid var(--fk-ink);
+  border: solid #8b8880;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
@@ -622,22 +606,22 @@ body.btcpp-form-page {
 .btcpp-form-page button[type="submit"],
 .btcpp-form-page .btcpp-form-button-primary {
   min-height: 52px;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   border-radius: 0;
   background: var(--fk-accent);
-  color: var(--fk-ink);
-  box-shadow: 3px 3px 0 var(--fk-ink);
+  color: #fff;
+  box-shadow: 3px 3px 0 rgba(52, 54, 56, .10);
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-form-page .btcpp-form-secondary-action button[type="submit"],
 .btcpp-form-page a.btcpp-form-button-secondary,
 .btcpp-form-page button.btcpp-form-button-secondary {
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   border-radius: 0;
   background: transparent;
   color: var(--fk-ink);
@@ -645,8 +629,8 @@ body.btcpp-form-page {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-form-page button:hover,
@@ -672,20 +656,20 @@ body.btcpp-form-page {
   min-width: min(100%, 260px);
   min-height: 52px;
   padding: 0 22px;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   border-radius: 0;
   background: var(--fk-accent);
-  color: var(--fk-ink);
-  box-shadow: 3px 3px 0 var(--fk-ink);
+  color: #fff;
+  box-shadow: 3px 3px 0 rgba(52, 54, 56, .10);
   cursor: pointer;
   display: inline-flex;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1.2px;
+  letter-spacing: normal;
   line-height: 1;
   text-align: center;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-form-page button.btcpp-form-submit.is-accept {
@@ -695,7 +679,7 @@ body.btcpp-form-page {
 .btcpp-form-page button.btcpp-form-submit:hover,
 .btcpp-form-page button.btcpp-form-submit:focus-visible {
   transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--fk-ink);
+  box-shadow: 4px 4px 0 rgba(52, 54, 56, .10);
 }
 
 .btcpp-form-page button.btcpp-form-submit .submit-spinner,
@@ -731,7 +715,7 @@ body.btcpp-form-page {
 }
 
 .btcpp-form-page .btcpp-form-alert {
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   border-left: 4px solid var(--fk-accent);
   border-radius: 0;
   background: var(--fk-paper);
@@ -756,21 +740,21 @@ body.btcpp-form-page {
 .btcpp-form-page .sat-upload-trigger,
 .btcpp-form-page #PicRecrop,
 .btcpp-form-page #PicClear {
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   border-radius: 0;
   background: #fff;
   color: var(--fk-ink);
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-form-page img[id$="-preview"],
 .btcpp-form-page #PicPreviewImg {
   border-radius: 0;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   object-fit: cover;
 }
 
@@ -796,10 +780,10 @@ body.btcpp-form-page {
   width: min(100%, 720px);
   max-height: calc(100vh - 40px);
   overflow: auto;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   background: var(--fk-paper);
   padding: 20px;
-  box-shadow: 8px 8px 0 var(--fk-ink);
+  box-shadow: 8px 8px 0 rgba(52, 54, 56, .10);
 }
 
 .btcpp-cropper-title {
@@ -807,8 +791,8 @@ body.btcpp-form-page {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 14px;
   font-weight: 800;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-cropper-help {
@@ -840,15 +824,15 @@ body.btcpp-form-page {
 .btcpp-form-page .btcpp-cropper-button {
   width: auto;
   min-height: 44px;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   border-radius: 0;
   padding: 10px 16px;
   box-shadow: none;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-form-page .btcpp-cropper-button--secondary {
@@ -858,7 +842,7 @@ body.btcpp-form-page {
 
 .btcpp-form-page .btcpp-cropper-button--primary {
   background: var(--fk-accent);
-  color: var(--fk-ink);
+  color: #fff;
 }
 
 @media (max-width: 900px) {
@@ -897,7 +881,7 @@ body.btcpp-form-page {
   .btcpp-form-page form.btcpp-form-kit,
   .btcpp-form-page #form form:not(.btcpp-form-secondary-action) {
     padding: 22px 18px;
-    box-shadow: 5px 5px 0 var(--fk-ink);
+    box-shadow: 5px 5px 0 rgba(52, 54, 56, .10);
   }
 
   .btcpp-form-page h1,
@@ -915,8 +899,8 @@ body.btcpp-notfound-page {
 
 .btcpp-notfound-page .btcpp-notfound {
   min-height: 70vh;
-  border-top: 1px solid var(--fk-ink);
-  border-bottom: 1px solid var(--fk-ink);
+  border-top: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   background: var(--fk-bg);
 }
 
@@ -927,16 +911,16 @@ body.btcpp-notfound-page {
 
 .btcpp-section-tag {
   display: inline-flex;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   background: var(--fk-paper);
   padding: 7px 10px;
   color: #8B857B;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: normal;
   line-height: 1;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-notfound__code {
@@ -950,7 +934,7 @@ body.btcpp-notfound-page {
 }
 
 .btcpp-notfound__code span {
-  color: var(--fk-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .btcpp-notfound__copy {
@@ -972,16 +956,16 @@ body.btcpp-notfound-page {
   align-items: center;
   justify-content: center;
   min-height: 48px;
-  border: 1px solid var(--fk-ink);
-  background: var(--fk-ink);
-  color: var(--fk-paper);
+  border: 1px solid #d7d4cc;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   padding: 0 24px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.4px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-editorial-button:hover {
@@ -993,26 +977,26 @@ body.btcpp-notfound-page {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 48px;
   align-items: center;
-  border-top: 1px solid var(--fk-ink);
-  border-bottom: 1px solid var(--fk-ink);
-  background: var(--fk-ink);
-  color: var(--fk-paper);
+  border-top: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
+  background: #fffdf8;
+  color: #343638;
   padding: 64px 56px;
 }
 
 .btcpp-newsletter-hero__label {
   margin: 0 0 16px;
-  color: var(--fk-accent);
+  color: #a65b00;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-newsletter-hero h1 {
   margin: 0;
-  color: var(--fk-paper);
+  color: #343638;
   font-family: "Source Serif 4", Georgia, serif;
   font-size: clamp(38px, 4.6vw, 64px);
   font-weight: 600;
@@ -1021,7 +1005,7 @@ body.btcpp-notfound-page {
 }
 
 .btcpp-newsletter-hero h1 span {
-  color: var(--fk-accent);
+  color: #a65b00;
   font-style: italic;
   font-weight: 400;
 }
@@ -1029,7 +1013,7 @@ body.btcpp-notfound-page {
 .btcpp-newsletter-hero p {
   max-width: 620px;
   margin: 14px 0 0;
-  color: #aaa;
+  color: #65635e;
   font-family: "Source Serif 4", Georgia, serif;
   font-size: 18px;
   font-style: italic;
@@ -1043,15 +1027,15 @@ body.btcpp-notfound-page {
   justify-content: center;
   border: 1px solid var(--fk-accent);
   background: var(--fk-accent);
-  color: var(--fk-ink);
+  color: #fff;
   padding: 0 28px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 13px;
   font-weight: 800;
-  letter-spacing: 1.5px;
+  letter-spacing: normal;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -1065,8 +1049,8 @@ body.btcpp-notfound-page {
 }
 
 .btcpp-apply-hero {
-  border-top: 1px solid var(--fk-ink);
-  border-bottom: 1px solid var(--fk-ink);
+  border-top: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   background: var(--fk-bg);
   padding: 72px 24px 60px;
   text-align: center;
@@ -1079,13 +1063,13 @@ body.btcpp-notfound-page {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: clamp(58px, 10vw, 132px);
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: normal;
   line-height: .88;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-form-page .btcpp-apply-hero__title span {
-  color: var(--fk-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .btcpp-apply-hero__copy {
@@ -1108,13 +1092,13 @@ body.btcpp-notfound-page {
 .btcpp-apply-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border-bottom: 1px solid var(--fk-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--fk-paper);
 }
 
 .btcpp-apply-strip__item {
   padding: 24px 28px 30px;
-  border-right: 1px solid var(--fk-ink);
+  border-right: 1px solid #d7d4cc;
 }
 
 .btcpp-apply-strip__item:last-child {
@@ -1122,12 +1106,12 @@ body.btcpp-notfound-page {
 }
 
 .btcpp-apply-strip__label {
-  color: var(--fk-accent);
+  color: var(--brand-accent-text, #a65b00);
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.3px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-apply-strip__value {
@@ -1140,7 +1124,7 @@ body.btcpp-notfound-page {
 }
 
 .btcpp-notfound__events {
-  border-top: 1px solid var(--fk-ink);
+  border-top: 1px solid #d7d4cc;
   padding: 0 24px 44px;
   scroll-margin-top: 96px;
 }
@@ -1160,8 +1144,8 @@ body.btcpp-notfound-page {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-notfound__events-head a {
@@ -1175,13 +1159,13 @@ body.btcpp-notfound-page {
   gap: 28px;
   align-items: center;
   padding: 16px 0;
-  border-top: 1px solid var(--fk-ink);
+  border-top: 1px solid #d7d4cc;
   color: var(--fk-ink);
   text-decoration: none;
 }
 
 .btcpp-notfound-event:last-child {
-  border-bottom: 1px solid var(--fk-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .btcpp-notfound-event__date,
@@ -1196,7 +1180,7 @@ body.btcpp-notfound-page {
   width: 88px;
   height: 56px;
   overflow: hidden;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   background: #fff;
 }
 
@@ -1231,7 +1215,7 @@ body.btcpp-notfound-page {
 
 .btcpp-notfound-event__status {
   justify-self: end;
-  border: 1px solid var(--fk-ink);
+  border: 1px solid #d7d4cc;
   background: var(--fk-paper);
   padding: 4px 8px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -1242,22 +1226,23 @@ body.btcpp-notfound-page {
 }
 
 .btcpp-notfound-event:first-of-type .btcpp-notfound-event__status {
-  background: var(--fk-accent);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .btcpp-notfound-event__arrow {
-  color: var(--fk-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .btcpp-notfound__routes {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid var(--fk-ink);
+  border-top: 1px solid #d7d4cc;
 }
 
 .btcpp-notfound-route {
   padding: 28px 28px 36px;
-  border-right: 1px solid var(--fk-ink);
+  border-right: 1px solid #d7d4cc;
   color: var(--fk-ink);
   text-decoration: none;
 }
@@ -1288,7 +1273,7 @@ body.btcpp-notfound-page {
 
 .btcpp-notfound-route span {
   margin-top: 14px;
-  color: var(--fk-accent);
+  color: var(--brand-accent-text, #a65b00);
   font-size: 11px;
   letter-spacing: 1.2px;
 }
@@ -1308,7 +1293,7 @@ body.btcpp-notfound-page {
   .btcpp-apply-strip__item,
   .btcpp-apply-strip__item:last-child {
     border-right: 0;
-    border-bottom: 1px solid var(--fk-ink);
+    border-bottom: 1px solid #d7d4cc;
   }
 
   .btcpp-apply-strip__item:last-child {
@@ -1342,7 +1327,7 @@ body.btcpp-notfound-page {
   }
 
   .btcpp-notfound-route:nth-child(-n+2) {
-    border-bottom: 1px solid var(--fk-ink);
+    border-bottom: 1px solid #d7d4cc;
   }
 }
 
@@ -1388,7 +1373,7 @@ body.btcpp-notfound-page {
   .btcpp-cropper-panel {
     max-height: calc(100vh - 28px);
     padding: 16px;
-    box-shadow: 5px 5px 0 var(--fk-ink);
+    box-shadow: 5px 5px 0 rgba(52, 54, 56, .10);
   }
 
   .btcpp-cropper-actions {
@@ -1433,10 +1418,16 @@ body.btcpp-notfound-page {
   .btcpp-notfound-route,
   .btcpp-notfound-route:nth-child(2) {
     border-right: 0;
-    border-bottom: 1px solid var(--fk-ink);
+    border-bottom: 1px solid #d7d4cc;
   }
 
   .btcpp-notfound-route:last-child {
     border-bottom: 0;
   }
 }
+
+.btcpp-form-page button[type="submit"],
+.btcpp-form-page .btcpp-form-button-primary,
+.btcpp-form-page button.btcpp-form-submit,
+.btcpp-form-page .btcpp-cropper-button--primary,
+.btcpp-newsletter-hero__action { font-size: 20px; font-weight: 700; }

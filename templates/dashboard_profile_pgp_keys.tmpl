@@ -3,13 +3,13 @@
 <head>
   <title>PGP keys · bitcoin++</title>
   {{ template "rebrand_header" . }}
-  <link rel="stylesheet" href="/static/css/profile-pgp-keys.css?v=1">
+  <link rel="stylesheet" href="/static/css/profile-pgp-keys.css?v=20261121-sentence-case">
 </head>
 <body class="btcpp-redesign btcpp-rebrand-page">
   {{ template "mainnav" . }}
   <main class="pgp-settings">
     <a class="pgp-back" href="/dashboard/profile">← profile settings</a>
-    <header class="pgp-heading"><p class="whois-section-tag">§ PUBLIC IDENTITY</p><h1>Your PGP keys.</h1><p>Prove a key is yours, then share it with the community.</p></header>
+    <header class="pgp-heading"><h1>Your PGP keys.</h1><p>Prove a key is yours, then share it with the community.</p></header>
     {{ if .FlashMessage }}<p class="pgp-notice" role="status">{{ .FlashMessage }}</p>{{ end }}
     {{ if .FlashError }}<p class="pgp-notice is-error" role="alert">{{ .FlashError }}</p>{{ end }}
     <section class="pgp-card">

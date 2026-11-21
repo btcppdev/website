@@ -2,8 +2,8 @@
 {{ $results := .JudgingResults }}
 <div class="hack-results-toolbar">
   <div>
-    <div class="hack-label">{{ .JudgeTypeLabel $results.Event.PlaybookType }}</div>
     <h3>{{ $results.Event.Name }}</h3>
+    <p>{{ .JudgeTypeLabel $results.Event.PlaybookType }}</p>
   </div>
   <div class="hack-live-results-status" data-live-results-status role="status">
     <span aria-hidden="true"></span>
@@ -20,7 +20,6 @@
 <div class="hack-results-block">
   <div class="hack-results-block__head">
     <div>
-      <div class="hack-label">Aggregate ranking</div>
       <h3>Project standings</h3>
     </div>
     <span>{{ len $results.Summaries }} projects</span>

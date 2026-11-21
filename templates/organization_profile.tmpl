@@ -15,7 +15,6 @@
         {{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }}">{{ else }}<span>{{ printf "%.1s" .Organization.Name }}</span>{{ end }}
       </div>
       <div>
-        <p class="organization-public-eyebrow">bitcoin++ organization</p>
         <h1>{{ .Organization.Name }}</h1>
         <p class="organization-public-tagline">{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}A community organization in the bitcoin++ universe.{{ end }}</p>
         <nav class="organization-public-links" aria-label="Organization links">
@@ -29,7 +28,7 @@
 
     <section class="organization-public-badges" aria-labelledby="organization-badges-title">
       <div class="organization-public-section-head">
-        <div><p class="organization-public-eyebrow">published badge definitions</p><h2 id="organization-badges-title">Recognition from {{ .Organization.Name }}.</h2></div>
+        <div><h2 id="organization-badges-title">Recognition from {{ .Organization.Name }}.</h2></div>
         {{ if .BadgeCatalog }}<a href="{{ .BadgeCatalog.CatalogURL }}" target="_blank" rel="noopener noreferrer">verify in badge studio ↗</a>{{ end }}
       </div>
       {{ if .BadgeCatalogUnavailable }}

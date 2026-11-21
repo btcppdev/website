@@ -3,8 +3,8 @@
 <head>
   <title>Alerts checkout · bitcoin++</title>
   {{ block "header" . }}{{ end }}
-  <link rel="stylesheet" href="/static/css/shop.css?v=20260718-11">
-  <link rel="stylesheet" href="/static/css/service-checkout.css?v=4">
+  <link rel="stylesheet" href="/static/css/shop.css?v=20261121-no-eyebrows">
+  <link rel="stylesheet" href="/static/css/service-checkout.css?v=20261121-sentence-case">
 </head>
 <body class="shop-page">
 {{ block "mainnav" . }}{{ end }}
@@ -13,7 +13,6 @@
 
   <section aria-labelledby="checkout-heading">
     <header class="service-checkout__head">
-      <span class="service-kicker">CHECKOUT STATUS</span>
       <h1 id="checkout-heading">{{ .Heading }}</h1>
       <p class="service-status-message" role="status">{{ .Message }}</p>
     </header>
@@ -47,7 +46,7 @@
     <p class="service-note">Renews annually. Cancel future renewals through billing management; your paid allowance continues until the current period ends. Cancellation does not refund that period.</p>
     {{ end }}
     <div class="service-checkout-reference">
-      <span class="service-kicker">Checkout reference</span>
+      <span>Checkout reference</span>
       <code>{{ .ID }}</code>
     </div>
     <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>

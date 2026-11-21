@@ -7,5 +7,5 @@
 <p style="font-size:12px;overflow-wrap:anywhere">Sale {{ .Sale.ID }}<br>{{ with .Sale.PaidAt }}{{ .UTC.Format "Jan 2, 2006 · 15:04 UTC" }}{{ end }}</p>
 <table width="100%" cellpadding="0" cellspacing="0" aria-label="Purchased items">{{ range .Items }}<tr><td style="padding:12px 0;border-bottom:1px solid #ccc">{{ .Quantity }} × <strong>{{ .Name }}</strong><br><span style="color:#666;font-size:13px">{{ .Label }} · {{ .Unit }} each</span></td><td style="padding:12px 0 12px 12px;text-align:right;border-bottom:1px solid #ccc">{{ .Total }}</td></tr>{{ end }}</table>
 <p style="font-size:22px;font-weight:bold">Total paid: {{ .Total }}<br><span style="font-size:13px;font-weight:normal;color:#777">{{ .Local }} · estimate at purchase</span></p>
-<p style="color:#666;font-size:13px">Save this receipt for your records. Questions? Email hello@btcpp.dev.</p>
+<p style="color:#666;font-size:13px">Save this receipt for your records. Questions? Email inbox@btcpp.dev.</p>
 </td></tr></table></td></tr></table></body></html>

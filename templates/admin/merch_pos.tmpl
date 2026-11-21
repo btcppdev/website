@@ -3,7 +3,7 @@
 <title>{{ .Conf.Desc }} · merch inventory and pricing</title>
 {{ template "header" . }}
 {{ template "admin_favicon" .Conf }}
-<link rel="stylesheet" href="/static/css/pos-admin.css">
+<link rel="stylesheet" href="/static/css/pos-admin.css?v=20261121-sentence-case">
 <script src="/static/js/pos.js" defer></script>
 </head>
 <body class="btcpp-admin-page bg-gray-50" data-pos-currency="{{ .Currency }}" data-pos-rate="{{ .Rate }}" data-pos-base="/{{ .Conf.Tag }}/merch/sell">
@@ -13,7 +13,7 @@
 {{ if .Error }}<p class="notice error" role="alert">{{ .Error }}</p>{{ end }}
 {{ if .Flash }}<p class="notice" role="status">{{ .Flash }}</p>{{ end }}
 
-<div class="intro"><div><span class="eyebrow">Before the doors open</span><h1>Set up the merch table.</h1><p>Exact sats prices. Dedicated event stock. Local estimates in {{ .Currency }}.</p></div><a class="button secondary" href="/{{ .Conf.Tag }}/merch/sell">Open mobile register ↗</a></div>
+<div class="intro"><div><h1>Set up the merch table.</h1><p>Exact sats prices. Dedicated event stock. Local estimates in {{ .Currency }}.</p></div><a class="button secondary" href="/{{ .Conf.Tag }}/merch/sell">Open mobile register ↗</a></div>
 <form method="post" class="settings"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="open"><label class="check"><input type="checkbox" name="enabled" {{ if .Enabled }}checked{{ end }}> Register open for sales</label><button>Save register status</button></form>
 <p class="hint">Prices are final totals in sats. Positive transfers move stock from the online shop to this event; negative transfers return unsold, unreserved items. Transfers apply once per save.</p>
 <form method="post" id="stock-items"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="items"><input type="hidden" name="operation_id" value="{{ .RequestID }}">

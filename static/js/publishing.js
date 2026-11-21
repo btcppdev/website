@@ -963,7 +963,7 @@
         el("h3", channel(c.id).name),
         el(
           "span",
-          c.platform.toUpperCase() +
+          c.platform +
             " · " +
             (c.provider === "direct" ? "Direct publishing" : "Recordings"),
           "pub-badge",

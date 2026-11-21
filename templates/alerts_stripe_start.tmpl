@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Subscribe to Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4"></head>
+<link rel="stylesheet" href="/static/css/shop.css?v=20261121-no-eyebrows"><link rel="stylesheet" href="/static/css/service-checkout.css?v=20261121-sentence-case"></head>
 <body class="shop-page">{{ block "mainnav" . }}{{ end }}
 <main class="service-checkout service-checkout--account">
 <nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li><li><a href="/services/alerts/manage">Alerts billing</a></li><li><span aria-current="page">Annual card plan</span></li></ol></nav>
 <section>
-<header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span>{{ if .Fifty }}<h1>Up to 50 projects</h1><p>$15/mo, billed yearly at {{ .Total }}. Includes public self-hosted GitLab.</p>{{ else }}<h1>Review your annual plan</h1><p>Your first three GitHub or gitlab.com projects are free. Each paid project costs $1/mo, billed yearly. Add {{ .Slots }} for {{ .Total }} per year.</p>{{ end }}</header>
+<header class="service-checkout__head">{{ if .Fifty }}<h1>Up to 50 projects</h1><p>$15/mo, billed yearly at {{ .Total }}. Includes public self-hosted GitLab.</p>{{ else }}<h1>Review your annual plan</h1><p>Your first three GitHub or gitlab.com projects are free. Each paid project costs $1/mo, billed yearly. Add {{ .Slots }} for {{ .Total }} per year.</p>{{ end }}</header>
 <p>USD, including applicable tax. Renews annually until canceled. Your selections activate after payment is verified.</p>
 {{ if .Enabled }}<form method="post" action="/services/alerts/subscribe">
 <input type="hidden" name="plan" value="{{ .Plan }}"><input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">

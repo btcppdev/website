@@ -3,11 +3,12 @@
   <head>
     {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++ shop" .Product.Name) "Description" (merchSEODescription .Product) "Path" (printf "/shop/%s" .Product.Slug) "Image" (merchSocialImage .Product) "ImageType" "image/jpeg" "ImageWidth" (merchSocialImageWidth .Product) "ImageHeight" (merchSocialImageHeight .Product) "Type" "product") }}
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
-    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css?v=20261118-orgs">
-    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
-  </head>
+    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20261121-ticker-colors">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css?v=20261121-no-eyebrows">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20261121-no-eyebrows">
+    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20261121-stable-header">
+  <link rel="stylesheet" href="/static/css/site-controls.css?v=20261121-header-orange">
+</head>
   <body class="shop-page">
     {{ template "mainnav" . }}
     {{ template "shop_header" . }}
@@ -17,7 +18,6 @@
         {{ if .SelectedCanvasBadge }}<div class="badge-canvas-mockup"><img data-canvas-preview src="{{ .SelectedCanvasBadge.ArtworkURL | safeURL }}" alt="{{ .SelectedCanvasBadge.BadgeName }} canvas preview"></div>{{ else if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ else }}<span>{{ .Product.CategoryName }}</span>{{ end }}
       </div>
       <section class="shop-item__details">
-        <p class="shop-kicker">{{ .Product.CategoryName }}</p>
         <h1>{{ .Product.Name }}</h1>
         {{ template "shop_product_organization" .Product }}
         {{ if .Product.OrganizationName }}<p class="shop-supplier-note">Sold by bitcoin++. Shipped by {{ .Product.OrganizationName }}.</p>{{ end }}
@@ -32,7 +32,7 @@
         <div class="shop-empty">You don't have any issued Badge Studio badges to print yet. Your badges will appear here once issued.</div>
         {{ else if merchProductSoldOut .Product }}
         <div class="shop-sold-out-panel">
-          <strong>SOLD OUT</strong>
+          <strong>Sold out</strong>
           <span>This item is out of stock right now.</span>
         </div>
         {{ else if not .Product.CanSellOnline }}<p>Available at selected bitcoin++ events.</p>
@@ -71,7 +71,7 @@
       </section>
     </main>
     {{ if .Related }}<section class="shop-section">
-      <div class="shop-section__label">§ goes well with</div>
+      <h2 class="shop-related-title">Goes well with</h2>
       {{ template "shop_product_grid" .Related }}
     </section>{{ end }}
     {{ template "shop_footer" . }}

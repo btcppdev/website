@@ -7,7 +7,7 @@ import (
 )
 
 // Reply-To addresses for cal-invite emails. The envelope From stays
-// as `hello@btcpp.dev` (existing DKIM/SPF stays intact); the
+// as `inbox@btcpp.dev` (existing DKIM/SPF stays intact); the
 // Reply-To is what speakers / volunteers see when they hit Reply.
 // These same addresses go into the ICS ORGANIZER field — RFC-5545
 // metadata, not envelope-related.

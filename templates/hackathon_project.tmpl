@@ -16,7 +16,6 @@
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">{{ if and (not .IsNew) (not .IsProjectEditor) }}§ Project file{{ else }}§ Project submission{{ end }}</div>
           <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">{{ if .IsNew }}Create <span class="hack-serif">project.</span>{{ else }}{{ .Project.Title }}{{ end }}</h1>
         </div>
         <div class="hack-section__deck">
@@ -108,7 +107,7 @@
 
       <div class="hack-project-file__body">
         <article>
-          <div class="hack-label">The write-up</div>
+          <h2 class="hack-subsection-title">The write-up</h2>
           {{ if .Project.Description }}
           <div class="hack-project-file__copy hack-copy__body">{{ .ProjectDescriptionHTML .Project }}</div>
           {{ else }}
@@ -117,7 +116,7 @@
         </article>
         <aside>
           <section>
-            <div class="hack-label">The team</div>
+            <h2 class="hack-subsection-title">The team</h2>
             {{ if .Members }}
             <div class="hack-project-file__list">
               {{ range .Members }}
@@ -151,7 +150,7 @@
           </section>
           {{ if .Project.Tags }}
           <section>
-            <div class="hack-label">Tags</div>
+            <h2 class="hack-subsection-title">Tags</h2>
             <div class="hack-project-file__tags">
               {{ range .Project.Tags }}<span>{{ . }}</span>{{ end }}
             </div>
@@ -179,7 +178,6 @@
 	      <div class="hack-form__body">
         <header class="hack-project-editor__intro">
           <div>
-            <div class="hack-label">§ Basics</div>
             <h2>Project <span class="hack-serif">basics.</span></h2>
           </div>
           <p>Give your project a clear name, a short pitch, and tags that help attendees and judges understand it quickly.</p>
@@ -246,7 +244,6 @@
 	      <div class="hack-form__body">
         <header class="hack-project-editor__intro">
           <div>
-            <div class="hack-label">§ Public page</div>
             <h2>Tell the <span class="hack-serif">story.</span></h2>
           </div>
           <p>Add the images, write-up, and links that will represent the project in the public gallery.</p>
@@ -323,7 +320,6 @@
       <div class="hack-form__body">
         <header class="hack-project-editor__intro">
           <div>
-            <div class="hack-label">§ Submission</div>
             <h2>Review and <span class="hack-serif">submit.</span></h2>
           </div>
           <p>Check the project details people will see once the gallery is public.</p>
@@ -340,7 +336,6 @@
         </div>
 
         <section class="hack-card hack-project-editor__preview">
-          <div class="hack-label">Current project</div>
           <h3>{{ .Project.Title }}</h3>
           {{ if .Project.ShortDescription }}<p class="hack-card__desc">{{ .Project.ShortDescription }}</p>{{ end }}
           {{ $submissionImages := .ProjectImageGallery .Project }}
@@ -397,7 +392,6 @@
       <div class="hack-form__body">
         <header class="hack-project-editor__intro">
           <div>
-            <div class="hack-label">§ Sponsor contact</div>
             <h2>Sponsor contact, <span class="hack-serif">clearly scoped.</span></h2>
           </div>
           <p>Submitting a project includes email sharing with this event's Headline and Hackathon sponsors. The choices below apply only to additional sponsors and only to you.</p>
@@ -436,14 +430,13 @@
       <div class="hack-form__body">
         <header class="hack-project-editor__intro">
           <div>
-            <div class="hack-label">§ Team</div>
             <h2>Project <span class="hack-serif">crew.</span></h2>
           </div>
           <p>Manage the current team or generate a one-time invite for another project member.</p>
         </header>
         {{ if .InviteLink }}
         <div class="hack-alert hack-alert--success">
-          <label for="InviteLink" class="hack-label hack-project-editor__invite-label">Invite link created</label>
+          <label for="InviteLink" class="hack-project-editor__invite-label">Invite link created</label>
           <div class="hack-form__grid hack-form__grid--action">
             <div class="hack-field">
               <input id="InviteLink" type="url" readonly value="{{ .InviteLink }}">

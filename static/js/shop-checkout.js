@@ -13,7 +13,6 @@
   var createButton = form.querySelector("[data-shop-create-order]");
   var editDetailsButton = form.querySelector("[data-shop-edit-details]");
   var reviewBackButton = form.querySelector("[data-shop-review-back]");
-  var reviewKicker = form.querySelector("[data-shop-review-kicker]");
   var summaryButton = checkout.querySelector("[data-shop-summary-action]");
   var shippingFields = form.querySelector("[data-shipping-address-fields]");
   var shippingRequired = form.querySelectorAll("[data-shipping-required]");
@@ -303,7 +302,6 @@
     if (rateRow) rateRow.hidden = !fulfillmentIsShipping();
     if (fulfillmentIsShipping()) setText("[data-confirm-address]", confirmationAddress());
     if (fulfillmentIsShipping()) setText("[data-confirm-shipping-rate]", shippingRateLabel(rate));
-    if (reviewKicker) reviewKicker.textContent = fulfillmentIsShipping() ? "04 / review" : "03 / review";
     if (reviewBackButton) reviewBackButton.textContent = fulfillmentIsShipping() ? "← Shipping" : "← Edit details";
   }
 

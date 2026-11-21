@@ -5,7 +5,7 @@ body.expedition-admin { margin: 0; background: #f4f6f7; color: #19333b; font-fam
 .expedition-admin a:hover { text-decoration: underline; }
 .expedition-admin__back { display: inline-block; margin-bottom: 28px; font-weight: 500; }
 .expedition-admin__hero { display: flex; gap: 24px; justify-content: space-between; align-items: center; margin-bottom: 32px; }
-.expedition-admin .expedition-admin__eyebrow { margin: 0 0 10px; color: #597078; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.expedition-admin .expedition-admin__eyebrow { margin: 0 0 10px; color: #597078; font-size: 12px; font-weight: 700; letter-spacing: normal; text-transform: none; }
 .expedition-admin h1 { margin: 0 0 10px; font-size: clamp(30px, 4vw, 44px); line-height: 1.15; font-weight: 700; letter-spacing: -.035em; }
 .expedition-admin h2 { margin: 0; font-size: 22px; line-height: 1.3; font-weight: 700; }
 .expedition-admin h3 { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
@@ -27,8 +27,8 @@ body.expedition-admin { margin: 0; background: #f4f6f7; color: #19333b; font-fam
 .expedition-admin .ea-help { color: #617078; font-size: 13px; line-height: 1.6; }
 .ea-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 16px; padding-top: 20px; border-top: 1px solid #e5eaec; margin-top: 24px; }
 .ea-actions .ea-help { flex: 1 1 200px; margin: 0; }
-.expedition-admin .ea-button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 11px 18px; border: 1px solid #123e48; border-radius: 7px; background: #123e48; color: #fff; font: inherit; font-size: 14px; font-weight: 700; line-height: 1.45; text-align: center; cursor: pointer; text-decoration: none; }
-.expedition-admin .ea-button:hover { background: #205765; text-decoration: none; }
+.expedition-admin .ea-button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 11px 18px; border: 1px solid #123e48; border-radius: 7px; background: #b35f00; color: #fff; font: inherit; font-size: 14px; font-weight: 700; line-height: 1.45; text-align: center; cursor: pointer; text-decoration: none; }
+.expedition-admin .ea-button:hover { background: #a65b00; text-decoration: none; }
 .expedition-admin .ea-button--secondary { background: #fff; color: #244c57; border-color: #bacbd0; }
 .expedition-admin .ea-button--secondary:hover { background: #f2f7f8; }
 .expedition-admin :is(a,button,input,textarea,summary):focus-visible { outline: 3px solid #498d9d; outline-offset: 3px; }

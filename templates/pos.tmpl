@@ -4,8 +4,9 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ .Conf.Tag }} · merch register</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/pos.css?v=bitcoin-plus-plus">
+<link rel="stylesheet" href="/static/css/pos.css?v=20261121-sentence-case">
 <script src="/static/js/pos.js" defer></script>
+<link rel="stylesheet" href="/static/css/site-controls.css?v=20261121-header-orange">
 </head>
 <body data-pos-currency="{{ .Currency }}" data-pos-rate="{{ .Rate }}" data-pos-base="/{{ .Conf.Tag }}/merch/sell">
 <header class="pos-header"><a href="/{{ .Conf.Tag }}"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a><div><strong>{{ .Conf.Location }}</strong><span>Merch {{ if .Admin }}setup{{ else }}register{{ end }}</span></div>{{ if and (not .Admin) (not .NeedsPIN) }}<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="quiet" name="action" value="lock">Lock</button></form>{{ end }}</header>
@@ -13,11 +14,11 @@
 {{ if .Error }}<p class="notice error" role="alert">{{ .Error }}</p>{{ end }}
 {{ if .Flash }}<p class="notice" role="status">{{ .Flash }}</p>{{ end }}
 {{ if .NeedsPIN }}
-<section class="unlock"><span class="eyebrow">Ready for the next customer</span><h1>Open the register.</h1><p>Use the volunteer ticket check-in PIN.</p><form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><label for="pin">Volunteer PIN</label><input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" required autofocus><button name="action" value="unlock">Unlock register →</button></form></section>
+<section class="unlock"><h1>Open the register.</h1><p>Use the volunteer ticket check-in PIN.</p><form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><label for="pin">Volunteer PIN</label><input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" required autofocus><button name="action" value="unlock">Unlock register →</button></form></section>
 {{ else if .Sale }}
 {{ with .Sale }}
 <section class="payment" data-sale="{{ .ID }}" data-status="{{ .Status }}" data-expires="{{ with .ExpiresAt }}{{ .Format "2006-01-02T15:04:05Z07:00" }}{{ end }}">
-<span class="eyebrow">Lightning checkout</span><h1 id="payment-title">{{ if eq .Status "paid" }}Payment received.{{ else if or (eq .Status "expired") (eq .Status "cancelled") }}Invoice closed.{{ else if eq .Status "creating" }}Checking checkout.{{ else if eq .Status "review" }}Admin review needed.{{ else }}Scan. Pay. Done.{{ end }}</h1>
+<h1 id="payment-title">{{ if eq .Status "paid" }}Payment received.{{ else if or (eq .Status "expired") (eq .Status "cancelled") }}Invoice closed.{{ else if eq .Status "creating" }}Checking checkout.{{ else if eq .Status "review" }}Admin review needed.{{ else }}Scan. Pay. Done.{{ end }}</h1>
 <div class="payment-total"><strong data-format-sats="{{ .TotalSats }}">{{ .TotalSats }} sats</strong><small class="local" data-local-sats="{{ .TotalSats }}" data-rate="{{ .LocalPerBTC }}" data-currency="{{ .Currency }}"></small></div>
 <div id="invoice" {{ if or (ne .Status "pending") (not .Invoice) }}hidden{{ end }}><img class="qr" src="/{{ $.Conf.Tag }}/merch/sell/qr/{{ .ID }}" alt="Scan to pay with Lightning"><p id="expiry">Waiting for Lightning payment…</p><button type="button" id="copy-invoice" class="secondary" data-invoice="{{ .Invoice }}">Copy Lightning invoice</button></div>
 <p id="payment-message" role="status">{{ if eq .Status "creating" }}Payment setup is unconfirmed. Do not charge again. Ask an admin to reconcile this sale in OpenNode.{{ else if eq .Status "review" }}A late payment needs reconciliation. Ask an admin before handing over stock.{{ else if or (eq .Status "expired") (eq .Status "cancelled") }}No payment confirmed. Reserved stock has been returned to the event.{{ else if eq .Status "paid" }}{{ if .HandedOverAt }}Items already handed over.{{ else }}Ready to hand over the items below.{{ end }}{{ else }}Keep this screen open. We’ll confirm when payment arrives.{{ end }}</p>
@@ -28,7 +29,7 @@
 </section>
 {{ end }}
 {{ else }}
-<div class="intro"><div><span class="eyebrow">§ 01 / Conference merch</span><h1>Merch desk<span class="brand-plus" aria-hidden="true">++</span></h1><p>Pick your gear. Pay in sats.</p></div><span class="status-pill">{{ if .Enabled }}Register open{{ else }}Register closed{{ end }}</span></div>
+<div class="intro"><div><h1>Merch desk<span class="brand-plus" aria-hidden="true">++</span></h1><p>Pick your gear. Pay in sats.</p></div><span class="status-pill">{{ if .Enabled }}Register open{{ else }}Register closed{{ end }}</span></div>
 {{ if not .Enabled }}<p class="notice">An admin needs to open this register before you can sell.</p>{{ end }}
 <section class="products" aria-label="Products">
 {{ range .Products }}{{ if .Enabled }}<article class="product" data-variant="{{ .VariantID }}" data-price="{{ .PriceSats }}" data-name="{{ .Name }}" data-label="{{ .Label }}" data-stock="{{ .Available }}"><div class="product-image">{{ if .Image }}<img src="{{ .Image }}" alt="{{ .Name }}" loading="lazy">{{ else }}<img class="product-wordmark" src="/static/img/logo_blk.svg" alt="">{{ end }}</div><div class="product-info"><h2>{{ .Name }}</h2><p>{{ .Label }}</p><div class="price"><strong data-format-sats="{{ .PriceSats }}">{{ .PriceSats }} sats</strong><small class="local" data-local-sats="{{ .PriceSats }}"></small></div><span class="stock">{{ .Available }} available</span><div class="stepper"><button type="button" data-delta="-1" aria-label="Remove one {{ .Name }} {{ .Label }}" disabled>−</button><output aria-live="polite">0</output><button type="button" data-delta="1" aria-label="Add one {{ .Name }} {{ .Label }}" {{ if or (not $.Enabled) (le .Available 0) }}disabled{{ end }}>+</button></div></div></article>{{ end }}{{ end }}

@@ -3,12 +3,13 @@
   <head>
     <title>checkout</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
-    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css?v=20260718-11">
-    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
-    <script src="/static/js/shop-checkout.js?v=20260914-2" defer></script>
-  </head>
+    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20261121-ticker-colors">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css?v=20261121-no-eyebrows">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20261121-no-eyebrows">
+    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20261121-stable-header">
+    <script src="/static/js/shop-checkout.js?v=20261121-no-eyebrows" defer></script>
+  <link rel="stylesheet" href="/static/css/site-controls.css?v=20261121-header-orange">
+</head>
   <body class="shop-page">
     {{ template "mainnav" . }}
     {{ template "shop_header" . }}
@@ -27,7 +28,6 @@
         {{ if .PickupConf }}<input type="hidden" name="pickup_conf_id" value="{{ .PickupConf.Ref }}">{{ end }}
         <section class="shop-checkout-step" data-shop-checkout-step="details">
           <header class="shop-checkout__head">
-            <p class="shop-kicker" data-shop-step-kicker>02 / details</p>
             <h1>Checkout.</h1>
             <p>Tell us where the order is going. You’ll review everything before payment.</p>
           </header>
@@ -56,7 +56,6 @@
 
         <section class="shop-checkout-step shop-shipping-step" data-shop-checkout-step="shipping" hidden>
           <header class="shop-checkout__head">
-            <p class="shop-kicker">03 / shipping</p>
             <h1>Choose shipping.</h1>
             <p>Review the destination and choose how you’d like the order delivered.</p>
           </header>
@@ -80,7 +79,6 @@
 
         <section class="shop-checkout-step shop-confirm" data-shop-checkout-step="confirm" hidden>
           <header class="shop-checkout__head">
-            <p class="shop-kicker" data-shop-review-kicker>04 / review</p>
             <h1>Review order.</h1>
             <p>Make sure the items, delivery details, and payment choice look right.</p>
           </header>

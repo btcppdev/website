@@ -14,7 +14,6 @@
         <div class="dashboard-workspace-hero__identity">
           <div class="dashboard-workspace-hero__mark"><span>H</span></div>
           <div class="dashboard-workspace-hero__copy">
-            <div class="dashboard-kicker">● Hackathon workspace</div>
             <h1>Your projects.</h1>
             <p>Manage your team, public project page, and final submission from one place.</p>
           </div>
@@ -47,8 +46,8 @@
             </div>
 
             <div class="dashboard-hackathon-project__title">
-              <div class="dashboard-kicker">{{ if .CompetitionTitle }}{{ .CompetitionTitle }}{{ else }}Hackathon project{{ end }}</div>
               <h2>{{ .Project.Title }}</h2>
+              <p>{{ if .CompetitionTitle }}{{ .CompetitionTitle }}{{ else }}Hackathon project{{ end }}</p>
               {{ if .Project.ShortDescription }}<p>{{ .Project.ShortDescription }}</p>{{ end }}
             </div>
 

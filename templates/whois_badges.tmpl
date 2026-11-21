@@ -19,14 +19,14 @@
             <img loading="lazy" src="{{ speakerPhoto .Person.Speaker.Photo }}" alt="" data-image-fallback>
             <span data-image-fallback-copy hidden aria-hidden="true">{{ printf "%.1s" .Person.Speaker.Name }}</span>
           </span>
-          <div><p class="whois-section-tag">§ BADGE COLLECTION</p><h1>{{ .Person.Speaker.Name }}'s badges.</h1><p>{{ .Badges.TotalVisible }} visible badge{{ if ne .Badges.TotalVisible 1 }}s{{ end }}, collected across Bitcoin.</p></div>
+          <div><h1>{{ .Person.Speaker.Name }}'s badges.</h1><p>{{ .Badges.TotalVisible }} visible badge{{ if ne .Badges.TotalVisible 1 }}s{{ end }}, collected across Bitcoin.</p></div>
         </div>
         {{ if .ManageBadgesURL }}<a class="whois-badges-manage" href="{{ .ManageBadgesURL }}">Manage display →</a>{{ end }}
       </header>
 
       {{ if .Badges.Featured }}
       <section class="whois-profile-section whois-credential-section whois-badges-featured">
-        <div class="whois-section-head"><div><p class="whois-section-tag">§01 · FEATURED</p><h2>Featured badges.</h2></div></div>
+        <div class="whois-section-head"><div><h2>Featured badges.</h2></div></div>
         <div class="whois-credential-grid">
           {{ range .Badges.Featured }}
           <article class="whois-credential">
@@ -39,7 +39,7 @@
       {{ end }}
 
       <section class="whois-badge-collection">
-        <div class="whois-section-head"><div><p class="whois-section-tag">§02 · ALL BADGES</p><h2>By issuer.</h2></div></div>
+        <div class="whois-section-head"><div><h2>By issuer.</h2></div></div>
         {{ if .Badges.Groups }}
         <div class="whois-badge-issuer-groups">
           {{ range .Badges.Groups }}

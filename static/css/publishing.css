@@ -1,6 +1,6 @@
 .publishing-page {
-  background: #efeae2;
-  color: #0a0a0a;
+  background: #f1eee5;
+  color: #343638;
 }
 .publishing-page #publishing {
   width: 100%;
@@ -28,7 +28,7 @@
 }
 .pub-heading a {
   font-size: 13px;
-  color: #0a0a0a;
+  color: #343638;
 }
 .pub-eyebrow {
   font-size: 11px;
@@ -50,28 +50,28 @@
   border: 1px solid #b8b3aa;
   border-radius: 0;
   background: #fff;
-  color: #0a0a0a;
+  color: #343638;
   padding: 10px 14px;
 }
 .publishing-page button:hover {
-  border-color: #0a0a0a;
-  background: #f6f3ee;
+  border-color: #d7d4cc;
+  background: #f9f6ee;
 }
 .publishing-page button:disabled {
   opacity: 0.5;
   cursor: wait;
 }
 .publishing-page button.pub-primary {
-  background: #f9af5e;
-  color: #0a0a0a;
-  border-color: #0a0a0a;
+  background: var(--brand-accent, #db7900);
+  color: #fff;
+  border-color: #d7d4cc;
   font-weight: 600;
 }
 .publishing-page button:focus-visible,
 .publishing-page input:focus-visible,
 .publishing-page select:focus-visible,
 .publishing-page textarea:focus-visible {
-  outline: 3px solid #f9af5e;
+  outline: 3px solid var(--brand-accent, #db7900);
   outline-offset: 2px;
 }
 .pub-tabs {
@@ -87,7 +87,7 @@
 }
 .pub-tabs [aria-pressed="true"] {
   background: #fbf0de;
-  border-color: #f9af5e;
+  border-color: var(--brand-accent, #db7900);
   font-weight: 600;
 }
 .pub-toolbar {
@@ -114,11 +114,11 @@
 .publishing-page select,
 .publishing-page input:not([type="checkbox"]),
 .publishing-page textarea {
-  border: 1px solid #0a0a0a;
+  border: 1px solid #8b8880;
   background: white;
   border-radius: 0;
   padding: 9px;
-  color: #0a0a0a;
+  color: #343638;
 }
 .pub-toolbar strong {
   font-size: 14px;
@@ -154,7 +154,7 @@
 .pub-day h3 b {
   display: block;
   font-size: 24px;
-  color: #0a0a0a;
+  color: #343638;
   margin-top: 6px;
 }
 .pub-day.is-today {
@@ -171,7 +171,7 @@
   padding: 10px !important;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   font-weight: 400;
-  border-left: 3px solid #0a0a0a !important;
+  border-left: 3px solid #d7d4cc !important;
   background: #fff !important;
   overflow: hidden;
 }
@@ -210,8 +210,8 @@
 }
 .pub-card .pub-status {
   font-size: 9px;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .pub-empty {
   padding: 44px 24px;
@@ -238,7 +238,7 @@
 .pub-channel {
   background: #fff;
   padding: 20px;
-  border: 1px solid #0a0a0a;
+  border: 1px solid #d7d4cc;
   border-radius: 0;
 }
 .pub-list h3 {
@@ -281,7 +281,7 @@
 }
 .pub-badge {
   display: inline-block;
-  background: #efeae2;
+  background: #f1eee5;
   padding: 4px 7px;
   border-radius: 0;
   font-size: 10px;
@@ -292,11 +292,11 @@
   max-height: 85vh;
   box-sizing: border-box;
   padding: 24px;
-  border: 1px solid #0a0a0a;
+  border: 1px solid #d7d4cc;
   border-radius: 0;
   box-shadow: 0 20px 80px #0a0a0a30;
   overflow-y: auto;
-  color: #0a0a0a;
+  color: #343638;
 }
 .publishing-page dialog::backdrop {
   background: #0a0a0a77;
@@ -471,7 +471,7 @@
 }
 .publishing-page .pub-list article,
 .publishing-page .pub-channel {
-  border: 1px solid #0a0a0a;
+  border: 1px solid #d7d4cc;
   background: #fff;
 }
 .pub-heading h1 span {
@@ -520,8 +520,14 @@
 .publishing-page .pub-card.is-drop-hover {
   outline: 3px solid #0a0a0a;
   outline-offset: 2px;
-  background: #f9af5e !important;
+  background: var(--brand-accent, #db7900) !important;
+  color: #fff;
 }
+.publishing-page .pub-card.is-drop-hover small,
+.publishing-page .pub-card.is-drop-hover .pub-drag-handle {
+  color: #fff;
+}
+
 .pub-dragging .pub-card[draggable="true"] {
   opacity: 0.65;
 }
@@ -531,13 +537,13 @@
   pointer-events: none;
   width: 228px;
   padding: 10px;
-  border: 1px solid #0a0a0a;
-  background: #f9af5e;
-  color: #0a0a0a;
+  border: 1px solid #d7d4cc;
+  background: var(--brand-accent, #db7900);
+  color: #fff;
   font:
     12px/1.4 "IBM Plex Sans",
     sans-serif;
-  box-shadow: 3px 3px 0 #0a0a0a;
+  box-shadow: 3px 3px 0 rgba(52, 54, 56, .10);
 }
 #move-status:empty {
   display: none;
@@ -551,10 +557,10 @@
   width: min(620px, calc(100% - 32px));
   padding: 12px 16px;
   margin: 0;
-  border: 1px solid #0a0a0a;
-  background: #f6f3ee;
-  color: #0a0a0a;
-  box-shadow: 3px 3px 0 #0a0a0a;
+  border: 1px solid #d7d4cc;
+  background: #f9f6ee;
+  color: #343638;
+  box-shadow: 3px 3px 0 rgba(52, 54, 56, .10);
   pointer-events: none;
   font-size: 14px;
 }
@@ -694,7 +700,7 @@
     content: "−";
   }
   .pub-filters > summary:focus-visible {
-    outline: 3px solid #f9af5e;
+    outline: 3px solid var(--brand-accent, #db7900);
     outline-offset: 2px;
     border-radius: 0;
   }
@@ -846,7 +852,7 @@
   }
   .publishing-page .pub-day-summary:hover {
     background: transparent;
-    box-shadow: inset 0 0 0 2px #f9af5e;
+    box-shadow: inset 0 0 0 2px var(--brand-accent, #db7900);
   }
   .pub-day-summary:focus-visible {
     outline-offset: -3px !important;
@@ -857,7 +863,7 @@
     line-height: 22px;
     border-radius: 0;
     background: #fbf0de;
-    color: #0a0a0a;
+    color: #343638;
     font-size: 12px;
     font-weight: 600;
   }
@@ -1003,7 +1009,7 @@
   line-height: 1.5;
 }
 #recording-scheduler .pub-recording-check strong {
-  color: #0a0a0a;
+  color: #343638;
 }
 .pub-recording-body {
   flex: 1;
@@ -1056,8 +1062,8 @@
   padding: 3px 8px;
   margin-bottom: 6px;
   border: 1px solid #b8b3aa;
-  background: #efeae2;
-  color: #0a0a0a;
+  background: #f1eee5;
+  color: #343638;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
@@ -1178,3 +1184,6 @@
     grid-column: 1 / -1;
   }
 }
+
+.publishing-page button.pub-primary { font-size: 20px; font-weight: 700; }
+.pub-drag-ghost { background: var(--brand-accent-compact, #b35f00); }

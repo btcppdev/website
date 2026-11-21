@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     {{ template "rebrand_header" . }}
-    <link rel="stylesheet" href="/static/css/profile-pgp-keys.css?v=1">
+    <link rel="stylesheet" href="/static/css/profile-pgp-keys.css?v=20261121-sentence-case">
     {{ $socialCard := .SocialCardURL }}{{ if not $socialCard }}{{ $socialCard = "/static/img/rebrand/breakthroughs.jpg" }}{{ end }}
     {{ template "site_seo" (dict "Title" (printf "%s @ bitcoin++" .Person.Speaker.Name) "Description" "Community profile, projects, and talk archive." "Path" (printf "/whois/%s" .Person.PublicID) "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630 "Type" "profile") }}
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
@@ -25,11 +25,10 @@
           </div>
           {{ if .Person.Editions }}
           {{ $firstEdition := index .Person.Editions (sub (len .Person.Editions) 1) }}
-          <span class="whois-profile-member-since">MEMBER SINCE {{ $firstEdition.StartDate.Format "2006" }}</span>
+          <span class="whois-profile-member-since">Member since {{ $firstEdition.StartDate.Format "2006" }}</span>
           {{ end }}
         </div>
         <div class="whois-profile-main">
-          <p class="whois-section-tag">§ COMMUNITY PROFILE</p>
           <div class="whois-profile-title">
             <h1>{{ .Person.Speaker.Name }}</h1>
             <span>@{{ .Person.PublicID }}</span>
@@ -41,7 +40,7 @@
           {{ range .PGPKeys }}<a href="/whois/{{ $.Person.PublicID }}/keys/{{ .Fingerprint }}.asc" title="Signing control verified · Full fingerprint: {{ .Fingerprint }}" aria-label="Download verified PGP key {{ .Fingerprint }}"><span>PGP</span><strong>{{ .KeyID }}</strong><span aria-hidden="true">↗</span></a>{{ end }}
           </div>{{ end }}
           {{ if .UpdateProfileURL }}
-          <a class="whois-profile-edit" href="{{ .UpdateProfileURL }}">UPDATE PROFILE →</a>
+          <a class="whois-profile-edit" href="{{ .UpdateProfileURL }}">Update profile →</a>
           {{ end }}
           <div class="whois-profile-stats">
             <div><strong>{{ len .Person.Editions }}</strong><span>editions</span></div>
@@ -53,10 +52,9 @@
 
         <div class="whois-profile-archive">
 
-      <section class="whois-profile-section">
+      <section id="editions" class="whois-profile-section">
         <div class="whois-section-head">
           <div>
-            <p class="whois-section-tag">§01 · EVENT BADGES</p>
             <h2>{{ len .Person.Editions }} edition{{ if ne (len .Person.Editions) 1 }}s{{ end }} attended.</h2>
           </div>
         </div>
@@ -82,7 +80,6 @@
       <section class="whois-profile-section">
         <div class="whois-section-head">
           <div>
-            <p class="whois-section-tag">§02 · HACKATHON PROJECTS</p>
             <h2>Built at the hackathon.</h2>
           </div>
         </div>
@@ -109,7 +106,7 @@
               </div>
             </div>
             <div class="whois-project-row__team">
-              <p>TEAM · {{ len .Members }}</p>
+              <p>Team · {{ len .Members }}</p>
               <div>
                 {{ range .Members }}
                   {{ if .PublicID }}
@@ -142,7 +139,6 @@
       <section class="whois-profile-section">
         <div class="whois-section-head">
           <div>
-            <p class="whois-section-tag">§{{ if .Person.Projects }}03{{ else }}02{{ end }} · TALKS & PANELS</p>
             <h2>On stage.</h2>
           </div>
           {{ if .Person.Editions }}<a href="/whois/{{ .Person.PublicID }}/archive">Full archive →</a>{{ end }}
@@ -186,7 +182,7 @@
       {{ if and .BadgeCollection .BadgeCollection.TotalVisible }}
       <section class="whois-profile-section whois-credential-section">
         <div class="whois-section-head">
-          <div><p class="whois-section-tag">§{{ if and .Person.Projects .Person.Talks }}04{{ else if or .Person.Projects .Person.Talks }}03{{ else }}02{{ end }} · CREDENTIALS</p><h2>Badges earned.</h2></div>
+          <div><h2>Badges earned.</h2></div>
           <div class="whois-credential-head-actions">{{ if .ManageBadgesURL }}<a href="{{ .ManageBadgesURL }}">manage display →</a>{{ end }}{{ if .BadgeCollection.HasMore }}<a href="/whois/{{ .Person.PublicID }}/badges">all badges →</a>{{ end }}</div>
         </div>
         <div class="whois-credential-grid">

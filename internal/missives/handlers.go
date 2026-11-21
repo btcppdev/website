@@ -300,7 +300,7 @@ func PreviewMissive(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 	subscribers := []*mtypes.Subscriber{
 		&mtypes.Subscriber{
-			Email: "hello@btcpp.dev",
+			Email: "inbox@btcpp.dev",
 			Subs: []*mtypes.Subscription{
 				&mtypes.Subscription{
 					Name: missive.Newsletters[0],

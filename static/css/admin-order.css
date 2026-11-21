@@ -35,7 +35,7 @@
 .shop-admin--order .shop-admin-form p, .shop-admin--order address { font-size: 14px; line-height: 1.65; }
 .shop-admin--order address { font-style: normal; }
 .order-facts { margin: 0; display: grid; gap: 18px; }
-.order-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #68645d; margin-bottom: 5px; }
+.order-facts dt { font-size: 11px; text-transform: none; letter-spacing: normal; color: #68645d; margin-bottom: 5px; }
 .order-facts dd { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .order-facts a { color: inherit; text-underline-offset: 3px; }
 .shop-admin--order .shop-order-totals { font-size: 13px; gap: 14px 18px; }

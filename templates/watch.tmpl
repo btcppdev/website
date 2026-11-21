@@ -3,7 +3,7 @@
   <head>
     {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++" .Title) "Description" .Description "Path" .Path "Image" .SocialImage "ImageType" "image/png" "ImageWidth" 1920 "ImageHeight" 1080 "Type" "video.other") }}
     {{ template "rebrand_header" . }}
-    <link rel="stylesheet" href="/static/css/watch.css">
+    <link rel="stylesheet" href="/static/css/watch.css?v=20261121-no-eyebrows">
     <link rel="icon" href="/favicon.ico">
   </head>
   <body class="btcpp-redesign btcpp-watch-page">
@@ -11,7 +11,7 @@
 
     <main class="watch-shell">
       <section class="watch-hero">
-        <div class="watch-hero__label"><span aria-hidden="true">●</span> bitcoin++ watch</div>
+
         <h1>{{ .Title }}</h1>
         {{ if .Speakers }}
         <p class="watch-hero__speakers">with {{ range $idx, $speaker := .Speakers }}{{ if $idx }}, {{ end }}{{ if $path := speakerPublicPath $speaker }}<a href="{{ $path }}">{{ $speaker.Name }}</a>{{ else }}{{ $speaker.Name }}{{ end }}{{ end }}</p>
@@ -22,9 +22,9 @@
         {{ if eq .State "live" }}
           <div class="watch-player__frame">
             <video id="watch-live-video" controls autoplay muted playsinline data-hls-url="{{ .HLSURL }}"></video>
-            <div class="watch-player__live-badge" data-watch-live-badge>LIVE</div>
+            <div class="watch-player__live-badge" data-watch-live-badge>Live</div>
             <button class="watch-player__sound-prompt" type="button" data-watch-sound-prompt>
-              <span aria-hidden="true">🔇</span><strong data-watch-sound-label>TAP FOR SOUND</strong>
+              <span aria-hidden="true">🔇</span><strong data-watch-sound-label>Tap for sound</strong>
             </button>
           </div>
         {{ else if eq .State "available" }}
@@ -50,7 +50,7 @@
 
       <section class="watch-details">
         <div>
-          <p class="watch-details__eyebrow">{{ .Conf.Desc }}</p>
+          <p class="watch-details__event">{{ .Conf.Desc }}</p>
           <p class="watch-details__description">{{ .Description }}</p>
         </div>
         <div class="watch-details__actions">

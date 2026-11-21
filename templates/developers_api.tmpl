@@ -56,7 +56,6 @@
 
         <article class="api-reference__article">
           <section id="overview" class="api-reference__hero" data-docs-section>
-            <p class="api-reference__kicker">§ Developer platform</p>
             <h1>Build on<br><span>bitcoin++.</span></h1>
             <p>Published event data is open to everyone. Account and administrative operations use narrowly scoped bearer tokens with live ownership and role checks.</p>
             <div class="api-reference__hero-links">
@@ -66,7 +65,6 @@
           </section>
 
           <section id="quick-start" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">01 / Start here</p>
             <h2>Quick start</h2>
             <p>The stable base URL is <code>https://btcpp.dev/api/v1</code>. Public reads need no credentials and return only data already published on the website.</p>
             <div class="api-reference__inline-code" data-copyable>
@@ -78,7 +76,6 @@
           </section>
 
           <section id="conferences" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">02 / Public resources</p>
             <h2>Conferences</h2>
             <p>Discover published events, their configured days, public agenda, speakers, sponsors, and talks.</p>
             <div class="api-reference__endpoints">
@@ -90,7 +87,6 @@
           </section>
 
           <section id="people" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">03 / Public resources</p>
             <h2>People</h2>
             <p>Public people records are holistic: profiles include published talks, conference appearances, and hackathon projects without exposing email addresses or private contact data.</p>
             <div class="api-reference__endpoints">
@@ -100,7 +96,6 @@
           </section>
 
           <section id="recordings" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">04 / Public + admin</p>
             <h2>Recordings</h2>
             <p>Browse published recordings anonymously. Conference and global admins can update recording metadata, then start, heartbeat, and stop HLS broadcasts with a scoped token. Global-admin services can incrementally poll the broadcast-plan feed to reconcile recording sources, release times, and destinations.</p>
             <div class="api-reference__endpoints">
@@ -113,7 +108,6 @@
           </section>
 
           <section id="shop-accounting" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">05 / Accounts admin</p>
             <h2>Shop accounting</h2>
             <p>Services acting for a profile with <code>accts-admin</code> can synchronize the current merchandise inventory ledger and inventory-affecting sales without receiving customer names, email addresses, shipping data, or payment credentials. Ticket registrations are canonical, so mixed ticket and merchandise checkouts are not counted twice.</p>
             <div class="api-reference__endpoints">
@@ -123,7 +117,6 @@
           </section>
 
           <section id="hackathons" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">05 / Public resources</p>
             <h2>Hackathons</h2>
             <p>Browse public competitions, submitted projects, confirmed teammates, published awards, and finalized results. Draft and disqualified projects remain private.</p>
             <div class="api-reference__endpoints">
@@ -134,7 +127,6 @@
           </section>
 
           <section id="authentication" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">06 / Authentication</p>
             <h2>Bearer tokens</h2>
             <p>Protected endpoints accept a personal API token created in Account Settings or an OAuth access token. Credentials belong only in the HTTP <code>Authorization</code> header—never in URLs.</p>
             <div class="api-reference__inline-code" data-copyable>
@@ -146,7 +138,6 @@
           </section>
 
           <section id="account" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">07 / Protected resources</p>
             <h2>Account + talks</h2>
             <p>Applications can read and update the current person’s profile, list their talks, and edit shared talk content. Schedule placement remains restricted to event administrators.</p>
             <div class="api-reference__endpoints">
@@ -159,7 +150,6 @@
           </section>
 
           <section id="scopes" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">08 / Authorization</p>
             <h2>Scopes</h2>
             <div class="api-reference__scope-list">
               <div><code>identity:self:read</code><p>Read your account ID, display name, and current roles.</p></div>
@@ -175,7 +165,6 @@
           </section>
 
           <section id="oauth" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">09 / OAuth</p>
             <h2>Authorization code + PKCE</h2>
             <p>Native, browser, and server-backed applications use the authorization-code flow. S256 PKCE, an exact registered redirect URI, and <code>state</code> are required.</p>
             <div class="api-reference__facts">
@@ -188,7 +177,6 @@
           </section>
 
           <section id="conventions" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">10 / Protocol</p>
             <h2>Conventions + errors</h2>
             <ul>
               <li>JSON keys use <code>snake_case</code>; timestamps use RFC 3339.</li>
@@ -210,7 +198,6 @@
           </section>
 
           <section id="rate-limits" class="api-reference__section" data-docs-section>
-            <p class="api-reference__kicker">11 / Operations</p>
             <h2>Rate limits</h2>
             <p>Initial limits are 120 public reads per minute per IP, 600 authenticated reads per minute per token, 60 ordinary mutations per minute, and 10 recording writes per minute. A <code>429</code> response includes <code>Retry-After</code>.</p>
           </section>

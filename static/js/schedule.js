@@ -234,7 +234,7 @@
     }
   }
 
-  // ensureDriftPill injects the "EDITED" badge into a placed card
+  // ensureDriftPill injects the "Edited" badge into a placed card
   // when it isn't already there. Matches the server-rendered
   // markup in schedule_placed so refreshes look identical to
   // post-drag state.
@@ -253,7 +253,7 @@
     const pill = document.createElement("span");
     pill.title = "Edited since the last cal invite was sent — needs a Send Cal Updates click.";
     pill.className = "schedule-drift-pill inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-200 text-amber-900";
-    pill.textContent = "EDITED";
+    pill.textContent = "Edited";
     actionGroup.insertBefore(pill, actionGroup.firstChild);
   }
 

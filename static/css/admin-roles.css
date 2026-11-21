@@ -5,14 +5,14 @@
 .admin-role-manager h4 { font-size: 15px; font-weight: 700; margin: 0 0 16px; }
 .admin-role-manager p { font-size: 13px; color: #595959; line-height: 1.5; margin: 8px 0 16px; overflow-wrap: anywhere; }
 .admin-role-manager label { display: block; margin: 16px 0 8px; font-weight: 600; font-size: 13px; }
-.admin-role-manager input[type=search] { width: 100%; min-width: 0; max-width: 100%; padding: 12px; border: 1px solid #aaa; border-radius: 6px; background: white; color: #171717; font: inherit; font-size: 16px; }
-.admin-role-manager button { min-height: 44px; padding: 9px 14px; border: 1px solid #b8b4aa; border-radius: 6px; background: white; color: #171717; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.admin-role-manager input[type=search] { width: 100%; min-width: 0; max-width: 100%; padding: 12px; border: 1px solid #aaa; border-radius: 6px; background: white; color: #343638; font: inherit; font-size: 16px; }
+.admin-role-manager button { min-height: 44px; padding: 9px 14px; border: 1px solid #b8b4aa; border-radius: 6px; background: white; color: #343638; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .admin-role-manager button:disabled { opacity: .5; cursor: default; }
-.admin-role-manager [data-role-save] { background: #171717; color: #fff; border-color: #171717; }
+.admin-role-manager [data-role-save] { background: #fffdf8; color: #343638; border-color: #d7d4cc; }
 .admin-role-manager [data-role-hits] { max-height: 250px; overflow-y: auto; border: 1px solid #aaa; border-radius: 6px; padding: 0; list-style: none; }
 .admin-role-manager [data-role-hits] button { display: block; text-align: left; border: 0; border-bottom: 1px solid #ddd; border-radius: 0; width: 100%; overflow-wrap: anywhere; }
 .admin-role-manager [data-role-hits] small { display: block; color: #595959; margin-top: 4px; font-weight: 400; }
-.admin-role-manager button:hover:not(:disabled) { background: #ffb65e; color: #171717; }
+.admin-role-manager button:hover:not(:disabled) { background: #ffb65e; color: #343638; }
 .admin-role-manager button:focus-visible, .admin-role-manager input:focus-visible { outline: 3px solid #b45400; outline-offset: 3px; }
 .admin-role-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .admin-role-person { border-top: 1px solid #ddd; margin-top: 24px; padding-top: 20px; }
@@ -28,10 +28,10 @@
 .admin-role-row[data-state=added] strong { color: #28613c; }
 .admin-role-row[data-state=removed] strong { text-decoration: line-through; color: #715c50; }
 .admin-role-count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; background: #eeeae3; border-radius: 20px; font-size: 12px; margin-left: 5px; }
-.admin-role-picker { min-width: 0; background: #f6f3ee; padding: 18px; border-radius: 8px; }
+.admin-role-picker { min-width: 0; background: #f9f6ee; padding: 18px; border-radius: 8px; }
 .admin-role-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .admin-role-filters button { padding: 8px 12px; }
-.admin-role-filters button[aria-pressed=true] { background: #171717; color: #fff; border-color: #171717; }
+.admin-role-filters button[aria-pressed=true] { background: var(--brand-accent-compact, #b35f00); color: #fff; border-color: #d7d4cc; }
 .admin-role-manager #role-results-status { font-size: 12px; margin: 12px 0; }
 .admin-role-catalog { max-height: 440px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding: 3px; scroll-padding: 8px; }
 .admin-role-manager label.admin-role-option { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 8px; padding: 14px; background: #fff; border: 1px solid #d6d2c8; border-radius: 6px; cursor: pointer; }
@@ -51,8 +51,8 @@
 .admin-role-manager [hidden] { display: none !important; }
 .admin-role-manager .admin-role-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 /* Keep permission descriptions readable within the shared admin theme. */
-#role-manager .admin-role-picker { background: #f6f3ee; }
-#role-manager label.admin-role-option { font-family: inherit; text-transform: none; letter-spacing: normal; color: #171717; }
+#role-manager .admin-role-picker { background: #f9f6ee; }
+#role-manager label.admin-role-option { font-family: inherit; text-transform: none; letter-spacing: normal; color: #343638; }
 #role-manager code { border: 0; padding: 0; background: transparent; line-height: 1.5; }
 #role-manager button { text-transform: none; letter-spacing: normal; }
 #role-manager input[type=checkbox] { appearance: auto; background: initial; border: initial; border-radius: 0; box-shadow: none; accent-color: #171717; }

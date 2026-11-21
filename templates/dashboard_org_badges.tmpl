@@ -23,7 +23,7 @@
 
       <section class="organization-dashboard-section dashboard-workspace-panel" id="badge-catalog">
         <div class="organization-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Badge catalog</div><h2>Recognition from {{ .Organization.Name }}.</h2></div>
+          <div><h2>Recognition from {{ .Organization.Name }}.</h2></div>
           <p>Anyone can receive these badges. Owners and managers can issue to any Nostr pubkey or use the bitcoin++ directory to find members.</p>
         </div>
         {{ if .BadgeCatalog }}
@@ -40,7 +40,7 @@
       {{ if .CanManage }}
       <section class="organization-dashboard-section dashboard-workspace-panel" id="badge-grants">
         <div class="organization-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Issue &amp; manage</div><h2>Recognize any bitcoin++ member.</h2></div>
+          <div><h2>Recognize any bitcoin++ member.</h2></div>
           <p>A grant records the organization’s intent here first. If the person has a verified Nostr key it becomes ready to issue; otherwise Bitcoin++ asks them to add one.</p>
         </div>
         {{ if and .BadgeCatalog .BadgeCatalog.Badges }}
@@ -75,7 +75,7 @@
       {{ if or .Badges .PersonalGrants }}
       <section class="organization-dashboard-section dashboard-workspace-panel" id="badges-for-you">
         <div class="organization-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Badges for you</div><h2>Your credentials from organizations.</h2></div>
+          <div><h2>Your credentials from organizations.</h2></div>
           <p>Badges are issued to your verified Nostr key. Pending badges appear here before you add one.</p>
         </div>
         {{ if or (and .Badges (or .Badges.Issued .Badges.Pending)) .PersonalGrants }}

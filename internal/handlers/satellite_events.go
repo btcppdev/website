@@ -430,7 +430,7 @@ func sendSatelliteSubmittedNotifications(ctx *config.AppContext, conf *types.Con
 			template.HTMLEscapeString(conf.Desc),
 			template.HTMLEscapeString(event.Title),
 		)
-		if err := sendSatelliteMail(ctx, submitter, "hello@btcpp.dev", copyTitle, copyHTML, copyText, "submitted-copy", event.ID); err != nil && firstErr == nil {
+		if err := sendSatelliteMail(ctx, submitter, "inbox@btcpp.dev", copyTitle, copyHTML, copyText, "submitted-copy", event.ID); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -449,7 +449,7 @@ func sendSatellitePublishedNotification(ctx *config.AppContext, conf *types.Conf
 		template.HTMLEscapeString(event.Title),
 		template.HTMLEscapeString(publicURL),
 	)
-	return sendSatelliteMail(ctx, event.SubmitterEmail, "hello@btcpp.dev", title, html, text, "published", event.ID)
+	return sendSatelliteMail(ctx, event.SubmitterEmail, "inbox@btcpp.dev", title, html, text, "published", event.ID)
 }
 
 func satelliteAdminEmails(ctx *config.AppContext, conf *types.Conf) []string {
@@ -476,7 +476,7 @@ func satelliteAdminEmails(ctx *config.AppContext, conf *types.Conf) []string {
 		out = append(out, email)
 	}
 	if len(out) == 0 {
-		out = append(out, "hello@btcpp.dev")
+		out = append(out, "inbox@btcpp.dev")
 	}
 	return out
 }

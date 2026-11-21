@@ -15,7 +15,6 @@
         </div>
         <div class="dashboard-order-pagehead__body">
           <div>
-            <p class="dashboard-section-label">§ order</p>
             <h1>Order details.</h1>
             <p class="dashboard-order-pagehead__id">#{{ .ShopOrder.PublicID }}</p>
           </div>
@@ -30,7 +29,7 @@
       <section class="dashboard-order-detail">
         <div class="dashboard-order-detail__head">
           <div>
-            <div class="dashboard-kicker">§ Purchases · {{ len .ShopOrder.Items }}</div>
+            <h2 class="dashboard-section-title">Purchases · {{ len .ShopOrder.Items }}</h2>
             <p>{{ .ShopOrder.BuyerEmail }}</p>
           </div>
           <a href="/dashboard/orders/{{ .ShopOrder.PublicID }}/receipt">download receipt</a>

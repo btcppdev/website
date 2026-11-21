@@ -8,6 +8,7 @@
   <script src="/static/js/script.js" type="text/javascript"></script>
   <!-- FIXME: Show emoji that maps to the conf you're checking in for? -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
+<link rel="stylesheet" href="/static/css/site-controls.css?v=20261121-header-orange">
 </head>
 <body class="btcpp-admin-page h-full bg-green-300">
 {{ if eq .ConfTag "" }}
@@ -26,7 +27,7 @@
          {{ if .NeedsPin }}
 	  <form method="POST">
 	    <input id="pin" type="input" name="pin" placeholder="Passcode" required class="py-3 px-4 border-gray border-2 rounded-sm" />
-	    <button class="mt-4 bg-black text-white hover:text-white-400 px-4 py-2 rounded-md" type="submit" >Enter</button>
+	    <button class="mt-4 text-white hover:text-white-400 px-4 py-2 rounded-md" type="submit" style="background:var(--brand-accent-compact, #b35f00)" >Enter</button>
 	  </form> 
          {{ else }}
          <h2 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-4xl">{{ .ConfTag }} emails sending!!</h2>
