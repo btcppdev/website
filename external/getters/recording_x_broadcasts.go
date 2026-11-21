@@ -32,6 +32,13 @@ func ClaimRecordingXBroadcastStep(ctx *config.AppContext, recordingID string, sc
 	if err := lockAndValidateRecordingSchedule(ctx.DatabaseContext(), tx, []RecordingScheduleUpdate{{RecordingID: recordingID, PublishAt: &scheduledAt}}); err != nil {
 		return nil, "", err
 	}
+	var canceling bool
+	if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT EXISTS(SELECT 1 FROM recording_schedule_changes WHERE recording_id=$1 AND channel_id='broadcasts' AND target_at IS NULL AND state<>'applied')`, recordingID).Scan(&canceling); err != nil {
+		return nil, "", err
+	}
+	if canceling {
+		return nil, "", errors.New("Broadcast cancellation must finish before scheduling again")
+	}
 
 	row, err := scanRecordingXBroadcast(tx.QueryRow(ctx.DatabaseContext(), `
 		SELECT recording_id::text, status, scheduled_at, scheduled_broadcast_id,
@@ -70,6 +77,22 @@ func ClaimRecordingXBroadcastStep(ctx *config.AppContext, recordingID string, sc
 		return row, "", nil
 	}
 
+	if row.Status == "canceled" {
+		row, err = scanRecordingXBroadcast(tx.QueryRow(ctx.DatabaseContext(), `
+   UPDATE recording_x_broadcasts SET status='creating',scheduled_at=$2,
+    scheduled_broadcast_id='',broadcast_id='',poster_media_id='',poster_url='',
+    x_session_id=$3,optimistic_poster_url=$4,error='',operation_started_at=$5,updated_at=$5
+   WHERE recording_id=$1
+   RETURNING recording_id::text,status,scheduled_at,scheduled_broadcast_id,broadcast_id,poster_media_id,poster_url,x_session_id,optimistic_poster_url,error,operation_started_at,created_at,updated_at
+  `, recordingID, scheduledAt, sessionID, optimisticPosterURL, now))
+		if err != nil {
+			return nil, "", err
+		}
+		if err = tx.Commit(ctx.DatabaseContext()); err != nil {
+			return nil, "", err
+		}
+		return row, "create", nil
+	}
 	action, status := "create", "creating"
 	if row.BroadcastID != "" {
 		action, status = "upload_poster", "uploading_poster"

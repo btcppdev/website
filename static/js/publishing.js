@@ -226,6 +226,10 @@
   function isRecording(d) {
     return Boolean(d?.recording_id);
   }
+  function stateLabel(e) {
+    const d = deliveryFor(e);
+    return d?.cancel_pending ? "cancellation · " + e.state : e.state;
+  }
   function canMove(d) {
     if (isRecording(d)) return d.eligible && Boolean(d.at);
     return (
@@ -496,7 +500,7 @@
         "span",
         kind +
           (e.conference ? " · " + e.conference : "") +
-          (e.state ? " · " + e.state : ""),
+          (e.state ? " · " + stateLabel(e) : ""),
         "pub-status",
       ),
     );
@@ -1185,7 +1189,7 @@
         "p",
         channel(e.channel_id).name +
           " · " +
-          e.state +
+          stateLabel(e) +
           " · " +
           label(e.at, true) +
           (e.end ? " → " + label(e.end) : ""),
@@ -1199,7 +1203,7 @@
           el(
             "p",
             "Requested change: " +
-              (d.at ? label(d.at, true) : "Clear release schedule") +
+              (d.cancel_pending ? "Cancel this schedule" : label(d.at, true)) +
               ". " +
               (d.confirmed_at
                 ? "Previously confirmed: " + label(d.confirmed_at, true) + "."
@@ -1214,21 +1218,46 @@
           ),
         );
       else if (d.reason) box.append(el("p", d.reason));
-      if (d.channel_id === "youtube" && d.eligible && d.at)
+      if (d.cancelable) {
+        const youtube = d.channel_id === "youtube";
         box.append(
-          actionButton("Clear release schedule (set unlisted)", async () => {
-            await api({
-              action: "recording_clear",
-              id: d.id,
-              revision: d.revision,
-            });
-            $("#detail").close();
-            await load();
-            moveStatus(
-              "Release cancellation is pending confirmation from YouTube. Broadcast timing is unchanged.",
-            );
-          }),
+          el(
+            "p",
+            youtube
+              ? "Canceling removes the YouTube release time and leaves the video unlisted."
+              : "Canceling removes the scheduled broadcast from X and stops its queued playback. The recording file is kept.",
+          ),
         );
+        box.append(
+          actionButton(
+            youtube ? "Cancel scheduled release" : "Cancel broadcast",
+            async () => {
+              if (
+                !window.confirm(
+                  youtube
+                    ? "Cancel this YouTube release and set the video to unlisted? Its broadcast schedule will stay unchanged."
+                    : "Cancel this X broadcast and its queued playback? Its YouTube release will stay unchanged.",
+                )
+              )
+                return;
+              await api({
+                action: "recording_cancel",
+                id: d.id,
+                revision: d.revision,
+              });
+              $("#detail").close();
+              await load();
+              moveStatus(
+                youtube
+                  ? "Release cancellation is pending confirmation from YouTube."
+                  : "Broadcast cancellation requested. Queued playback is disabled on the next streamer sync; X confirmation is pending.",
+              );
+            },
+          ),
+        );
+      } else if (d.cancel_reason && !d.cancel_pending && d.at) {
+        box.append(el("p", d.cancel_reason));
+      }
       if (["failed", "needs_review"].includes(d.state)) {
         let confirm = null;
         if (d.retry_confirmation) {
@@ -1245,19 +1274,22 @@
           box.append(label);
         }
         box.append(
-          actionButton("Retry synchronization", async () => {
-            if (confirm && !confirm.checked)
-              throw Error("Check X Studio and confirm before retrying.");
-            await api({
-              action: "recording_retry",
-              id: d.id,
-              revision: d.revision,
-              confirmed_not_created: Boolean(confirm?.checked),
-            });
-            $("#detail").close();
-            await load();
-            moveStatus("Schedule synchronization queued.");
-          }),
+          actionButton(
+            d.cancel_pending ? "Retry cancellation" : "Retry synchronization",
+            async () => {
+              if (confirm && !confirm.checked)
+                throw Error("Check X Studio and confirm before retrying.");
+              await api({
+                action: "recording_retry",
+                id: d.id,
+                revision: d.revision,
+                confirmed_not_created: Boolean(confirm?.checked),
+              });
+              $("#detail").close();
+              await load();
+              moveStatus("Schedule synchronization queued.");
+            },
+          ),
         );
       }
     } else if (d) {
@@ -1273,6 +1305,14 @@
         );
       if (canMove(d))
         box.append(actionButton("Move to slot", () => openMove(d)));
+      if (["draft", "scheduled", "failed"].includes(d.state))
+        box.append(
+          actionButton("Cancel post", async () => {
+            if (!window.confirm("Cancel this post for this account?")) return;
+            await act(d, "cancel");
+            $("#detail").close();
+          }),
+        );
       if (d.state === "needs_review") {
         box.append(
           el(

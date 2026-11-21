@@ -134,7 +134,7 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 			} else {
 				err = store.SaveRecordingMoves(r.Context(), []publishing.RecordingMove{{ID: input.ID, Revision: input.Revision, At: &input.At}})
 			}
-		case "recording_clear":
+		case "recording_clear", "recording_cancel":
 			err = store.SaveRecordingMoves(r.Context(), []publishing.RecordingMove{{ID: input.ID, Revision: input.Revision}})
 		case "recording_retry":
 			err = store.RetryRecordingChange(r.Context(), input.ID, input.Revision, input.ConfirmedNotCreated)

@@ -58,9 +58,15 @@ Schedule changes start as **pending**, then **syncing**. They update the actual 
 
 `PUBLISHING_ENABLED` gates both dispatchers. The recording dispatcher does not require direct X social-post OAuth configuration; YouTube and X Studio retain their own connection/update settings. Enabling the dispatcher applies pending provider schedule changes immediately, even when publication itself is weeks away. Review pending work before activation.
 
-**Refresh recording status** fetches YouTube visibility and missing runtimes. Already public releases and live/ended broadcasts cannot move. Replacing a video invalidates its cached visibility by video identity. Clearing a YouTube release queues an unlisted-state update and leaves the recording's broadcast unchanged. X broadcast cancellation is not implemented by this migration.
+**Refresh recording status** fetches YouTube visibility and missing runtimes. Already public releases and live/ended broadcasts cannot move. Replacing a video invalidates its cached visibility by video identity.
 
-streamctl continues consuming confirmed X broadcast plans. Uploads, encoding, playback, and manually configured recurring streamer jobs remain in their existing services; recording schedule management lives in Publishing.
+To cancel a recording, click its calendar entry and choose **Cancel scheduled release** (YouTube) or **Cancel broadcast** (X). Confirm the destination in the prompt. YouTube cancellation removes the release time and sets the video to unlisted. X cancellation deletes the scheduled broadcast and disables its queued playback on the next streamer poll. Each action leaves the other destination unchanged and keeps the recording file.
+
+Cancellation stays visible on the calendar, with its slot reserved, until the provider confirms it. Failures remain visible with **Retry cancellation**; uncertain results are also checked automatically without repeating the provider write. Public videos, live/ended broadcasts, operations already syncing, and releases less than a minute away cannot be canceled here. A queued broadcast that has never been sent to X can be canceled locally. Missing runtimes or source files do not prevent cancellation of an identified provider schedule.
+
+Canceled recordings return to the unscheduled list. Scheduling an X broadcast again creates a fresh broadcast and link. The previous schedule is retained internally as a cancellation tombstone so the streamer can remove its timer, including after a delayed poll. Migration 170 enables these cancellation records without changing any existing schedules or contacting providers.
+
+streamctl consumes confirmed X broadcast plans and cancellation requests. Uploads, encoding, playback, and manually configured recurring streamer jobs remain in their existing services; recording schedule management lives in Publishing.
 
 ## Calendar imports
 

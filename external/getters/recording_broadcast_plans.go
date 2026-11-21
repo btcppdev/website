@@ -29,16 +29,17 @@ func ListRecordingBroadcastPlans(ctx *config.AppContext, filter RecordingBroadca
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT r.id::text, c.tag, ct.id::text, r.talk_name, r.file_uri,
-			r.publish_at, xb.status, xb.scheduled_at,
+			r.publish_at, CASE WHEN j.target_at IS NULL AND j.state IN ('pending','syncing','failed','needs_review') THEN 'canceled' ELSE xb.status END, xb.scheduled_at,
 			coalesce(rb.x_broadcast_url, ''),
-			greatest(r.updated_at, xb.updated_at, coalesce(rb.updated_at, '-infinity'::timestamptz)) AS plan_updated_at
+			greatest(r.updated_at, xb.updated_at, coalesce(rb.updated_at, '-infinity'::timestamptz), coalesce(j.updated_at, '-infinity'::timestamptz)) AS plan_updated_at
 		FROM recording_x_broadcasts xb
 		JOIN recordings r ON r.id = xb.recording_id
 		JOIN conf_talks ct ON ct.id = r.conf_talk_id
 		JOIN conferences c ON c.id = ct.conference_id
 		LEFT JOIN recording_broadcasts rb ON rb.recording_id = r.id
+ LEFT JOIN recording_schedule_changes j ON j.recording_id=r.id AND j.channel_id='broadcasts'
 		WHERE ($1 = '' OR c.tag = $1)
-		  AND ($2::timestamptz IS NULL OR greatest(r.updated_at, xb.updated_at, coalesce(rb.updated_at, '-infinity'::timestamptz)) > $2)
+		  AND ($2::timestamptz IS NULL OR greatest(r.updated_at, xb.updated_at, coalesce(rb.updated_at, '-infinity'::timestamptz), coalesce(j.updated_at, '-infinity'::timestamptz)) > $2)
 		ORDER BY plan_updated_at, r.id
 	`, strings.TrimSpace(filter.ConferenceTag), updatedAfter)
 	if err != nil {

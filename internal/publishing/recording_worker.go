@@ -10,6 +10,7 @@ import (
 )
 
 type RecordingChange struct {
+	BroadcastID string
 	RecordingID string
 	ChannelID   string
 	TargetAt    *time.Time
@@ -53,7 +54,7 @@ func (w RecordingScheduler) RunOnce(ctx context.Context) error {
 	if _, e = conn.Exec(ctx, `UPDATE recording_schedule_changes SET state='needs_review',error='Schedule synchronization was interrupted. Check the destination before retrying.',lease_until=NULL,version=version+1,updated_at=now() WHERE state='syncing' AND lease_until<now()`); e != nil {
 		return e
 	}
-	if e = w.reconcileYouTube(ctx, conn); e != nil {
+	if e = w.reconcileRecordings(ctx, conn); e != nil {
 		return e
 	}
 	for n := 0; n < 10; n++ {
@@ -66,7 +67,7 @@ func (w RecordingScheduler) RunOnce(ctx context.Context) error {
 			return e
 		}
 		var d RecordingChange
-		e = tx.QueryRow(ctx, `SELECT recording_id::text,channel_id,target_at,youtube_url,file_uri,version FROM recording_schedule_changes WHERE state='pending' ORDER BY updated_at LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&d.RecordingID, &d.ChannelID, &d.TargetAt, &d.YouTubeURL, &d.FileURI, &d.Version)
+		e = tx.QueryRow(ctx, `SELECT recording_id::text,channel_id,target_at,youtube_url,file_uri,version,broadcast_id FROM recording_schedule_changes WHERE state='pending' ORDER BY updated_at LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&d.RecordingID, &d.ChannelID, &d.TargetAt, &d.YouTubeURL, &d.FileURI, &d.Version, &d.BroadcastID)
 		if errors.Is(e, pgx.ErrNoRows) {
 			tx.Rollback(ctx)
 			return nil
@@ -88,6 +89,8 @@ func (w RecordingScheduler) RunOnce(ctx context.Context) error {
 		reason := ""
 		if e != nil {
 			reason = e.Error()
+		} else if d.TargetAt == nil {
+			reason = validateRecordingCancellation(item, d, time.Now())
 		} else if item.Reason != "" {
 			reason = item.Reason
 		} else if item.YouTubeURL != d.YouTubeURL || item.FileURI != d.FileURI {
@@ -159,13 +162,13 @@ func (s Store) RetryRecordingChange(ctx context.Context, id, revision string, co
 	if d.Revision != revision {
 		return ErrChanged
 	}
-	if d.Excluded {
+	if d.Excluded && !d.CancelPending {
 		return fmt.Errorf("Restore this item before retrying its schedule")
 	}
 	if d.State != "failed" && d.State != "needs_review" {
 		return fmt.Errorf("This schedule change is not awaiting retry")
 	}
-	if d.ChannelID == "broadcasts" && d.State == "needs_review" && d.BroadcastID == "" && !confirmedNotCreated {
+	if d.RetryConfirmation && !confirmedNotCreated {
 		return fmt.Errorf("Check X Studio first and confirm that no broadcast was created before retrying")
 	}
 	_, e = tx.Exec(ctx, `UPDATE recording_schedule_changes SET state='pending',error='',lease_until=NULL,version=version+1,updated_at=now() WHERE recording_id=$1 AND channel_id=$2`, d.RecordingID, d.ChannelID)

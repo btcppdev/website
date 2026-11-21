@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/external/xstudio"
 	youtubepkg "btcpp-web/external/youtube"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/publishing"
@@ -23,7 +24,7 @@ func applyPublishingRecording(ctx context.Context, app *config.AppContext, d pub
 	if rec == nil {
 		return fail("Recording no longer exists")
 	}
-	if rec.YTLink != d.YouTubeURL || rec.FileURI != d.FileURI {
+	if (d.TargetAt != nil && (rec.YTLink != d.YouTubeURL || rec.FileURI != d.FileURI)) || (d.ChannelID == "youtube" && rec.YTLink != d.YouTubeURL) {
 		return fail("Recording media changed; review the new source before scheduling")
 	}
 	if d.ChannelID == "youtube" {
@@ -64,8 +65,28 @@ func applyPublishingRecording(ctx context.Context, app *config.AppContext, d pub
 		}
 		return youtubepkg.WaitForVideoSchedule(ctx, id, d.TargetAt)
 	}
-	if d.ChannelID != "broadcasts" || d.TargetAt == nil {
+	if d.ChannelID != "broadcasts" {
 		return fail("Unsupported recording destination")
+	}
+	if d.TargetAt == nil {
+		operation, err := getters.GetRecordingXBroadcast(app, rec.ID)
+		if err != nil {
+			return fail("Could not load the existing broadcast")
+		}
+		if d.BroadcastID == "" && operation == nil {
+			return nil // Never sent to X.
+		}
+		if operation == nil || operation.BroadcastID != d.BroadcastID {
+			return fail("The X broadcast changed; review its schedule before canceling")
+		}
+		if operation.Status == "canceled" {
+			return nil
+		}
+		client, err := publishingXStudio(app)
+		if err != nil {
+			return fail(err.Error())
+		}
+		return client.CancelScheduled(ctx, operation.SessionID, d.BroadcastID)
 	}
 	if !app.Env.Recordings.X.Enabled {
 		return fail("X broadcast scheduling is disabled on the server")
@@ -106,7 +127,20 @@ func StartRecordingPublishingWorker(app *config.AppContext) {
 	if app.DB == nil || !app.Env.Publishing.Enabled {
 		return
 	}
-	worker := publishing.RecordingScheduler{Store: publishing.Store{DB: app.DB}, Confirm: confirmPublishingYouTube, Apply: func(ctx context.Context, d publishing.RecordingChange) error {
+	worker := publishing.RecordingScheduler{Store: publishing.Store{DB: app.DB}, Confirm: func(ctx context.Context, d publishing.RecordingChange) (bool, error) {
+		if d.ChannelID == "youtube" {
+			return confirmPublishingYouTube(ctx, d)
+		}
+		if d.TargetAt != nil || d.BroadcastID == "" {
+			return false, nil
+		}
+		client, err := publishingXStudio(app)
+		if err != nil {
+			return false, err
+		}
+		state, err := client.ScheduledBroadcastState(ctx, "", d.BroadcastID)
+		return err == nil && state == "absent", err
+	}, Apply: func(ctx context.Context, d publishing.RecordingChange) error {
 		return applyPublishingRecording(ctx, app, d)
 	}}
 	go func() {
@@ -121,6 +155,13 @@ func StartRecordingPublishingWorker(app *config.AppContext) {
 			}
 		}
 	}()
+}
+
+func publishingXStudio(app *config.AppContext) (*xstudio.Client, error) {
+	if !app.Env.Recordings.X.Enabled {
+		return nil, fmt.Errorf("X broadcast scheduling is disabled on the server")
+	}
+	return xstudio.New(xstudio.Config{Cookie: app.Env.Recordings.X.Cookie, UserAgent: app.Env.Recordings.X.UserAgent, IngestID: app.Env.Recordings.X.IngestID})
 }
 
 func confirmPublishingYouTube(ctx context.Context, d publishing.RecordingChange) (bool, error) {

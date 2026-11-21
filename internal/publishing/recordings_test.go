@@ -356,8 +356,8 @@ func TestRecordingClearWaitsForProviderAndPreservesBroadcast(t *testing.T) {
 		t.Fatal(e)
 	}
 	pending := itemFor(t, s, d.ID)
-	if pending.At != nil || pending.ConfirmedAt == nil {
-		t.Fatal("clear was prematurely confirmed")
+	if !pending.CancelPending || pending.State != "pending" || pending.At == nil || !pending.At.Equal(at) || pending.ConfirmedAt == nil {
+		t.Fatal("pending cancellation must retain its visible confirmed time")
 	}
 	if e := (RecordingScheduler{Store: s, Apply: func(context.Context, RecordingChange) error { return nil }}).RunOnce(ctx); e != nil {
 		t.Fatal(e)

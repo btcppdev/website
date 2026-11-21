@@ -16,6 +16,10 @@ import (
 // RecordingItem is one destination of a recording, with its own schedule and
 // revision. ConfirmedAt remains reserved until the provider confirms a move.
 type RecordingItem struct {
+	Cancelable        bool       `json:"cancelable"`
+	CancelPending     bool       `json:"cancel_pending"`
+	CancelReason      string     `json:"cancel_reason"`
+	SourceState       string     `json:"-"`
 	Excluded          bool       `json:"excluded"`
 	ExclusionVersion  int        `json:"-"`
 	YouTubePrivacy    string     `json:"youtube_privacy"`
@@ -52,7 +56,7 @@ type recordingDB interface {
 func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error) {
 	rows, err := db.Query(ctx, `
  SELECT r.id::text,ch.id,c.tag,r.talk_name,r.duration_seconds,r.youtube_url,r.file_uri,
- CASE WHEN ch.id='youtube' THEN r.publish_at ELSE xb.scheduled_at END,
+ CASE WHEN ch.id='youtube' THEN r.publish_at WHEN xb.status<>'canceled' THEN xb.scheduled_at END,
  coalesce(j.state,''),j.target_at,j.previous_at,coalesce(j.error,''),coalesce(j.version,0),
  CASE WHEN ch.id='youtube' THEN coalesce(ys.privacy_status,(SELECT status FROM social_posts WHERE ref='recording:'||r.id::text||':youtube' ORDER BY updated_at DESC LIMIT 1),'') ELSE coalesce(xb.status,'') END,
  coalesce(rb.state,''),coalesce(xb.broadcast_id,''),r.updated_at,xb.updated_at,
@@ -93,6 +97,7 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
 			prefix = "broadcast:"
 		}
 		d.ID = prefix + d.RecordingID
+		d.SourceState = sourceState
 		d.At = d.ConfirmedAt
 		d.State = "draft"
 		if d.At != nil {
@@ -101,13 +106,17 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
 		if sourceState == "published" || sourceState == "public" {
 			d.State = "published"
 		}
-		if d.ChannelID == "broadcasts" && sourceState != "" && sourceState != "scheduled" {
+		if d.ChannelID == "broadcasts" && sourceState != "" && sourceState != "scheduled" && sourceState != "canceled" {
 			d.State = sourceState
 		}
 		if jobState != "" && jobState != "applied" {
 			d.ConfirmedAt = previous
 			d.At = target
 			d.State = jobState
+			d.CancelPending = target == nil
+			if d.CancelPending {
+				d.At = previous
+			}
 		}
 		if d.ChannelID == "youtube" {
 			d.YouTubePrivacy = sourceState
@@ -115,9 +124,11 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
 		if d.ChannelID == "broadcasts" && (live == "live" || live == "ended") {
 			d.State = live
 		}
-		encoded, _ := json.Marshal([]any{d.RecordingID, d.ChannelID, d.ConfirmedAt, jobState, target, d.Version, d.YouTubeURL, d.FileURI, d.DurationSeconds, sourceState, live, updated, xupdated, d.Excluded, d.ExclusionVersion})
+		encoded, _ := json.Marshal([]any{d.RecordingID, d.ChannelID, d.ConfirmedAt, jobState, target, d.Version, d.YouTubeURL, d.FileURI, d.BroadcastID, d.DurationSeconds, sourceState, live, updated, xupdated, d.Excluded, d.ExclusionVersion})
 		d.Revision = fmt.Sprintf("%x", sha256.Sum256(encoded))
-		d.RetryConfirmation = d.ChannelID == "broadcasts" && d.State == "needs_review" && d.BroadcastID == ""
+		d.RetryConfirmation = d.ChannelID == "broadcasts" && d.State == "needs_review" && d.BroadcastID == "" && !d.CancelPending
+		d.CancelReason = recordingCancellationUnavailable(d, time.Now())
+		d.Cancelable = d.CancelReason == ""
 		d.Reason = recordingUnavailable(d, time.Now())
 		d.Eligible = d.Reason == ""
 		out = append(out, d)
@@ -125,6 +136,9 @@ func recordingItems(ctx context.Context, db recordingDB) ([]RecordingItem, error
 	return out, rows.Err()
 }
 func recordingUnavailable(d RecordingItem, now time.Time) string {
+	if d.CancelPending {
+		return "Cancellation is awaiting confirmation before this item can be scheduled again"
+	}
 	if d.Excluded {
 		return "Excluded from scheduling. Restore this item before scheduling it."
 	}
@@ -318,17 +332,14 @@ func (s Store) SaveRecordingMoves(ctx context.Context, moves []RecordingMove) er
 			return ErrChanged
 		}
 		seen[m.ID] = true
-		if d.Reason != "" {
-			return fmt.Errorf("%s: %s", d.Title, d.Reason)
-		}
 		if m.At == nil {
-			if d.ChannelID != "youtube" {
-				return fmt.Errorf("Broadcast cancellation is not supported")
-			}
-			if d.ConfirmedAt == nil && d.At == nil {
-				return fmt.Errorf("This release has no schedule to clear")
+			if reason := recordingCancellationUnavailable(d, time.Now()); reason != "" {
+				return fmt.Errorf("%s: %s", d.Title, reason)
 			}
 		} else {
+			if d.Reason != "" {
+				return fmt.Errorf("%s: %s", d.Title, d.Reason)
+			}
 			if !m.At.After(time.Now().Add(10 * time.Minute)) {
 				return fmt.Errorf("Choose a publication slot at least ten minutes away")
 			}
@@ -352,7 +363,11 @@ func (s Store) SaveRecordingMoves(ctx context.Context, moves []RecordingMove) er
 			}
 			reservations = append(reservations, getters.RecordingPublishReservation{RecordingID: d.RecordingID, Title: d.Title, ConferenceTag: d.Conference, PublishAt: *m.At, DurationSeconds: d.DurationSeconds})
 		}
-		_, e = tx.Exec(ctx, `INSERT INTO recording_schedule_changes(recording_id,channel_id,target_at,state,youtube_url,file_uri,previous_at) VALUES($1,$2,$3,'pending',$4,$5,$6) ON CONFLICT(recording_id,channel_id) DO UPDATE SET target_at=EXCLUDED.target_at,previous_at=EXCLUDED.previous_at,state='pending',youtube_url=EXCLUDED.youtube_url,file_uri=EXCLUDED.file_uri,error='',lease_until=NULL,version=recording_schedule_changes.version+1,updated_at=now()`, d.RecordingID, d.ChannelID, m.At, d.YouTubeURL, d.FileURI, d.ConfirmedAt)
+		previous := d.ConfirmedAt
+		if m.At == nil && previous == nil {
+			previous = d.At
+		}
+		_, e = tx.Exec(ctx, `INSERT INTO recording_schedule_changes(recording_id,channel_id,target_at,state,youtube_url,file_uri,previous_at,broadcast_id) VALUES($1,$2,$3,'pending',$4,$5,$6,$7) ON CONFLICT(recording_id,channel_id) DO UPDATE SET broadcast_id=EXCLUDED.broadcast_id, target_at=EXCLUDED.target_at,previous_at=EXCLUDED.previous_at,state='pending',youtube_url=EXCLUDED.youtube_url,file_uri=EXCLUDED.file_uri,error='',lease_until=NULL,version=recording_schedule_changes.version+1,updated_at=now()`, d.RecordingID, d.ChannelID, m.At, d.YouTubeURL, d.FileURI, previous, d.BroadcastID)
 		if e != nil {
 			return e
 		}

@@ -70,7 +70,7 @@ func listRecordingPublishReservations(dbctx context.Context, db recordingSchedul
 		JOIN recordings r ON r.id = xb.recording_id
 		LEFT JOIN conf_talks ct ON ct.id = r.conf_talk_id
 		LEFT JOIN conferences c ON c.id = ct.conference_id
-		WHERE xb.scheduled_at + (r.duration_seconds + 300) * interval '1 second' >= now()
+		WHERE xb.status<>'canceled' AND xb.scheduled_at + (r.duration_seconds + 300) * interval '1 second' >= now()
         UNION ALL
         SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.target_at,r.duration_seconds,true
         FROM recording_schedule_changes j JOIN recordings r ON r.id=j.recording_id
