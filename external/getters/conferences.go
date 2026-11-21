@@ -328,7 +328,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 		SELECT id::text, conference_id::text, tier, local_price, btc_price, usd_price,
 			base_price, card_surcharge_bps,
 			sales_end_at, expires_end, max_count, currency, symbol, post_symbol,
-			stripe_tax_code, student_price
+			stripe_tax_code, student_price, evergreen, disabled, allow_discounts, ticket_kind, description
 		FROM conference_tickets
 		`+whereSQL+`
 		ORDER BY sales_end_at NULLS LAST, tier
@@ -359,7 +359,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 			&ticket.Currency,
 			&ticket.Symbol,
 			&ticket.PostSymbol,
-			&ticket.StripeTaxCode, &ticket.StudentPrice,
+			&ticket.StripeTaxCode, &ticket.StudentPrice, &ticket.Evergreen, &ticket.Disabled, &ticket.AllowDiscounts, &ticket.TicketKind, &ticket.Description,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)

@@ -29,17 +29,19 @@ type (
 	}
 
 	OpenNodeMetadata struct {
-		Locale      string  `json:"locale,omitempty"`
-		Email       string  `json:"email"`
-		Quantity    float64 `json:"quantity"`
-		ConfRef     string  `json:"conf-ref"`
-		TixLocal    bool    `json:"tix-local"`
-		TicketKind  string  `json:"ticket-kind,omitempty"`
-		DiscountRef string  `json:"discount,omitempty"`
-		Currency    string  `json:"currency"`
-		Subscribe   bool    `json:"subscribe,omitempty"`
-		ShopOrderID string  `json:"shop-order-id,omitempty"`
-		AddOnCents  int64   `json:"add-on-cents,omitempty"`
+		TicketID      string  `json:"ticket-id,omitempty"`
+		ReservationID string  `json:"ticket-reservation-id,omitempty"`
+		Locale        string  `json:"locale,omitempty"`
+		Email         string  `json:"email"`
+		Quantity      float64 `json:"quantity"`
+		ConfRef       string  `json:"conf-ref"`
+		TixLocal      bool    `json:"tix-local"`
+		TicketKind    string  `json:"ticket-kind,omitempty"`
+		DiscountRef   string  `json:"discount,omitempty"`
+		Currency      string  `json:"currency"`
+		Subscribe     bool    `json:"subscribe,omitempty"`
+		ShopOrderID   string  `json:"shop-order-id,omitempty"`
+		AddOnCents    int64   `json:"add-on-cents,omitempty"`
 		// TicketTotalCents records the exact post-discount ticket subtotal.
 		TicketTotalCents int64  `json:"ticket-total-cents,omitempty"`
 		ServiceAttemptID string `json:"service-attempt-id,omitempty"`

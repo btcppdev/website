@@ -41,7 +41,7 @@
       "tickets",
       "Tickets",
       "Make room for everyone.",
-      "Set price tiers, cumulative capacity, and local and student prices. Prices use whole currency units, matching the existing checkout.",
+      "Set standard tiers, evergreen ticket allocations, and eligibility offers. Prices use whole currency units.",
     ],
     [
       "applications",
@@ -808,97 +808,144 @@
     );
   }
   if (current[0] === "tickets") {
-    const tickets = data.tickets || [];
-    arrayEditor(
-      "Ticket tier",
-      tickets,
-      (s, t) => {
-        const g = grid(s);
-        field(g, t, "tier", "Tier name");
-        field(g, t, "currency", "Currency", "text", "", [
-          ["USD", "USD"],
-          ["EUR", "EUR"],
-          ["BRL", "BRL"],
-          ["JPY", "JPY"],
-        ]);
-        field(g, t, "price", "Standard price", "number");
-        field(
-          g,
-          t,
-          "capacity",
-          "Cumulative ticket limit",
-          "number",
-          "For 50 early tickets then 200 total, enter 50 and 200.",
-        );
-        field(
-          g,
-          t,
-          "local_price",
-          "Local price",
-          "number",
-          "0 disables the local option.",
-        );
-        field(
-          g,
-          t,
-          "student_price",
-          "Student price",
-          "number",
-          "Leave blank to disable student tickets.",
-        );
-        field(g, t, "sales_end", "Sales deadline", "datetime-local");
-        field(
-          g,
-          t,
-          "card_surcharge_bps",
-          "Card surcharge (basis points)",
-          "number",
-          "1000 = 10%. Current checkout uses 10% when this is 0.",
-        );
-        field(
-          g,
-          t,
-          "tax_code",
-          "Stripe product tax code",
-          "text",
-          "Use the event’s reviewed tax classification; no exemption is assumed.",
-        );
-      },
-      () => ({
-        tier: "",
-        price: 0,
-        local_price: 0,
-        student_price: null,
-        capacity: 100,
-        currency: { DE: "EUR", BR: "BRL", JP: "JPY" }[plan.country] || "USD",
-        sales_end: data.basics.start || "",
-        tax_code: "",
-        card_surcharge_bps: 1000,
-      }),
-    );
-    const eligibility = {
-        local_eligibility: plan.local_eligibility || "",
-        student_eligibility: plan.student_eligibility || "",
-      },
-      g = grid(section("Eligibility"));
-    field(
-      g,
-      eligibility,
-      "local_eligibility",
-      "Who qualifies for local tickets?",
-      "textarea",
-    );
-    field(
-      g,
-      eligibility,
-      "student_eligibility",
-      "Who qualifies for student tickets?",
-      "textarea",
-    );
-    payload = () => ({ tickets, ...eligibility });
+    const standard = (data.tickets || []).filter((t) => !t.evergreen);
+    const evergreen = (data.tickets || []).filter((t) => t.evergreen);
+    const offers = data.offers || [];
     note(
       main,
-      "Existing tiers are preserved if omitted. Use the event details editor to change a tier you no longer want offered.",
+      "Standard tiers change with deadlines and cumulative sales. Evergreen tickets stay available until the final standard sales deadline, subject to their own cap and the event’s overall limit. All paid ticket types count toward the cumulative total.",
+    );
+    function ticketFields(s, t, isEvergreen) {
+      const g = grid(s);
+      field(g, t, "tier", isEvergreen ? "Ticket name" : "Tier name");
+      field(g, t, "currency", "Currency", "text", "", [
+        ["USD", "USD"],
+        ["EUR", "EUR"],
+        ["BRL", "BRL"],
+        ["JPY", "JPY"],
+      ]);
+      field(g, t, "price", "Price (whole currency units)", "number");
+      field(
+        g,
+        t,
+        "capacity",
+        isEvergreen ? "Maximum of this ticket type" : "Cumulative ticket limit",
+        "number",
+        isEvergreen
+          ? "Includes sold tickets and tickets reserved during payment."
+          : "For 50 early tickets then 200 total, enter 50 and 200. Evergreen sales count too.",
+      );
+      if (!isEvergreen)
+        field(g, t, "sales_end", "Sales deadline", "datetime-local");
+      field(
+        g,
+        t,
+        "card_surcharge_bps",
+        "Card surcharge (basis points)",
+        "number",
+        "1000 = 10%. Current checkout uses 10% when this is 0.",
+      );
+      field(
+        g,
+        t,
+        "tax_code",
+        "Stripe product tax code",
+        "text",
+        "Use the event’s reviewed tax classification.",
+      );
+      if (isEvergreen) {
+        field(g, t, "ticket_kind", "Category", "text", "", [
+          ["general", "Other"],
+          ["supporter", "Supporter"],
+          ["local", "Local"],
+          ["student", "Student"],
+        ]);
+        field(
+          g,
+          t,
+          "description",
+          "Description / eligibility",
+          "textarea",
+          "Shown on the event page and checkout. For example: Currently enrolled students; bring your student ID.",
+        );
+        check(
+          s,
+          t,
+          "allow_discounts",
+          "Allow discount codes and checkable offers for this ticket",
+        );
+      }
+      check(s, t, "disabled", "Pause sales of this ticket");
+    }
+    const defaults = (isEvergreen) => ({
+      tier: "",
+      price: 0,
+      capacity: isEvergreen ? 20 : 100,
+      currency:
+        standard[0]?.currency ||
+        { DE: "EUR", BR: "BRL", JP: "JPY" }[plan.country] ||
+        "USD",
+      sales_end: isEvergreen ? "" : data.basics.start || "",
+      tax_code: standard[0]?.tax_code || "",
+      card_surcharge_bps: 1000,
+      evergreen: isEvergreen,
+      allow_discounts: !isEvergreen,
+      ticket_kind: "general",
+      description: "",
+      disabled: false,
+    });
+    arrayEditor(
+      "Standard tier",
+      standard,
+      (s, t) => ticketFields(s, t, false),
+      () => defaults(false),
+    );
+    arrayEditor(
+      "Evergreen ticket",
+      evergreen,
+      (s, t) => ticketFields(s, t, true),
+      () => defaults(true),
+    );
+    note(
+      main,
+      "Checkable offers are advertised under standard tickets. Buyers confirm eligibility with a checkbox at checkout; no ticket reference is required. One offer or discount code can be used per purchase.",
+    );
+    arrayEditor(
+      "Checkable offer",
+      offers,
+      (s, o) => {
+        const g = grid(s);
+        field(
+          g,
+          o,
+          "label",
+          "Eligibility label",
+          "text",
+          "For example: Eurocrypt ticket holders",
+        );
+        field(
+          g,
+          o,
+          "percent",
+          "Percent off",
+          "number",
+          "1–99; for example, 15 means 15% off.",
+        );
+        check(s, o, "enabled", "Advertise and enable this offer");
+      },
+      () => ({ label: "", percent: 15, enabled: true }),
+    );
+    payload = () => ({
+      tickets: [...standard, ...evergreen].map((t) => ({
+        ...t,
+        local_price: 0,
+        student_price: null,
+      })),
+      offers,
+    });
+    note(
+      main,
+      "Removing a ticket pauses its sales and keeps purchase history. Keep at least one active standard tier to set the event’s overall capacity and final sales deadline.",
     );
   }
   if (current[0] === "applications") {

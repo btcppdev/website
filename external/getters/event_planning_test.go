@@ -57,11 +57,10 @@ func TestEventPlanningLifecycle(t *testing.T) {
 	if conf.SpeakerApplicationsOpen == nil || conf.VolunteerApplicationsClose == nil {
 		t.Fatal("application windows not hydrated")
 	}
-	student := int64(1000)
-	tier := eventplan.Ticket{Tier: "Early", Price: 10000, LocalPrice: 5000, StudentPrice: &student, Capacity: 100, Currency: "JPY", TaxCode: "txcd_20030000", SalesEnd: "2027-05-12T09:00", CardSurchargeBPS: 1000}
+	tier := eventplan.Ticket{Tier: "Early", Price: 10000, Capacity: 100, Currency: "JPY", TaxCode: "txcd_20030000", SalesEnd: "2027-05-12T09:00", CardSurchargeBPS: 1000}
 	save("tickets", eventplan.TicketSettings{Tickets: []eventplan.Ticket{tier}, StudentEligibility: "Bring student ID"})
-	if len(conf.Tickets) != 1 || conf.Tickets[0].StudentPrice == nil || *conf.Tickets[0].StudentPrice != 1000 || conf.StudentTicketBody != "Bring student ID" {
-		t.Fatal("student ticket hydration")
+	if len(conf.Tickets) != 1 || conf.Tickets[0].StudentPrice != nil || conf.Tickets[0].StandardPrice() != 10000 || conf.StudentTicketBody != "Bring student ID" {
+		t.Fatal("standard ticket hydration")
 	}
 	tier.ID = conf.Tickets[0].ID
 	tier.Price = 12000

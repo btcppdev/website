@@ -60,6 +60,7 @@
               <input type="number" name="Count" value="{{ .Count }}" min="1" max="8" required>
             </label>
 
+            {{ if .Tix.DiscountsAllowed }}
             <label class="checkout-field">
               <span>{{ msg "checkout.discount" }} <em>{{ msg "checkout.optional" }}</em></span>
               <input name="Discount" id="Discount" type="search"
@@ -68,11 +69,29 @@
                 hx-trigger="input changed delay:500ms, search"
                 hx-target="#discount_result"
                 hx-swap="outerHTML"
-                hx-include="[name='hidden_stuffs'], [name='Count']"
+                hx-include="[name='hidden_stuffs'], [name='Count'], [name='OfferCode']"
                 placeholder="{{ msg "checkout.discount_placeholder" }}"
                 {{ if ne .Discount "" }}value="{{ .Discount }}"{{ end }}>
             </label>
+            {{ end }}
           </div>
+          {{ if .Tix.Description }}<p>{{ .Tix.Description }}</p>{{ end }}
+          {{ if not .Tix.DiscountsAllowed }}<p class="checkout-summary__note">Discounts do not apply to this ticket type.</p>{{ end }}
+          {{ if .Offers }}
+          <fieldset class="checkout-offers">
+            <legend>Eligibility offers</legend>
+            <p>Check an offer to confirm you qualify. Choose one offer or enter a discount code.</p>
+            {{ range .Offers }}
+            <label>
+              <input type="checkbox" name="OfferCode" value="{{ .Code }}" {{ if eq $.OfferCode .Code }}checked{{ end }}
+                hx-post="{{ checkoutURL (printf "/tix/%s/apply-discount" $.TixSlug) }}"
+                hx-trigger="change" hx-target="#discount_result" hx-swap="outerHTML"
+                hx-include="[name='hidden_stuffs'], [name='Count'], [name='Discount'], [name='OfferCode']">
+              <span>I confirm I qualify: <strong>{{ .Label }}</strong> — {{ .Percent }}% off</span>
+            </label>
+            {{ end }}
+          </fieldset>
+          {{ end }}
 
           <fieldset class="checkout-methods">
             <legend>{{ msg "checkout.pay_with" }}</legend>
@@ -182,6 +201,6 @@
       </section>
     </main>
     <script type="application/json" id="checkout-messages">{{ checkoutMessages }}</script>
-    <script src="/static/js/ticket-checkout.js?v=20261006-i18n" defer></script>
+    <script src="/static/js/ticket-checkout.js?v=20261120-evergreen" defer></script>
   </body>
 </html>

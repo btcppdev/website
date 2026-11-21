@@ -227,6 +227,7 @@ func StartShopMaintenance(ctx *config.AppContext) {
 			}
 		}
 		expire := func() {
+			reconcileTicketReservations(ctx)
 			count, err := getters.ExpirePendingShopOrders(ctx, 100)
 			if err != nil {
 				ctx.Err.Printf("shop maintenance expire pending orders: %s", err)

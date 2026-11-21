@@ -8,7 +8,7 @@
     </div>
     {{ if ne .TixPrice .DiscountPrice }}
     <div class="is-discount">
-      <span>{{ msg "checkout.applied" (dict "Code" .Discount) }}</span>
+      <span>{{ msg "checkout.applied" (dict "Code" (or .DiscountLabel .Discount)) }}</span>
       <strong>-{{ .Tix.Symbol }}{{ usub .TixPrice .DiscountPrice }}{{ .Tix.PostSymbol }}</strong>
     </div>
     {{ end }}
@@ -21,9 +21,7 @@
   </div>
 
   {{ if .Err }}
-    {{ if .Discount }}
-  <div class="checkout-summary__error">{{ .Err }}</div>
-    {{ end }}
+  <div class="checkout-summary__error" role="alert">{{ .Err }}</div>
   {{ end }}
 
   <input type="hidden" name="Tix" value="{{ .Tix }}" required>

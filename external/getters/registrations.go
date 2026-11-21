@@ -406,21 +406,55 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 		return fmt.Errorf("AddTickets: entry conference ref is required")
 	}
 
+	c := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(c)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(c)
+	var locked string
+	if err = tx.QueryRow(c, `SELECT id::text FROM conferences WHERE id=$1 FOR UPDATE`, entry.ConfRef).Scan(&locked); err != nil {
+		return err
+	}
+	if entry.ReservationID != "" {
+		var ticketID, providerID, provider, status string
+		var qty int
+		if err = tx.QueryRow(c, `SELECT ticket_id::text,quantity,provider,provider_id,status FROM ticket_reservations WHERE id=$1 AND conference_id=$2 FOR UPDATE`, entry.ReservationID, entry.ConfRef).Scan(&ticketID, &qty, &provider, &providerID, &status); err != nil {
+			return err
+		}
+		if qty != len(entry.Items) || provider != src || (providerID != "" && providerID != entry.ID) || (entry.TicketID != "" && ticketID != entry.TicketID) {
+			return fmt.Errorf("ticket payment does not match its reservation")
+		}
+		entry.TicketID = ticketID
+		if status == "fulfilled" {
+			return tx.Commit(c)
+		}
+		if _, err = tx.Exec(c, `UPDATE ticket_reservations SET status='fulfilled',provider_id=$2,updated_at=now() WHERE id=$1`, entry.ReservationID, entry.ID); err != nil {
+			return err
+		}
+	}
+	if entry.ReservationID == "" && len(entry.Items) > 0 && (entry.Items[0].Type == types.TicketTypeLocal || entry.Items[0].Type == types.TicketTypeStudent) {
+		var mapped string
+		if e := tx.QueryRow(c, `SELECT id::text FROM conference_tickets WHERE conference_id=$1 AND evergreen AND ticket_kind=$2 ORDER BY ticket_key LIKE 'evergreen-%' DESC,id LIMIT 1`, entry.ConfRef, entry.Items[0].Type).Scan(&mapped); e == nil {
+			entry.TicketID = mapped
+		}
+	}
 	for i, item := range entry.Items {
 		refID := types.UniqueID(entry.Email, entry.ID, int32(i))
 		amountPaid := float64(item.Total) / 100
-		_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		_, err := tx.Exec(c, `
 			INSERT INTO registrations (
 				ref_id, checkout_id, conference_id, discount_id, type, email, person_id,
-				item_bought, amount_paid, currency, platform, registered_at, revoked, locale
+				item_bought, amount_paid, currency, platform, registered_at, revoked, locale, ticket_id
 			)
 			VALUES (
 				$1, $2, $3::uuid,
 				NULLIF($4, '')::uuid,
 				$5, $6, (SELECT person_id FROM person_emails WHERE email = $6::citext),
-				$7, $8, $9, $10, $11, false, $12
+				$7, $8, $9, $10, $11, false, $12, NULLIF($13,'')::uuid
 			)
 			ON CONFLICT (ref_id) DO UPDATE SET
+				ticket_id = coalesce(EXCLUDED.ticket_id,registrations.ticket_id),
 				checkout_id = EXCLUDED.checkout_id,
 				conference_id = EXCLUDED.conference_id,
 				discount_id = EXCLUDED.discount_id,
@@ -436,12 +470,12 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 				revoked = false
 			WHERE registrations.revoked_before_account_deletion IS NULL
 		`, refID, entry.ID, entry.ConfRef, entry.DiscountRef, item.Type, email,
-			item.Desc, amountPaid, entry.Currency, src, entry.Created, types.RegistrationLocale(entry.Locale))
+			item.Desc, amountPaid, entry.Currency, src, entry.Created, types.RegistrationLocale(entry.Locale), entry.TicketID)
 		if err != nil {
 			return fmt.Errorf("upsert registration %q: %w", refID, err)
 		}
 	}
-	return nil
+	return tx.Commit(c)
 }
 
 func RevokeTicket(ctx *config.AppContext, lookupID string) error {

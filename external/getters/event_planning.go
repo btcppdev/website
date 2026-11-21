@@ -210,6 +210,9 @@ func SaveEventPlanning(ctx *config.AppContext, conf *types.Conf, revision int64,
 			return 0, err
 		}
 		err = savePlanningTickets(c, tx, conf, in.Tickets)
+		if err == nil {
+			err = saveCheckoutOffers(c, tx, conf.Ref, in.Offers)
+		}
 		plan.LocalEligibility = in.LocalEligibility
 		plan.StudentEligibility = in.StudentEligibility
 		if err == nil {
@@ -324,7 +327,7 @@ func savePlanningTickets(c context.Context, tx pgx.Tx, conf *types.Conf, tickets
 		}
 		currency = t.Currency
 		end, e := eventplan.LocalTime(t.SalesEnd, conf.Loc())
-		if e != nil || end == nil {
+		if e != nil || (!t.Evergreen && end == nil) {
 			return fmt.Errorf("each ticket tier needs a sales deadline")
 		}
 		if !eventplan.TaxCodePattern.MatchString(t.TaxCode) {
@@ -344,17 +347,53 @@ func savePlanningTickets(c context.Context, tx pgx.Tx, conf *types.Conf, tickets
 		if symbol == "" {
 			symbol = t.Currency + " "
 		}
+		if t.TicketKind == "" {
+			t.TicketKind = "general"
+		}
+		if t.TicketKind != "general" && t.TicketKind != "local" && t.TicketKind != "student" && t.TicketKind != "supporter" {
+			return fmt.Errorf("invalid ticket category")
+		}
+		if !t.Evergreen {
+			t.TicketKind = "general"
+			t.AllowDiscounts = true
+		} else {
+			end = nil
+		}
+		if len(t.Description) > 2000 || len(t.Tier) > 120 {
+			return fmt.Errorf("ticket name or description is too long")
+		}
 		if t.ID == "" {
-			_, e = tx.Exec(c, `INSERT INTO conference_tickets(conference_id,ticket_key,tier,base_price,btc_price,usd_price,local_price,student_price,max_count,currency,symbol,sales_end_at,stripe_tax_code,card_surcharge_bps) VALUES($1,$2,$3,$4,$4,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, conf.Ref, fmt.Sprintf("setup-%d-%s", i, uuid.NewString()), t.Tier, t.Price, t.LocalPrice, t.StudentPrice, t.Capacity, t.Currency, symbol, end, t.TaxCode, t.CardSurchargeBPS)
+			t.ID = uuid.NewString()
+			_, e = tx.Exec(c, `INSERT INTO conference_tickets(id,conference_id,ticket_key,tier,base_price,btc_price,usd_price,local_price,student_price,max_count,currency,symbol,sales_end_at,stripe_tax_code,card_surcharge_bps) VALUES($13,$1,$2,$3,$4,$4,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, conf.Ref, fmt.Sprintf("setup-%d-%s", i, uuid.NewString()), t.Tier, t.Price, t.LocalPrice, t.StudentPrice, t.Capacity, t.Currency, symbol, end, t.TaxCode, t.CardSurchargeBPS, t.ID)
 		} else {
 			_, e = tx.Exec(c, `UPDATE conference_tickets SET tier=$2,base_price=$3,btc_price=$3,usd_price=$3,local_price=$4,student_price=$5,max_count=$6,currency=$7,symbol=$8,sales_end_at=$9,stripe_tax_code=$10,card_surcharge_bps=$11 WHERE id=$1`, t.ID, t.Tier, t.Price, t.LocalPrice, t.StudentPrice, t.Capacity, t.Currency, symbol, end, t.TaxCode, t.CardSurchargeBPS)
 		}
 		if e != nil {
 			return e
 		}
+		seen[t.ID] = true
+		if _, e = tx.Exec(c, `UPDATE conference_tickets SET evergreen=$2,disabled=$3,allow_discounts=$4,ticket_kind=$5,description=$6,local_price=0,student_price=NULL WHERE id=$1`, t.ID, t.Evergreen, t.Disabled, t.AllowDiscounts, t.TicketKind, strings.TrimSpace(t.Description)); e != nil {
+			return e
+		}
+	}
+	// Omitted records are disabled, preserving all historical purchases.
+	ids := make([]string, 0, len(tickets))
+	// Include newly inserted records as well as existing IDs.
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	if _, err := tx.Exec(c, `UPDATE conference_tickets SET disabled=true WHERE conference_id=$1 AND NOT(id=ANY($2::uuid[]))`, conf.Ref, ids); err != nil {
+		return err
+	}
+	var standardCount int
+	if err := tx.QueryRow(c, `SELECT count(*) FROM conference_tickets WHERE conference_id=$1 AND NOT evergreen AND NOT disabled`, conf.Ref).Scan(&standardCount); err != nil {
+		return err
+	}
+	if len(tickets) > 0 && standardCount == 0 {
+		return fmt.Errorf("keep at least one standard tier to define the event's overall capacity and final sales deadline")
 	}
 	var currencies int
-	if err := tx.QueryRow(c, `SELECT count(DISTINCT currency) FROM conference_tickets WHERE conference_id=$1`, conf.Ref).Scan(&currencies); err != nil {
+	if err := tx.QueryRow(c, `SELECT count(DISTINCT currency) FROM conference_tickets WHERE conference_id=$1 AND NOT disabled`, conf.Ref).Scan(&currencies); err != nil {
 		return err
 	}
 	if currencies > 1 {

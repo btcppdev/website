@@ -52,6 +52,11 @@ type Sponsor struct {
 	Commitments    string `json:"commitments"`
 }
 type Ticket struct {
+	Evergreen        bool   `json:"evergreen"`
+	Disabled         bool   `json:"disabled"`
+	AllowDiscounts   bool   `json:"allow_discounts"`
+	TicketKind       string `json:"ticket_kind"`
+	Description      string `json:"description"`
 	ID               string `json:"id"`
 	Key              string `json:"key"`
 	Tier             string `json:"tier"`
@@ -177,10 +182,18 @@ type Applications struct {
 	ShiftHours      int    `json:"shift_hours"`
 	MerchDesk       bool   `json:"merch_desk"`
 }
+type CheckoutOffer struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Percent int    `json:"percent"`
+	Enabled bool   `json:"enabled"`
+	Code    string `json:"code"`
+}
 type TicketSettings struct {
-	Tickets            []Ticket `json:"tickets"`
-	LocalEligibility   string   `json:"local_eligibility"`
-	StudentEligibility string   `json:"student_eligibility"`
+	Offers             []CheckoutOffer `json:"offers"`
+	Tickets            []Ticket        `json:"tickets"`
+	LocalEligibility   string          `json:"local_eligibility"`
+	StudentEligibility string          `json:"student_eligibility"`
 }
 
 func ValidateBasics(b Basics) (*time.Location, *time.Time, *time.Time, error) {

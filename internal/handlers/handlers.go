@@ -676,6 +676,27 @@ func determineTixSelection(ctx *config.AppContext, tixSlug string) (*types.Conf,
 	if tix == nil {
 		return nil, nil, "", fmt.Errorf("Unable to find tix %s", tixID)
 	}
+	if tix.Evergreen && strings.Contains(tixSlug, "+") {
+		return nil, nil, "", fmt.Errorf("evergreen tickets use their own checkout link")
+	}
+	if !tix.Evergreen && (ticketKind == types.TicketTypeLocal || ticketKind == types.TicketTypeStudent) {
+		var mapped *types.ConfTicket
+		for _, option := range conf.Tickets {
+			if option.Evergreen && option.TicketKind == ticketKind {
+				mapped = option
+				if !option.Disabled {
+					break
+				}
+			}
+		}
+		if mapped != nil {
+			tix = mapped
+		}
+	}
+
+	if tix.Evergreen {
+		ticketKind = tix.TicketKind
+	}
 	return conf, tix, ticketKind, nil
 }
 
@@ -684,6 +705,9 @@ func determineTixPrice(ctx *config.AppContext, tixSlug string) (*types.Conf, *ty
 	if err != nil {
 		return nil, nil, 0, "", err
 	}
+	if tix.Evergreen {
+		return conf, tix, tix.StandardPrice(), ticketKind, nil
+	}
 	if ticketKind == types.TicketTypeStudent {
 		if tix.StudentPrice == nil || *tix.StudentPrice == 0 {
 			return nil, nil, 0, "", fmt.Errorf("student tickets are not available")
@@ -691,6 +715,9 @@ func determineTixPrice(ctx *config.AppContext, tixSlug string) (*types.Conf, *ty
 		return conf, tix, *tix.StudentPrice, ticketKind, nil
 	}
 	if ticketKind == types.TicketTypeLocal {
+		if tix.Local == 0 {
+			return nil, nil, 0, "", fmt.Errorf("local tickets are not available")
+		}
 		return conf, tix, tix.Price(true), ticketKind, nil
 	}
 	return conf, tix, tix.Price(false), ticketKind, nil
@@ -703,22 +730,16 @@ func findCurrTix(conf *types.Conf, soldCount uint) *types.ConfTicket {
 
 /* Find ticket where current sold + date > inputs */
 func findMaxTix(conf *types.Conf) *types.ConfTicket {
-	/* Sort the tickets! */
-	tixs := types.ConfTickets(conf.Tickets)
-	sort.Sort(&tixs)
-
-	if len(tixs) <= 0 {
-		return nil
-	}
-
-	maxTix := tixs[0]
-	for _, tix := range tixs {
-		if tix.StandardPrice() > maxTix.StandardPrice() {
-			maxTix = tix
+	var result *types.ConfTicket
+	for _, t := range conf.Tickets {
+		if t == nil || t.Evergreen || t.Disabled {
+			continue
+		}
+		if result == nil || t.StandardPrice() > result.StandardPrice() {
+			result = t
 		}
 	}
-
-	return maxTix
+	return result
 }
 
 func showTicketPriceIncreaseDate(conf *types.Conf, tix *types.ConfTicket) bool {
@@ -4954,7 +4975,26 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	confCopy.ShowHackathon = hackathon != nil && hackathon.Visibility == getters.CompetitionVisibilityPublic
 	conf = &confCopy
 
+	inventory, inventoryErr := getters.TicketInventory(ctx, conf.Ref)
+	var evergreen []EvergreenTicketOption
+	if inventoryErr != nil {
+		ctx.Err.Printf("ticket availability: %s", inventoryErr)
+	} else {
+		soldCount = inventory.Sold + inventory.Held
+		for _, t := range conf.Tickets {
+			if t.Evergreen && !t.Disabled {
+				evergreen = append(evergreen, EvergreenTicketOption{Ticket: t, Remaining: inventory.Remaining(t, conf.Tickets, time.Now())})
+			}
+		}
+	}
+	offers, offerErr := getters.ListCheckoutOffers(ctx, conf.Ref, true)
+	if offerErr != nil {
+		ctx.Err.Printf("checkout offers: %s", offerErr)
+	}
 	currTix := findCurrTix(conf, soldCount)
+	if inventoryErr != nil {
+		currTix = nil
+	}
 	maxTix := findMaxTix(conf)
 	importantDates := buildConferenceImportantDates(conf, conferenceMilestones, time.Now())
 
@@ -4966,6 +5006,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 	tmplTag := "conf/generic.tmpl"
 	confPage := &ConfPage{
+		Evergreen:               evergreen,
+		CheckoutOffers:          offers,
 		CommunityPool:           publicCommunityPool(r.Context(), ctx, conf),
 		Conf:                    conf,
 		Hotels:                  confHotels,
@@ -6281,6 +6323,12 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	// The callback form is only a notification. Trust the charge fetched
 	// directly from OpenNode as the authoritative payment state.
 	if charge.Status != "paid" {
+		if charge.Status == "expired" {
+			if err := getters.ReleaseTicketReservation(ctx, charge.Metadata.ReservationID, "opennode", charge.ID); err != nil {
+				http.Error(w, "Unable to release ticket reservation", http.StatusInternalServerError)
+				return
+			}
+		}
 		ctx.Infos.Printf("User did not complete charge. charge-id: %s callback-status: %s charge-status: %s email: %s conf-ref: %s", ev.ID, ev.Status, charge.Status, charge.Metadata.Email, charge.Metadata.ConfRef)
 		w.WriteHeader(http.StatusOK)
 		return
@@ -6326,14 +6374,16 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 
 	entry := types.Entry{
-		ID:          charge.ID,
-		ConfRef:     charge.Metadata.ConfRef,
-		Total:       int64(charge.FiatVal * 100),
-		Currency:    charge.Metadata.Currency,
-		Created:     time.Unix(int64(charge.CreatedAt), 0),
-		Email:       charge.Metadata.Email,
-		DiscountRef: charge.Metadata.DiscountRef,
-		Locale:      types.RegistrationLocale(charge.Metadata.Locale),
+		ID:            charge.ID,
+		ConfRef:       charge.Metadata.ConfRef,
+		Total:         int64(charge.FiatVal * 100),
+		Currency:      charge.Metadata.Currency,
+		Created:       time.Unix(int64(charge.CreatedAt), 0),
+		Email:         charge.Metadata.Email,
+		DiscountRef:   charge.Metadata.DiscountRef,
+		TicketID:      charge.Metadata.TicketID,
+		ReservationID: charge.Metadata.ReservationID,
+		Locale:        types.RegistrationLocale(charge.Metadata.Locale),
 	}
 
 	tixType := types.TicketTypeGeneral
@@ -6567,9 +6617,13 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 	// Effective code: typed wins over silent affiliate. The HMAC
 	// + recorded discount-ref both follow the effective code.
-	effectiveCode := effectiveDiscountCode(discountCode, affiliateCode)
+	effectiveCode, discountLabel, selectionErr := resolveTicketDiscount(ctx, conf, tix, discountCode, affiliateCode, r.Form.Get("OfferCode"))
 	var discountRef string
 	errStr := ""
+	if selectionErr != nil {
+		errStr = selectionErr.Error()
+		effectiveCode = ""
+	}
 	if effectiveCode != "" {
 		var discount *types.DiscountCode
 		discountPrice, discount, err = getters.CalcDiscount(ctx, conf.Ref, effectiveCode, tixPrice, 1)
@@ -6596,6 +6650,8 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	w.Header().Set("Content-Type", "text/html")
 	err = renderCheckout(w, r, ctx, "tix_details.tmpl", &TixFormPage{
 		Conf:            conf,
+		OfferCode:       r.Form.Get("OfferCode"),
+		DiscountLabel:   discountLabel,
 		Tix:             tix,
 		TixSlug:         tixSlug,
 		TixPrice:        tixPrice,
@@ -6636,6 +6692,23 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
+	inventory, err := getters.TicketInventory(ctx, conf.Ref)
+	if err != nil {
+		http.Error(w, "Ticket availability is temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if inventory.Remaining(tix, conf.Tickets, time.Now()) == 0 {
+		http.Error(w, "This ticket option is no longer available. Please return to the event to choose another ticket.", http.StatusConflict)
+		return
+	}
+	offers, err := getters.ListCheckoutOffers(ctx, conf.Ref, true)
+	if err != nil {
+		http.Error(w, "Unable to load ticket offers", http.StatusServiceUnavailable)
+		return
+	}
+	if !tix.DiscountsAllowed() {
+		offers = nil
+	}
 	switch r.Method {
 	case http.MethodGet:
 
@@ -6659,6 +6732,10 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			discountCode = ctx.Session.GetString(r.Context(), discountSessionKey(conf.Tag))
 		}
 		affiliateCode := ctx.Session.GetString(r.Context(), affiliateSessionKey(conf.Tag))
+		if !tix.DiscountsAllowed() {
+			discountCode = ""
+			affiliateCode = ""
+		}
 
 		discountPrice := tixPrice
 		var errStr string
@@ -6692,6 +6769,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		}
 		page := &TixFormPage{
 			Conf:            conf,
+			Offers:          offers,
 			Tix:             tix,
 			TixSlug:         tixSlug,
 			TixPrice:        tixPrice,
@@ -6734,7 +6812,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			return
 		}
 
-		if form.Email == "" || form.Count < 1 {
+		if form.Email == "" || form.Count < 1 || form.Count > 8 {
 			http.Redirect(w, r, i18n.CheckoutURL(checkoutLocale(r, conf), fmt.Sprintf("/tix/%s/checkout", tixSlug)), http.StatusSeeOther)
 			return
 		}
@@ -6744,7 +6822,11 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		// different code at checkout drops the prior affiliate's
 		// credit because the discount-ref written to Stripe
 		// metadata follows whichever code is actually applied.
-		effectiveCode := effectiveDiscountCode(form.Discount, form.AffiliateCode)
+		effectiveCode, discountLabel, selectionErr := resolveTicketDiscount(ctx, conf, tix, form.Discount, form.AffiliateCode, form.OfferCode)
+		if selectionErr != nil {
+			http.Error(w, selectionErr.Error(), http.StatusUnprocessableEntity)
+			return
+		}
 
 		/*  Validate HMAC over the effective code (matches the
 		 *  HMAC computed on render, which signed over the same
@@ -6762,6 +6844,9 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			ctx.Err.Printf("/tix/%s/checkout discount revalidation failed: %s", tixSlug, err)
 			page := &TixFormPage{
 				Conf:            conf,
+				Offers:          offers,
+				OfferCode:       form.OfferCode,
+				DiscountLabel:   discountLabel,
 				Tix:             tix,
 				TixSlug:         tixSlug,
 				TixPrice:        tixPrice,
@@ -6830,6 +6915,18 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			}
 		}
 
+		provider := "opennode"
+		if form.PaymentMethod == "card" {
+			provider = "stripe"
+		}
+		form.ReservationID, err = getters.ReserveTickets(ctx, conf, tix, form.Count, form.Email, provider)
+		if err != nil {
+			if shopOrderID != "" {
+				_ = getters.CancelShopOrder(ctx, shopOrderID, "", "ticket option unavailable")
+			}
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		if form.PaymentMethod == "card" {
 			cardPrice := cardSurchargePrice(form.DiscountPrice, tix.CardSurchargeBPS)
 			StripeInitWithDiscount(w, r, ctx, conf, tix, cardPrice, tixPrice, form.DiscountPrice, &form, ticketKind, addOns, addOnQuote, addOnTaxCents, shopOrderID)
@@ -6844,9 +6941,16 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 }
 
 func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice uint, tixForm *types.TixForm, ticketKind string, addOnTotalCents uint, shopOrderID string) {
-	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, ticketKind, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe, addOnTotalCents, shopOrderID, checkoutLocale(r, conf))
+	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, ticketKind, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe, addOnTotalCents, shopOrderID, checkoutLocale(r, conf), tixForm.ReservationID)
 
 	if err != nil {
+		if _, rejected := err.(*getters.TicketPaymentRejected); rejected {
+			if releaseErr := getters.ReleaseTicketReservation(ctx, tixForm.ReservationID, "opennode", ""); releaseErr != nil {
+				ctx.Err.Printf("release ticket reservation %s: %s", tixForm.ReservationID, releaseErr)
+			}
+		} else {
+			ctx.Err.Printf("ticket reservation %s retained after uncertain provider creation", tixForm.ReservationID)
+		}
 		if shopOrderID != "" {
 			if cancelErr := getters.CancelShopOrder(ctx, shopOrderID, "", "OpenNode checkout could not start"); cancelErr != nil {
 				ctx.Err.Printf("release mixed OpenNode order %s: %s", shopOrderID, cancelErr)
@@ -6857,6 +6961,9 @@ func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		return
 	}
 
+	if err := getters.AttachTicketPayment(ctx, tixForm.ReservationID, payment.ID); err != nil {
+		ctx.Err.Printf("attach ticket payment %s: %s", tixForm.ReservationID, err)
+	}
 	/* FIXME: v2: implement on-site btc checkout */
 	/* for now we go ahead and just redirect to opennode, see you latrrr */
 	http.Redirect(w, r, payment.HostedCheckoutURL, http.StatusSeeOther)
@@ -6909,6 +7016,7 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 	metadata["locale"] = language
 	metadata["conf-ref"] = conf.Ref
 	metadata["tix-id"] = tix.ID
+	metadata["ticket-reservation-id"] = form.ReservationID
 	metadata["discount-ref"] = form.DiscountRef
 	metadata["subscribe"] = fmt.Sprintf("%t", form.Subscribe)
 	// Pre-discount per-ticket price in cents — webhook reads this
@@ -7010,8 +7118,18 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 		AutomaticTax:  &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(false)},
 		ExpiresAt:     stripe.Int64(time.Now().Add(types.ShopCheckoutSessionTTL).Unix()),
 	}
+	if form.ReservationID != "" {
+		params.SetIdempotencyKey(form.ReservationID)
+	}
 	s, err := session.New(params)
 	if err != nil {
+		if rejected, ok := err.(*stripe.Error); ok && rejected.HTTPStatusCode >= 400 && rejected.HTTPStatusCode < 500 && rejected.HTTPStatusCode != 409 {
+			if releaseErr := getters.ReleaseTicketReservation(ctx, form.ReservationID, "stripe", ""); releaseErr != nil {
+				ctx.Err.Printf("release ticket reservation %s: %s", form.ReservationID, releaseErr)
+			}
+		} else {
+			ctx.Err.Printf("ticket reservation %s retained after uncertain provider creation", form.ReservationID)
+		}
 		if shopOrderID != "" {
 			if cancelErr := getters.CancelShopOrder(ctx, shopOrderID, "", "Stripe checkout could not start"); cancelErr != nil {
 				ctx.Err.Printf("release mixed Stripe order %s: %s", shopOrderID, cancelErr)
@@ -7022,6 +7140,9 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 
+	if err := getters.AttachTicketPayment(ctx, form.ReservationID, s.ID); err != nil {
+		ctx.Err.Printf("attach ticket payment %s: %s", form.ReservationID, err)
+	}
 	http.Redirect(w, r, s.URL, http.StatusSeeOther)
 }
 
@@ -7200,6 +7321,11 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		if err := getters.ReleaseTicketReservation(ctx, checkout.Metadata["ticket-reservation-id"], "stripe", checkout.ID); err != nil {
+			http.Error(w, "Unable to release ticket reservation", http.StatusInternalServerError)
+			return
+		}
+
 		orderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
 		if orderID != "" {
 			order, err := getters.GetShopOrderByID(ctx, orderID)
@@ -7364,6 +7490,8 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			return
 		}
 
+		entry.TicketID = checkout.Metadata["tix-id"]
+		entry.ReservationID = checkout.Metadata["ticket-reservation-id"]
 		err = getters.AddTickets(ctx, &entry, "stripe")
 
 		if err != nil {

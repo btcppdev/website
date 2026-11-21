@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"github.com/gorilla/mux"
 	"net/http"
 	"net/url"
 	"sort"
@@ -555,83 +556,8 @@ func GlobalAdminUpdateConfTicket(w http.ResponseWriter, r *http.Request, ctx *co
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
 	}
-	conf, err := helpers.FindConf(r, ctx)
-	if err != nil {
-		handle404(w, r, ctx)
-		return
-	}
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-
-	basePrice, err := parseUintFormValue(r.FormValue("base_price"))
-	if err != nil {
-		redirectEventDetails(w, r, conf, "Base price must be a non-negative whole number.")
-		return
-	}
-	localPrice, err := parseUintFormValue(r.FormValue("local_price"))
-	if err != nil {
-		redirectEventDetails(w, r, conf, "Local price must be a non-negative whole number.")
-		return
-	}
-	cardSurchargeBPS, err := parseUintFormValue(r.FormValue("card_surcharge_bps"))
-	if err != nil {
-		redirectEventDetails(w, r, conf, "Card surcharge must be a non-negative basis-point value.")
-		return
-	}
-	maxCount, err := parseUintFormValue(r.FormValue("max_count"))
-	if err != nil {
-		redirectEventDetails(w, r, conf, "Max count must be a non-negative whole number.")
-		return
-	}
-
-	loc := conf.Loc()
-	salesEndAt, err := parseOptionalDatetimeLocal(r.FormValue("sales_end_at"), loc)
-	if err != nil {
-		redirectEventDetails(w, r, conf, "Invalid ticket tier cutoff.")
-		return
-	}
-	expiresEnd, err := parseOptionalDatetimeLocal(r.FormValue("expires_end"), loc)
-	if err != nil {
-		redirectEventDetails(w, r, conf, "Invalid ticket end date.")
-		return
-	}
-	if salesEndAt != nil && expiresEnd != nil && expiresEnd.Before(*salesEndAt) {
-		redirectEventDetails(w, r, conf, "Legacy ticket end date must be after the tier cutoff.")
-		return
-	}
-
-	in := getters.ConfTicketInput{
-		ID:               strings.TrimSpace(r.FormValue("ticket_id")),
-		Tier:             strings.TrimSpace(r.FormValue("tier")),
-		LocalPrice:       localPrice,
-		BasePrice:        basePrice,
-		CardSurchargeBPS: cardSurchargeBPS,
-		Max:              maxCount,
-		Currency:         strings.ToUpper(strings.TrimSpace(r.FormValue("currency"))),
-		Symbol:           strings.TrimSpace(r.FormValue("symbol")),
-		PostSymbol:       strings.TrimSpace(r.FormValue("post_symbol")),
-		StripeTaxCode:    strings.TrimSpace(r.FormValue("stripe_tax_code")),
-		SalesEndAt:       salesEndAt,
-		ExpiresEnd:       expiresEnd,
-	}
-	if in.Tier == "" {
-		redirectEventDetails(w, r, conf, "Ticket tier is required.")
-		return
-	}
-	if in.Currency == "" {
-		redirectEventDetails(w, r, conf, "Ticket currency is required.")
-		return
-	}
-	if err := getters.UpdateConfTicket(ctx, conf.Ref, in); err != nil {
-		ctx.Err.Printf("/%s/admin/details/ticket update failed: %s", conf.Tag, err)
-		redirectEventDetails(w, r, conf, "Could not update ticket pricing.")
-		return
-	}
-	invalidateConferenceCache(ctx)
-	redirectEventDetails(w, r, conf, "Ticket pricing updated.")
+	tag := mux.Vars(r)["conf"]
+	http.Redirect(w, r, "/"+url.PathEscape(tag)+"/admin/setup?step=tickets", http.StatusSeeOther)
 }
 
 func GlobalAdminUpdateConfMerchUpsells(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

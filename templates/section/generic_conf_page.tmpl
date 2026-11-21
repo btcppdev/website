@@ -556,6 +556,9 @@
             <span>{{ $p.Tix.Currency }} {{ msg "tickets.per_ticket" }}</span>
           </div>
           <p class="event-redesign-ticket__summary">{{ msg "tickets.btc_summary" (dict "Event" $conf.Desc) }}</p>
+          {{ range $p.CheckoutOffers }}
+          <p class="ticket-eligibility-offer"><strong>{{ .Percent }}% off for {{ .Label }}</strong><br><small>Confirm eligibility at checkout.</small></p>
+          {{ end }}
         </div>
         <div class="event-redesign-ticket__actions">
           <a href="{{ checkoutURL (printf "/tix/%s/checkout" $p.Tix.ID) }}" class="redesign-button">{{ msg "tickets.checkout_btc" }}</a>
@@ -570,41 +573,15 @@
             <span>{{ $p.Tix.Currency }} {{ msg "tickets.per_ticket" }}</span>
           </div>
           <p class="event-redesign-ticket__summary">{{ msg "tickets.card_summary" }}</p>
+          {{ range $p.CheckoutOffers }}
+          <p class="ticket-eligibility-offer"><strong>{{ .Percent }}% off for {{ .Label }}</strong><br><small>Confirm eligibility at checkout.</small></p>
+          {{ end }}
         </div>
         <div class="event-redesign-ticket__actions">
           <a href="{{ checkoutURL (printf "/tix/%s/checkout?payment=card" $p.Tix.ID) }}" class="redesign-button">{{ msg "tickets.checkout_card" }}</a>
         </div>
       </article>
 
-      {{ if gt $p.Tix.Local 0 }}
-      <article class="event-redesign-ticket event-redesign-ticket--local">
-        <div class="event-redesign-ticket__price event-redesign-ticket__price--compact">
-          <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.Local }}{{ $p.Tix.PostSymbol }}</strong>
-          <span>{{ $p.Tix.Currency }} {{ msg "tickets.per_ticket" }}</span>
-        </div>
-        <div>
-          <p class="event-redesign-ticket__eyebrow">{{ msg "tickets.local" }}</p>
-          <h3>{{ msg "tickets.local_heading" }}</h3>
-          <p>{{ if .LocalTicketBody }}{{ .LocalTicketBody }}{{ else }}{{ msg "tickets.local_default" }}{{ end }}</p>
-        </div>
-        <div class="event-redesign-ticket__actions">
-          <a href="{{ checkoutURL (printf "/tix/%s+local/checkout" $p.Tix.ID) }}" class="redesign-button">{{ msg "tickets.local_buy" }}</a>
-        </div>
-      </article>
-      {{ end }}
-
-      {{ if $p.Tix.StudentPrice }}
-      <article class="event-redesign-ticket event-redesign-ticket--local">
-        <div class="event-redesign-ticket__price event-redesign-ticket__price--compact">
-          <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.StudentPrice }}{{ $p.Tix.PostSymbol }}</strong>
-          <span>{{ $p.Tix.Currency }} {{ msg "tickets.per_ticket" }}</span>
-        </div>
-        <div><p class="event-redesign-ticket__eyebrow">Students</p><h3>Student tickets</h3>
-          <p>{{ if $conf.StudentTicketBody }}{{ $conf.StudentTicketBody }}{{ else }}For currently enrolled students. Bring your student ID.{{ end }}</p>
-        </div>
-        <div class="event-redesign-ticket__actions"><a href="{{ checkoutURL (printf "/tix/%s+student/checkout" $p.Tix.ID) }}" class="redesign-button">Get a student ticket</a></div>
-      </article>
-      {{ end }}
       {{ template "generic_conf_ticket_features" $conf }}
     {{ else }}
       <article class="event-redesign-ticket is-featured event-redesign-ticket--sold-out">
@@ -618,6 +595,23 @@
           <a href="/{{ $conf.Tag }}/agenda" class="redesign-button is-outline">{{ msg "agenda.browse" }}</a>
           {{ end }}
           <a href="/{{ $conf.Tag }}/speakers" class="redesign-button is-outline">{{ msg "speakers.browse" }}</a>
+        </div>
+      </article>
+    {{ end }}
+    {{ range $p.Evergreen }}
+      <article class="event-redesign-ticket event-redesign-ticket--local">
+        <div class="event-redesign-ticket__price event-redesign-ticket__price--compact">
+          <strong>{{ .Ticket.Symbol }}{{ .Ticket.StandardPrice }}{{ .Ticket.PostSymbol }}</strong>
+          <span>{{ .Ticket.Currency }} {{ msg "tickets.per_ticket" }}</span>
+          <small>Card: {{ .Ticket.Symbol }}{{ .Ticket.CardPrice false }}{{ .Ticket.PostSymbol }}</small>
+        </div>
+        <div><p class="event-redesign-ticket__eyebrow">Evergreen</p><h3>{{ .Ticket.Tier }}</h3>
+          {{ if .Ticket.Description }}<p>{{ .Ticket.Description }}</p>{{ end }}
+          <p>{{ if .Remaining }}{{ .Remaining }} available{{ else }}Currently unavailable{{ end }}</p>
+          {{ if not .Ticket.AllowDiscounts }}<small>Discounts do not apply.</small>{{ end }}
+        </div>
+        <div class="event-redesign-ticket__actions">
+          {{ if .Remaining }}<a href="{{ checkoutURL (printf "/tix/%s/checkout" .Ticket.ID) }}" class="redesign-button">Get {{ .Ticket.Tier }} tickets</a>{{ else }}<span>Sales closed or allocation reserved / sold out</span>{{ end }}
         </div>
       </article>
     {{ end }}

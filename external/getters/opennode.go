@@ -15,16 +15,27 @@ import (
 	"btcpp-web/internal/types"
 )
 
+type TicketPaymentRejected struct{ Status int }
+
+func (e *TicketPaymentRejected) Error() string {
+	return fmt.Sprintf("payment provider rejected checkout (%d)", e.Status)
+}
+
 const CHARGES_ENDPOINT = "/charges"
 
 var openNodeHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
-func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uint, tix *types.ConfTicket, conf *types.Conf, ticketKind string, count uint, email string, discountRef string, subNewsletter bool, addOnCents uint, shopOrderID string, locale string) (*types.OpenNodePayment, error) {
+func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uint, tix *types.ConfTicket, conf *types.Conf, ticketKind string, count uint, email string, discountRef string, subNewsletter bool, addOnCents uint, shopOrderID string, locale string, reservationIDs ...string) (*types.OpenNodePayment, error) {
 	if ticketKind == "" {
 		ticketKind = types.TicketTypeGeneral
 	}
 
+	reservationID := ""
+	if len(reservationIDs) > 0 {
+		reservationID = reservationIDs[0]
+	}
 	metadata := &types.OpenNodeMetadata{
+		TicketID: tix.ID, ReservationID: reservationID,
 		Locale:      types.RegistrationLocale(locale),
 		Email:       email,
 		Quantity:    float64(count),
@@ -46,6 +57,7 @@ func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uin
 
 	domain := ctx.Env.GetURI()
 	onReq := &types.OpenNodeRequest{
+		OrderID:       reservationID,
 		Amount:        float64(tixPrice*count) + (float64(addOnCents) / 100),
 		Description:   conf.Desc,
 		Currency:      strings.ToUpper(strings.TrimSpace(tix.Currency)),
@@ -82,6 +94,9 @@ func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uin
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 409 {
+			return nil, &TicketPaymentRejected{Status: resp.StatusCode}
+		}
 		return nil, fmt.Errorf("error returned from opennode %d: %s", resp.StatusCode, body)
 	}
 

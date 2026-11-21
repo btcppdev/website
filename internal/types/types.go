@@ -287,6 +287,11 @@ type (
 		ID               string
 		ConfRef          string
 		Tier             string
+		Evergreen        bool
+		Disabled         bool
+		AllowDiscounts   bool
+		TicketKind       string
+		Description      string
 		Local            uint
 		StudentPrice     *uint
 		BTC              uint
@@ -348,6 +353,8 @@ type (
 		HMAC           string
 		AddOnQuote     string
 		AddOnQuoteHMAC string
+		OfferCode      string
+		ReservationID  string
 		PaymentMethod  string // "btc" or "card"
 	}
 
@@ -709,15 +716,17 @@ type (
 	}
 
 	Entry struct {
-		Locale      string
-		ID          string
-		ConfRef     string
-		Total       int64
-		Currency    string
-		Created     time.Time
-		Email       string
-		Items       []Item
-		DiscountRef string
+		TicketID      string
+		ReservationID string
+		Locale        string
+		ID            string
+		ConfRef       string
+		Total         int64
+		Currency      string
+		Created       time.Time
+		Email         string
+		Items         []Item
+		DiscountRef   string
 	}
 
 	ShirtSize string
@@ -1643,6 +1652,12 @@ func (t ConfTickets) Swap(i, j int) {
 
 func (s ConfTickets) Less(i, j int) bool {
 	/* Sort by time first */
+	if s[i] == nil {
+		return false
+	}
+	if s[j] == nil {
+		return true
+	}
 	return s[i].SalesEndAt.Before(s[j].SalesEndAt)
 }
 
@@ -1652,7 +1667,7 @@ func CurrentConfTicketAt(tickets []*ConfTicket, sold uint, at time.Time) *ConfTi
 	sorted := append(ConfTickets(nil), tickets...)
 	sort.Sort(sorted)
 	for _, ticket := range sorted {
-		if ticket == nil || ticket.SalesEndAt.IsZero() || !ticket.SalesEndAt.After(at) {
+		if ticket == nil || ticket.Evergreen || ticket.Disabled || ticket.SalesEndAt.IsZero() || !ticket.SalesEndAt.After(at) {
 			continue
 		}
 		if ticket.Max <= sold {
@@ -1676,7 +1691,7 @@ func NextConfTicketAfter(tickets []*ConfTicket, current *ConfTicket, sold uint) 
 			found = true
 			continue
 		}
-		if !found || ticket == nil || ticket.Max <= sold {
+		if !found || ticket == nil || ticket.Evergreen || ticket.Disabled || ticket.Max <= sold {
 			continue
 		}
 		return ticket
@@ -1809,3 +1824,6 @@ const InvitedSpeakerName = "Invited speaker"
 func (s *Speaker) InvitationNamePending() bool {
 	return s != nil && (s.Name == "" || s.Name == InvitedSpeakerName)
 }
+
+// Standard tiers accept discount codes. Evergreen options opt in independently.
+func (t *ConfTicket) DiscountsAllowed() bool { return t != nil && (!t.Evergreen || t.AllowDiscounts) }

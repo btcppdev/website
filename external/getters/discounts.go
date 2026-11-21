@@ -175,7 +175,7 @@ func CreateDiscount(ctx *config.AppContext, in DiscountInput) (string, error) {
 }
 
 func ListDiscounts(ctx *config.AppContext) ([]*types.DiscountCode, error) {
-	return queryDiscountsPostgres(ctx, "all discounts", `TRUE`)
+	return queryDiscountsPostgres(ctx, "all discounts", `discounts.checkout_conference_id IS NULL`)
 }
 
 func ListDiscountsForConf(ctx *config.AppContext, confRef string) ([]*types.DiscountCode, error) {
@@ -184,7 +184,7 @@ func ListDiscountsForConf(ctx *config.AppContext, confRef string) ([]*types.Disc
 		return nil, nil
 	}
 	return queryDiscountsPostgres(ctx, "discounts for conf", `
-		conferences.id::text = $1
+		conferences.id::text = $1 AND discounts.checkout_conference_id IS NULL
 	`, confRef)
 }
 
@@ -280,7 +280,7 @@ func queryDiscountsPostgres(ctx *config.AppContext, label string, whereSQL strin
 		FROM discounts
 		LEFT JOIN discounts_conferences ON discounts_conferences.discount_id = discounts.id
 		LEFT JOIN conferences ON conferences.id = discounts_conferences.conference_id
-		WHERE `+whereSQL+`
+		WHERE (discounts.checkout_conference_id IS NULL OR discounts.checkout_enabled) AND (`+whereSQL+`)
 		ORDER BY discounts.code_name, conferences.tag
 	`, args...)
 	if err != nil {

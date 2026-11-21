@@ -4,6 +4,31 @@
   var form = document.querySelector("[data-checkout-flow]");
   if (!form) return;
 
+  // Keep an eligibility offer and a typed code mutually exclusive before HTMX
+  // reads the form (capture phase runs before its checkbox change handler).
+  form.addEventListener(
+    "change",
+    function (event) {
+      if (event.target.name !== "OfferCode" || !event.target.checked) return;
+      form.querySelectorAll('[name="OfferCode"]').forEach(function (input) {
+        if (input !== event.target) input.checked = false;
+      });
+      var code = form.querySelector('[name="Discount"]');
+      if (code) code.value = "";
+    },
+    true,
+  );
+  form.addEventListener(
+    "input",
+    function (event) {
+      if (event.target.name === "Discount" && event.target.value.trim())
+        form.querySelectorAll('[name="OfferCode"]').forEach(function (input) {
+          input.checked = false;
+        });
+    },
+    true,
+  );
+
   var messages = JSON.parse(document.getElementById("checkout-messages").textContent);
   function message(key, values) {
     return messages[key].replace(/\{(\w+)\}/g, function (_, name) { return String(values[name]); });
