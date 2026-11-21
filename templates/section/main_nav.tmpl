@@ -8,14 +8,14 @@
   second row; every other page passes only Page.
 */}}
 {{ define "site_header" }}
-<link rel="stylesheet" href="/static/css/live-inset.css">
+<link rel="stylesheet" href="/static/css/live-inset.css?v=20261121-light-surfaces">
 <script src="/static/js/live-inset.js" defer></script>
 {{ $nav := navConfs }}
 {{ $page := .Page }}
 {{ $conf := .Conference }}
 {{ $hackathon := .Hackathon }}
 {{ if inDev }}
-<div class="dev-mode-banner">🚧 ⚠️ IN DEV MODE ⚠️ 🚧</div>
+<div class="dev-mode-banner">🚧 ⚠️ In dev mode ⚠️ 🚧</div>
 <style>
   .dev-mode-banner {
     position: fixed;
@@ -64,7 +64,7 @@
     </div>
     <div class="site-nav__controls">
       {{ if and $page (isShopPage $page) }}
-        <a class="site-button is-accent site-nav__cta" href="/shop/cart">cart</a>
+        <a class="site-button is-accent site-nav__cta" href="/shop/cart">Cart</a>
       {{ else if $conf }}
         <a class="site-button is-accent site-nav__cta" href="{{ localeURL (printf "/%s#tickets" $conf.Tag) }}">{{ msg "nav.get_tickets" }}</a>
       {{ else if $nav.Upcoming }}

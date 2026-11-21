@@ -25,7 +25,7 @@
   <body class="btcpp-redesign btcpp-rebrand-page">
     {{ template "generic_conf_nav" $conf }}
 
-    <main class="rebrand-page">
+    <main class="rebrand-page rebrand-page--conference">
       {{ template "conference_language_switch" $conf }}
       <section class="rebrand-hero">
         <img src="{{ confImage $conf.Tag "leading" }}" alt="" class="rebrand-hero__image">
@@ -50,41 +50,38 @@
       {{ if $p.ConfInfos }}{{ $firstInfo = index $p.ConfInfos 0 }}{{ end }}
       <section id="about" class="rebrand-masthead">
         <div class="rebrand-masthead__content">
-          <div class="rebrand-spec-list">
-            {{ if $conf.Venue }}· {{ $conf.Venue }}<br>{{ end }}
-            · {{ $conf.Location }}<br>
-            · {{ $conf.DateDesc }}<br>
-            {{ if $firstInfo }}
-              {{ if $firstInfo.Doors }}· {{ msg "venue.doors" }} {{ formatTime $firstInfo.Doors.Start }}<br>{{ end }}
-              {{ if $firstInfo.Venues }}· {{ len $firstInfo.Venues }} {{ msg "venue.rooms" }}{{ end }}
+          <ul class="rebrand-masthead__facts">
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+              <div>
+                <strong>{{ $conf.DateDesc }}</strong>
+                {{ if $firstInfo }}{{ if $firstInfo.Doors }}<span>{{ msg "venue.doors" }} {{ formatTime $firstInfo.Doors.Start }}</span>{{ end }}{{ end }}
+              </div>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+              <div>
+                <strong>{{ $conf.Location }}</strong>
+                {{ if $conf.Venue }}<a href="#venue">{{ $conf.Venue }} ↗</a>{{ end }}
+                {{ if $firstInfo }}{{ if $firstInfo.Venues }}<span>{{ len $firstInfo.Venues }} {{ msg "venue.rooms" }}</span>{{ end }}{{ end }}
+              </div>
+            </li>
+          </ul>
+          <div class="rebrand-masthead__actions" aria-label="Attend or participate">
+            <a href="#tickets" class="rebrand-button">{{ msg "tickets.buy_now" }} <span aria-hidden="true">→</span></a>
+            {{ if or $conf.TalksOpen $conf.VolunteerOpen }}
+            <div class="rebrand-masthead__participate">
+              {{ if $conf.TalksOpen }}<a href="/talk/{{ $conf.Tag }}">{{ msg "tickets.apply_talk" }}</a>{{ end }}
+              {{ if $conf.VolunteerOpen }}<a href="/volunteer/{{ $conf.Tag }}">{{ msg "tickets.volunteer" }}</a>{{ end }}
+            </div>
             {{ end }}
           </div>
-          <div class="rebrand-masthead__copy">
-            <p>{{ $aboutBody1 }} {{ if $aboutBody2 }}<span>{{ $aboutBody2 }}</span>{{ end }}</p>
-          </div>
         </div>
-        <div class="rebrand-masthead__actions" aria-label="Attend or participate">
-          <a href="#tickets" class="rebrand-button">{{ msg "tickets.all_pass" }}</a>
-          {{ if $conf.TalksOpen }}<a href="/talk/{{ $conf.Tag }}" class="rebrand-button is-secondary">{{ msg "tickets.apply_talk" }}</a>{{ end }}
-          {{ if $conf.VolunteerOpen }}<a href="/volunteer/{{ $conf.Tag }}" class="rebrand-button is-secondary">{{ msg "tickets.volunteer" }}</a>{{ end }}
-        </div>
-      </section>
-
-      <section class="rebrand-glance" aria-label="At a glance">
-        {{ if and $p.Tix (le $p.TixLeft 99) }}
-        <div><strong>{{ if $p.Tix }}{{ $p.TixLeft }}{{ else }}—{{ end }}</strong><span>{{ msg "tickets.seats_left" }}</span></div>
-        {{ else }}
-        <div><strong>{{ if $p.Tix }}{{ msg "tickets.on_sale" }}{{ else }}{{ msg "tickets.closed" }}{{ end }}</strong><span>{{ msg "tickets.label" }}</span></div>
-        {{ end }}
-        <div><strong>{{ $conf.EventDayCount }}</strong><span>{{ msg "tickets.days" }}</span></div>
-        <div><strong>{{ len $p.EventSpeakers }}</strong><span>{{ msg "tickets.speakers" }}</span></div>
-        <div><strong>{{ if and $firstInfo $firstInfo.Venues }}{{ len $firstInfo.Venues }}{{ else }}—{{ end }}</strong><span>{{ msg "tickets.stages" }}</span></div>
       </section>
 
       {{ if $p.ImportantDates }}
       <section id="dates" class="rebrand-important-dates" aria-labelledby="important-dates-title">
         <div class="rebrand-important-dates__intro">
-          <p class="rebrand-section-label">{{ msg "dates.planning" }}</p>
           <h2 id="important-dates-title">{{ msg "dates.important" }} <span>{{ msg "dates.dates" }}</span></h2>
           <p>{{ msg "dates.intro" }}</p>
         </div>
@@ -109,7 +106,6 @@
 
       <section class="rebrand-section rebrand-section--split">
         <div>
-          <p class="rebrand-section-label">{{ msg "about.section" }}</p>
           <h2>{{ $aboutTitle }}</h2>
         </div>
         <div class="rebrand-body-copy">
@@ -122,13 +118,12 @@
       {{ template "conf_hackathon_section" $p }}
 
       <section id="speakers" class="rebrand-section">
-        <p class="rebrand-section-label">{{ msg "speakers.section" }}</p>
         <h2>{{ $speakersTitle }}</h2>
         <div class="rebrand-body-copy">{{ ishtml $speakersBody }}</div>
         {{ if $p.FeaturedSpeakers }}
         <div class="rebrand-featured-speakers">
           {{ range $idx, $speaker := $p.FeaturedSpeakers }}
-            {{ template "generic_conf_featured_speaker" (dict "Speaker" $speaker "Idx" $idx) }}
+            {{ template "generic_conf_featured_speaker" (dict "Speaker" $speaker "Idx" $idx "Sponsors" (index $p.AttendeeSponsors $speaker.ID)) }}
           {{ end }}
         </div>
         {{ end }}
@@ -136,7 +131,7 @@
         <p class="rebrand-lineup-label">{{ msg "speakers.lineup" }}</p>
         <div class="rebrand-speaker-grid">
           {{ range $idx, $speaker := limitSpeakers $p.CommunitySpeakers 9 }}
-            {{ template "generic_conf_speaker" (dict "Speaker" $speaker "Idx" $idx) }}
+            {{ template "generic_conf_speaker" (dict "Speaker" $speaker "Idx" $idx "Sponsors" (index $p.AttendeeSponsors $speaker.ID)) }}
           {{ end }}
         </div>
         {{ if gt (len $p.CommunitySpeakers) 9 }}
@@ -147,12 +142,13 @@
         {{ end }}
       </section>
 
+      {{ template "generic_conf_committee" $p }}
+
       {{ template "generic_conf_agenda" $p }}
 
       <section id="venue" class="rebrand-venue">
         <div class="rebrand-venue__intro">
           <div>
-            <p class="rebrand-section-label">{{ msg "venue.section" }}</p>
             <h2>{{ $venueTitle }}</h2>
           </div>
           <div>
@@ -204,6 +200,7 @@
 <article class="rebrand-speaker-card">
   {{ if $path := speakerPublicPath $s }}<a class="rebrand-speaker-card__profile" href="{{ $path }}">{{ else }}<div class="rebrand-speaker-card__profile">{{ end }}
     <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+    {{ template "conference_attendee_sponsor_badges" .Sponsors }}
   {{ if speakerPublicPath $s }}</a>{{ else }}</div>{{ end }}
   <div>
     <span>#{{ printf "%02d" (add .Idx 1) }}</span>
@@ -218,6 +215,7 @@
 <article class="rebrand-featured-card">
   {{ if $path := speakerPublicPath $s }}<a class="rebrand-featured-card__profile" href="{{ $path }}">{{ else }}<div class="rebrand-featured-card__profile">{{ end }}
     <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+    {{ template "conference_attendee_sponsor_badges" .Sponsors }}
   {{ if speakerPublicPath $s }}</a>{{ else }}</div>{{ end }}
   <div>
     <p>{{ msg "speakers.featured" }}{{ printf "%02d" (add .Idx 1) }}</p>
@@ -233,9 +231,10 @@
 <article class="rebrand-featured-card rebrand-speaker-directory-card">
   {{ if $path := speakerPublicPath $s }}<a class="rebrand-featured-card__profile" href="{{ $path }}">{{ else }}<div class="rebrand-featured-card__profile">{{ end }}
     <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+    {{ template "conference_attendee_sponsor_badges" .Sponsors }}
   {{ if speakerPublicPath $s }}</a>{{ else }}</div>{{ end }}
   <div>
-    <p>ATTENDEE #{{ printf "%02d" (add .Idx 1) }}</p>
+    <p>Attendee #{{ printf "%02d" (add .Idx 1) }}</p>
     <h3>{{ if $path := speakerPublicPath $s }}<a href="{{ $path }}">{{ $s.Name }}</a>{{ else }}{{ $s.Name }}{{ end }}</h3>
     {{ if $s.Company }}<span>{{ $s.Company }}</span>{{ end }}
     {{ if $s.OrgLogo }}
@@ -244,6 +243,20 @@
     {{ template "generic_conf_speaker_links" $s }}
   </div>
 </article>
+{{ end }}
+
+{{ define "conference_attendee_sponsor_badges" }}
+{{ if . }}
+<span class="rebrand-attendee-sponsors">
+  {{ range . }}
+  {{ if or .LogoLight .LogoDark }}
+  <span class="rebrand-attendee-sponsor{{ if not .LogoLight }} rebrand-attendee-sponsor--dark-logo{{ end }}" title="{{ .Name }} · Event sponsor">
+    <img loading="lazy" src="{{ if .LogoLight }}{{ .LogoLight | safeURL }}{{ else }}{{ .LogoDark | safeURL }}{{ end }}" alt="{{ .Name }} · Event sponsor">
+  </span>
+  {{ end }}
+  {{ end }}
+</span>
+{{ end }}
 {{ end }}
 
 {{ define "generic_conf_speaker_links" }}
@@ -265,7 +278,6 @@
 {{ if $p.Hotels }}
 <section class="redesign-section is-white">
   <div class="redesign-container">
-    <p class="redesign-kicker">{{ msg "hotels.label" }}</p>
     <h2 class="redesign-heading">{{ msg "hotels.title" }}</h2>
     <p class="redesign-copy">{{ if .HotelsIntro }}{{ .HotelsIntro }}{{ else }}{{ msg "hotels.default_intro" (dict "Venue" $p.Conf.Venue "Location" $p.Conf.Location) }}{{ end }}</p>
     <div class="event-redesign-hotels">
@@ -290,7 +302,6 @@
 <section id="agenda" class="rebrand-agenda">
   <div class="rebrand-agenda__intro">
     <div>
-      <p class="rebrand-section-label">{{ msg "agenda.section" }}</p>
       <h2>{{ msg "agenda.title" }}</h2>
     </div>
     <div class="rebrand-agenda__note">
@@ -520,75 +531,53 @@
 <section id="tickets" class="redesign-section is-white">
   <div class="rebrand-tickets__inner">
     <div class="rebrand-tickets__intro">
-      <div>
-        <p class="rebrand-section-label">{{ msg "tickets.section" }}</p>
-        <h2>{{ msg "tickets.title" }}</h2>
-      </div>
-      <div class="rebrand-tickets__note">
-    {{ if $p.Tix }}
-      {{ if eq $p.Tix.StandardPrice $p.MaxTix.StandardPrice }}
-        {{ if le $p.TixLeft 99 }}{{ msg "tickets.remaining" (dict "Count" $p.TixLeft) }}{{ else }}{{ msg "tickets.full_access" }}{{ end }}
-      {{ else }}
-        {{ if showTicketPriceIncreaseDate $conf $p.Tix }}
-          {{ if le $p.TixLeft 99 }}{{ msg "tickets.price_increase_either" (dict "Date" $p.Tix.SalesEndDateDesc "Count" $p.TixLeft) }}{{ else }}{{ msg "tickets.price_increase_date" (dict "Date" $p.Tix.SalesEndDateDesc) }}{{ end }}
-        {{ else if le $p.TixLeft 99 }}
-          {{ msg "tickets.price_increase_count" (dict "Count" $p.TixLeft) }}
-        {{ else }}
-          {{ msg "tickets.full_access" }}
-        {{ end }}
+      <h2>{{ msg "tickets.title" }}</h2>
+      {{ if and $p.Tix $p.NextPriceIncreaseTicket }}
+      <p class="rebrand-tickets__countdown" data-ticket-countdown="{{ $p.Tix.SalesEndAt.Unix }}"
+         data-format="{{ msg "tickets.price_countdown" (dict "Time" "{time}") }}"
+         data-days="{{ msg "tickets.countdown_days" }}" data-hours="{{ msg "tickets.countdown_hours" }}"
+         data-soon="{{ msg "tickets.countdown_under_hour" }}" hidden></p>
       {{ end }}
-    {{ else }}
-      {{ msg "tickets.sold_out_sentence" }}
-    {{ end }}
+      {{ if $p.Tix }}
+        {{ if and $p.MaxTix (eq $p.Tix.StandardPrice $p.MaxTix.StandardPrice) }}
+      <div class="rebrand-tickets__note">
+        {{ if le $p.TixLeft 99 }}{{ msg "tickets.remaining" (dict "Count" $p.TixLeft) }}{{ else }}{{ msg "tickets.full_access" }}{{ end }}
       </div>
+        {{ end }}
+      {{ else if not $p.Evergreen }}
+      <div class="rebrand-tickets__note">
+        {{ msg "tickets.sold_out_sentence" }}
+      </div>
+      {{ end }}
     </div>
 
     <div class="event-redesign-tickets">
     {{ if $p.Tix }}
-      <article class="event-redesign-ticket is-featured">
+      <article class="event-redesign-ticket event-redesign-ticket--standard is-featured">
         <div>
-          <p class="event-redesign-ticket__eyebrow">{{ msg "tickets.bitcoin" }}</p>
+          <h3 class="event-redesign-ticket__title">{{ msg "tickets.standard" }}</h3>
           <div class="event-redesign-ticket__price">
             {{ if and $p.MaxTix (ne $p.MaxTix.StandardPrice $p.Tix.StandardPrice) }}
             <span class="event-redesign-ticket__compare">{{ $p.Tix.Symbol }}{{ $p.MaxTix.StandardPrice }}{{ $p.Tix.PostSymbol }}</span>
             {{ end }}
             <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.StandardPrice }}{{ $p.Tix.PostSymbol }}</strong>
-            <span>{{ $p.Tix.Currency }} {{ msg "tickets.per_ticket" }}</span>
           </div>
+          {{ range $p.CheckoutOffers }}
+          <p class="ticket-eligibility-offer"><strong>{{ .Percent }}% off for {{ .Label }}</strong></p>
+          {{ end }}
           <p class="event-redesign-ticket__summary">{{ msg "tickets.btc_summary" (dict "Event" $conf.Desc) }}</p>
-          {{ range $p.CheckoutOffers }}
-          <p class="ticket-eligibility-offer"><strong>{{ .Percent }}% off for {{ .Label }}</strong><br><small>Confirm eligibility at checkout.</small></p>
-          {{ end }}
         </div>
         <div class="event-redesign-ticket__actions">
-          <a href="{{ checkoutURL (printf "/tix/%s/checkout" $p.Tix.ID) }}" class="redesign-button">{{ msg "tickets.checkout_btc" }}</a>
+          <a href="{{ checkoutURL (printf "/tix/%s/checkout" $p.Tix.ID) }}" class="redesign-button">{{ msg "tickets.buy_now" }}</a>
         </div>
       </article>
 
-      <article class="event-redesign-ticket event-redesign-ticket--card">
-        <div>
-          <p class="event-redesign-ticket__eyebrow">{{ msg "tickets.card" }}</p>
-          <div class="event-redesign-ticket__price">
-            <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.CardPrice false }}{{ $p.Tix.PostSymbol }}</strong>
-            <span>{{ $p.Tix.Currency }} {{ msg "tickets.per_ticket" }}</span>
-          </div>
-          <p class="event-redesign-ticket__summary">{{ msg "tickets.card_summary" }}</p>
-          {{ range $p.CheckoutOffers }}
-          <p class="ticket-eligibility-offer"><strong>{{ .Percent }}% off for {{ .Label }}</strong><br><small>Confirm eligibility at checkout.</small></p>
-          {{ end }}
-        </div>
-        <div class="event-redesign-ticket__actions">
-          <a href="{{ checkoutURL (printf "/tix/%s/checkout?payment=card" $p.Tix.ID) }}" class="redesign-button">{{ msg "tickets.checkout_card" }}</a>
-        </div>
-      </article>
-
-      {{ template "generic_conf_ticket_features" $conf }}
     {{ else }}
-      <article class="event-redesign-ticket is-featured event-redesign-ticket--sold-out">
+      <article class="event-redesign-ticket event-redesign-ticket--standard is-featured event-redesign-ticket--sold-out">
         <div>
-          <p class="event-redesign-ticket__eyebrow">{{ msg "tickets.sold_out" }}</p>
+          <h3 class="event-redesign-ticket__title">{{ msg "tickets.standard" }}</h3>
           <div class="event-redesign-ticket__price"><strong>{{ msg "tickets.closed" }}</strong></div>
-          <p>{{ msg "tickets.closed_note" }}</p>
+          <p>{{ if $p.Evergreen }}{{ msg "tickets.standard_unavailable" }}{{ else }}{{ msg "tickets.closed_note" }}{{ end }}</p>
         </div>
         <div class="event-redesign-ticket__actions">
           {{ if $conf.HasAgenda }}
@@ -599,21 +588,50 @@
       </article>
     {{ end }}
     {{ range $p.Evergreen }}
-      <article class="event-redesign-ticket event-redesign-ticket--local">
-        <div class="event-redesign-ticket__price event-redesign-ticket__price--compact">
-          <strong>{{ .Ticket.Symbol }}{{ .Ticket.StandardPrice }}{{ .Ticket.PostSymbol }}</strong>
-          <span>{{ .Ticket.Currency }} {{ msg "tickets.per_ticket" }}</span>
-          <small>Card: {{ .Ticket.Symbol }}{{ .Ticket.CardPrice false }}{{ .Ticket.PostSymbol }}</small>
-        </div>
-        <div><p class="event-redesign-ticket__eyebrow">Evergreen</p><h3>{{ .Ticket.Tier }}</h3>
-          {{ if .Ticket.Description }}<p>{{ .Ticket.Description }}</p>{{ end }}
-          <p>{{ if .Remaining }}{{ .Remaining }} available{{ else }}Currently unavailable{{ end }}</p>
-          {{ if not .Ticket.AllowDiscounts }}<small>Discounts do not apply.</small>{{ end }}
+    {{ if eq .Ticket.TicketKind "supporter" }}
+      <article class="event-redesign-ticket event-redesign-ticket--supporter">
+        <div>
+          <h3 class="event-redesign-ticket__title">{{ eventText $conf.Tag .Ticket.Tier }}</h3>
+          <div class="event-redesign-ticket__price">
+            <strong>{{ .Ticket.Symbol }}{{ .Ticket.StandardPrice }}{{ .Ticket.PostSymbol }}</strong>
+            <span class="event-redesign-ticket__availability">{{ if .Remaining }}{{ .Remaining }} available{{ else }}{{ msg "tickets.unavailable" }}{{ end }}</span>
+          </div>
+          {{ if .Ticket.DiscountsAllowed }}
+          {{ range $p.CheckoutOffers }}
+          <p class="ticket-eligibility-offer"><strong>{{ .Percent }}% off for {{ .Label }}</strong></p>
+          {{ end }}
+          {{ end }}
+          <p class="event-redesign-ticket__summary">{{ if .Ticket.Description }}{{ eventText $conf.Tag .Ticket.Description }}{{ else }}{{ msg "tickets.supporter_summary" }}{{ end }}</p>
         </div>
         <div class="event-redesign-ticket__actions">
-          {{ if .Remaining }}<a href="{{ checkoutURL (printf "/tix/%s/checkout" .Ticket.ID) }}" class="redesign-button">Get {{ .Ticket.Tier }} tickets</a>{{ else }}<span>Sales closed or allocation reserved / sold out</span>{{ end }}
+          {{ if .Remaining }}<a href="{{ checkoutURL (printf "/tix/%s/checkout" .Ticket.ID) }}" class="redesign-button">{{ msg "tickets.buy_now" }}</a>{{ else }}<span>{{ msg "tickets.unavailable" }}</span>{{ end }}
         </div>
       </article>
+    {{ end }}
+    {{ end }}
+
+    {{ if or $p.Tix $p.Evergreen }}{{ template "generic_conf_ticket_features" $conf }}{{ end }}
+
+    {{ range $p.Evergreen }}
+    {{ if ne .Ticket.TicketKind "supporter" }}
+      <article class="event-redesign-ticket event-redesign-ticket--local">
+        <div class="event-redesign-ticket__compact-header">
+          <div class="event-redesign-ticket__compact-copy">
+            <h3>{{ .Ticket.Tier }}</h3>
+            {{ if .Ticket.Description }}<p>{{ .Ticket.Description }}</p>{{ end }}
+          </div>
+          <div class="event-redesign-ticket__price event-redesign-ticket__price--compact">
+            <strong>{{ .Ticket.Symbol }}{{ .Ticket.StandardPrice }}{{ .Ticket.PostSymbol }}</strong>
+            <span>{{ if .Remaining }}{{ .Remaining }} available{{ else }}Currently unavailable{{ end }}</span>
+          </div>
+        </div>
+        <div class="event-redesign-ticket__details">
+          <div class="event-redesign-ticket__actions">
+            {{ if .Remaining }}<a href="{{ checkoutURL (printf "/tix/%s/checkout" .Ticket.ID) }}" class="event-redesign-ticket__buy-link" aria-label="{{ msg "tickets.buy_ticket" }} — {{ .Ticket.Tier }}">{{ msg "tickets.buy_ticket" }} <span aria-hidden="true">→</span></a>{{ else }}<span>{{ msg "tickets.unavailable" }}</span>{{ end }}
+          </div>
+        </div>
+      </article>
+    {{ end }}
     {{ end }}
     </div>
   </div>
@@ -640,7 +658,6 @@
 <section id="newsletter" class="rebrand-newsletter">
   <div class="rebrand-newsletter__inner">
     <div>
-      <p class="rebrand-section-label">{{ msg "newsletter.section" }}</p>
       <h2>{{ msg "newsletter.dont_miss" }} <span>{{ msg "newsletter.thing" }}</span></h2>
       <p>{{ msg "newsletter.intro" (dict "Location" .Conf.Location) }}</p>
     </div>
@@ -702,4 +719,38 @@
     </div>
   </div>
 </footer>
+{{ end }}
+
+{{ define "generic_conf_committee" }}
+{{ if .SteeringCommittee }}
+<section id="steering-committee" class="rebrand-section rebrand-committee" aria-labelledby="steering-committee-title">
+  <h2 id="steering-committee-title">{{ msg "committee.title" }}</h2>
+  <div class="rebrand-featured-speakers rebrand-committee__grid">
+    {{ range .SteeringCommittee }}
+    {{ $s := .Speaker }}
+    <article class="rebrand-featured-card rebrand-committee-card">
+      {{ if .ProfileURL }}<a class="rebrand-featured-card__profile" href="{{ .ProfileURL }}">{{ else }}<div class="rebrand-featured-card__profile">{{ end }}
+        <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+        {{ if .Organizations }}
+        <span class="rebrand-attendee-sponsors">
+          {{ range .Organizations }}{{ if or .LogoLight .LogoDark }}
+          <span class="rebrand-attendee-sponsor{{ if not .LogoLight }} rebrand-attendee-sponsor--dark-logo{{ end }}" title="{{ .Name }}">
+            <img loading="lazy" src="{{ if .LogoLight }}{{ .LogoLight | safeURL }}{{ else }}{{ .LogoDark | safeURL }}{{ end }}" alt="{{ .Name }}">
+          </span>
+          {{ end }}{{ end }}
+        </span>
+        {{ else if $s.OrgLogo }}
+        <span class="rebrand-attendee-sponsors"><span class="rebrand-attendee-sponsor"><img loading="lazy" src="{{ spacesURL (printf "sponsors/%s" $s.OrgLogo) }}" alt="{{ $s.Company }}"></span></span>
+        {{ end }}
+      {{ if .ProfileURL }}</a>{{ else }}</div>{{ end }}
+      <div>
+        <h3>{{ if .ProfileURL }}<a href="{{ .ProfileURL }}">{{ $s.Name }}</a>{{ else }}{{ $s.Name }}{{ end }}</h3>
+        {{ if .Track }}<p class="rebrand-committee-card__track">{{ msg "committee.track" }} · {{ .Track }}</p>{{ end }}
+        {{ if .Organizations }}<span class="rebrand-committee-card__affiliations">{{ range $i, $org := .Organizations }}{{ if $i }} · {{ end }}{{ $org.Name }}{{ end }}</span>{{ else if $s.Company }}<span class="rebrand-committee-card__affiliations">{{ $s.Company }}</span>{{ end }}
+      </div>
+    </article>
+    {{ end }}
+  </div>
+</section>
+{{ end }}
 {{ end }}

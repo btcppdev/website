@@ -2,10 +2,7 @@
 <section id="satellites" class="rebrand-satellites">
   <div class="rebrand-satellites__inner">
     <div class="rebrand-satellites__intro">
-      <div>
-        <p class="rebrand-section-label">{{ msg "satellites.section" }}</p>
-        <h2>{{ msg "satellites.title" }}</h2>
-      </div>
+      <h2>{{ msg "satellites.title" }}</h2>
       <p>{{ msg "satellites.intro" (dict "Location" .Conf.Location) }}</p>
     </div>
 
@@ -58,8 +55,6 @@
         </article>
         {{ end }}
       </div>
-      {{ else }}
-      <p class="rebrand-satellites__empty">Know of another bitcoin event happening nearby? Send it over and we'll review it for this page.</p>
       {{ end }}
 
       {{ if .Conf.Active }}

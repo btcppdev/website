@@ -2,7 +2,7 @@
 {{ $nav := . }}
 <div class="site-ticker" aria-label="bitcoin++ updates" data-site-ticker>
   <span class="site-ticker__label" data-site-ticker-default>bitcoin++</span>
-  <a class="site-ticker__live" data-site-ticker-live href="/" hidden>LIVE &gt;</a>
+  <a class="site-ticker__live" data-site-ticker-live href="/" hidden>Live &gt;</a>
   <div class="site-ticker__viewport" aria-hidden="true">
     <div class="site-ticker__track">
       {{ template "site_ticker_items" $nav }}
@@ -80,15 +80,15 @@
     <span class="site-ticker__live-socials" data-site-ticker-live-socials></span>
     <b>•</b>
   </span>
-  <em>NEXT</em><b>•</b>
+  <em>Next</em><b>•</b>
   {{ if .Upcoming }}
     {{ $next := index .Upcoming 0 }}
     <strong>{{ $next.Desc }}</strong><b>•</b><em>{{ $next.DateDesc }}</em><b>•</b><a href="/{{ $next.Tag }}#tickets">{{ msg "nav.get_tickets" }}</a>
   {{ else }}
-    <em>WATCH FOR THE NEXT EDITION</em>
+    <em>Watch for the next edition</em>
   {{ end }}
-  <b>•</b><em>TECHNICAL BITCOIN CONFERENCES</em><b>•</b>
-  <strong>{{ len .Past }} EDITIONS IN THE ARCHIVE</strong><b>•</b><a href="/events">BROWSE THE ARCHIVE</a><b>•</b>
-{{ if insiderVisible }}  <em>INSIDER EDITION</em><b>•</b><a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">NEW DISPATCHES WEEKLY</a>{{ end }}
+  <b>•</b><em>Technical Bitcoin conferences</em><b>•</b>
+  <strong>{{ len .Past }} editions in the archive</strong><b>•</b><a href="/events">Browse the archive</a><b>•</b>
+{{ if insiderVisible }}  <em>Insider edition</em><b>•</b><a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">New dispatches weekly</a>{{ end }}
 </div>
 {{ end }}

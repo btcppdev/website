@@ -1,10 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
 /* Unified global navigation and contextual conference subnavigation. */
+/* Reserve the same space for Get tickets and cart on every page. */
+.site-nav .site-button.site-nav__cta {
+  flex: 0 0 136px;
+  width: 136px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 12px;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
+  font: 700 16px/1.2 "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: normal;
+  white-space: nowrap;
+}
+
+.site-nav .site-button.site-nav__cta:hover,
+.site-nav .site-button.site-nav__cta:focus-visible {
+  background: #9b5200;
+  transform: none;
+}
+
 .site-account [hidden] { display: none !important; }
 
 .site-account {
   position: relative;
   flex: 0 0 auto;
-  font: 11px "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 12px "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .site-account--mobile { display: none; }
@@ -16,14 +38,14 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid #0a0a0a;
-  background: #f6f3ee;
-  color: #0a0a0a;
+  border: 1px solid #d7d4cc;
+  background: #f9f6ee;
+  color: #343638;
   padding: 0 14px;
   font-weight: 700;
-  letter-spacing: .7px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -31,8 +53,8 @@
 .site-account__signin:focus-visible,
 .site-account__menu > summary:hover,
 .site-account__menu > summary:focus-visible {
-  background: #0a0a0a;
-  color: #fff;
+  background: #fff0e3;
+  color: #a65b00;
   outline: 0;
 }
 
@@ -47,10 +69,11 @@
   height: 26px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #0a0a0a;
-  background: #f9af5e;
+  border: 1px solid #d7d4cc;
+  background: var(--brand-accent-compact, #b35f00);
   font-weight: 800;
   object-fit: cover;
+  color: #fff;
 }
 
 .site-account__menu > summary b {
@@ -71,22 +94,22 @@
   z-index: 70;
   display: grid;
   width: min(290px, calc(100vw - 32px));
-  border: 1px solid #0a0a0a;
-  background: #f6f3ee;
-  box-shadow: 6px 6px 0 #0a0a0a;
+  border: 1px solid #d7d4cc;
+  background: #f9f6ee;
+  box-shadow: 6px 6px 0 rgba(52, 54, 56, .10);
 }
 
 .site-account__identity {
   display: grid;
   gap: 2px;
   padding: 15px 16px;
-  border-bottom: 1px solid #0a0a0a;
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .site-account__identity strong,
 .site-account__identity span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .site-account__identity strong { font-size: 13px; }
-.site-account__identity span { color: #6c675f; font-size: 10px; }
+.site-account__identity span { color: #6c675f; font-size: 12px; }
 
 .site-account__popover > a,
 .site-account__popover form button {
@@ -97,9 +120,9 @@
   border: 0;
   border-bottom: 1px solid rgba(10, 10, 10, .16);
   background: transparent;
-  color: #0a0a0a;
+  color: #343638;
   padding: 0 16px;
-  font: 600 11px "IBM Plex Mono", ui-monospace, monospace;
+  font: 600 12px "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-align: left;
   text-decoration: none;
   text-transform: none;
@@ -112,7 +135,7 @@
 .site-account__popover > a:hover,
 .site-account__popover > a:focus-visible,
 .site-account__popover form button:hover,
-.site-account__popover form button:focus-visible { background: #f9af5e; color: #0a0a0a; outline: 0; }
+.site-account__popover form button:focus-visible { background: var(--brand-accent-compact, #b35f00); color: #fff; outline: 0; }
 
 .site-nav__events-menu { position: relative; flex: 0 0 auto; }
 .site-nav__events-menu > summary {
@@ -120,9 +143,9 @@
   min-height: 48px;
   align-items: center;
   gap: 5px;
-  color: #0a0a0a;
+  color: #343638;
   cursor: pointer;
-  font: 500 12px/1.2 "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 500 12px/1.2 "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   list-style: none;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -139,23 +162,23 @@
   z-index: 70;
   display: grid;
   width: 190px;
-  border: 1px solid #0a0a0a;
-  background: #f6f3ee;
-  box-shadow: 6px 6px 0 #0a0a0a;
+  border: 1px solid #d7d4cc;
+  background: #f9f6ee;
+  box-shadow: 6px 6px 0 rgba(52, 54, 56, .10);
 }
 .site-nav__events-popover a {
   display: flex;
   min-height: 42px;
   align-items: center;
   border-bottom: 1px solid rgba(10, 10, 10, .16);
-  color: #0a0a0a;
+  color: #343638;
   padding: 0 16px;
-  font: 600 11px "IBM Plex Mono", ui-monospace, monospace;
+  font: 600 12px "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-decoration: none;
 }
 .site-nav__events-popover a:last-child { border-bottom: 0; }
 .site-nav__events-popover a:hover,
-.site-nav__events-popover a:focus-visible { background: #f9af5e; color: #0a0a0a; outline: 0; }
+.site-nav__events-popover a:focus-visible { background: var(--brand-accent, #db7900); color: #fff; outline: 0; }
 
 .site-conf-nav {
   position: sticky;
@@ -164,10 +187,10 @@
   display: flex;
   min-height: 50px;
   align-items: stretch;
-  border-bottom: 1px solid #0a0a0a;
-  background: #0a0a0a;
-  color: #f6f3ee;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  border-bottom: 1px solid #d7d4cc;
+  background: #fffdf8;
+  color: #343638;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .site-conf-nav a { color: inherit; }
@@ -178,14 +201,14 @@
   gap: 10px;
   max-width: 340px;
   padding: 0 24px;
-  border-right: 3px solid #f9af5e;
-  background: #24211e;
-  color: #f6f3ee !important;
+  border-right: 3px solid var(--brand-accent, #db7900);
+  background: #fff0e3;
+  color: #343638 !important;
   text-decoration: none;
 }
 
-.site-conf-nav__identity span { color: #f9af5e; font-size: 8px; font-weight: 700; letter-spacing: 1.2px; }
-.site-conf-nav__identity strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.site-conf-nav__identity span { color: var(--brand-accent-text, #a65b00); font-size: 12px; font-weight: 700; letter-spacing: normal; }
+.site-conf-nav__identity strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .site-conf-nav__context {
   display: flex;
   flex: 0 0 auto;
@@ -193,27 +216,29 @@
   flex-direction: column;
   justify-content: center;
   padding: 0 22px;
-  border-right: 1px solid rgba(246, 243, 238, .24);
-  background: #f6f3ee;
-  color: #0a0a0a;
-  text-transform: uppercase;
+  border-right: 1px solid rgba(249, 246, 238, .24);
+  background: #f9f6ee;
+  color: #343638;
+  text-transform: none;
 }
 .site-conf-nav__context span {
   color: #766f65;
-  font-size: 7px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.1px;
+  letter-spacing: normal;
 }
 .site-conf-nav__context strong {
   margin-top: 2px;
   font-size: 12px;
-  letter-spacing: .5px;
+  letter-spacing: normal;
 }
 .site-conf-nav--hackathon .site-conf-nav__identity {
   max-width: 300px;
   border-right-width: 1px;
 }
-.site-conf-nav__event-back { display: none !important; }
+.site-conf-nav__event-back { display: none !important;
+  color: var(--brand-accent-text, #a65b00) !important;
+}
 .site-conf-nav__links {
   display: flex;
   min-width: 0;
@@ -238,9 +263,9 @@
 .site-conf-nav__links a:hover,
 .site-conf-nav__links a:focus-visible,
 .site-conf-nav__links a.is-active {
-  border-bottom-color: #f9af5e;
-  background: rgba(249, 175, 94, .1);
-  color: #f9af5e;
+  border-bottom-color: var(--brand-accent, #db7900);
+  background: rgba(219, 121, 0, .1);
+  color: var(--brand-accent-text, #a65b00);
 }
 html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-site-banner-height)); }
 
@@ -248,7 +273,7 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
   .site-nav__inner { padding-right: 24px; padding-left: 24px; }
   .site-nav__links { gap: 14px; }
   .site-nav__links > a,
-  .site-nav__events-menu > summary { font-size: 11px; }
+  .site-nav__events-menu > summary { font-size: 12px; }
   .site-account__menu > summary b { display: none; }
 }
 
@@ -275,7 +300,7 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 12px 4px 20px 0;
-    border-top: 1px solid #0a0a0a;
+    border-top: 1px solid #d7d4cc;
     scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
   }
@@ -308,7 +333,7 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
     width: auto;
     margin: 2px 0 6px 10px;
     border: 0;
-    border-left: 2px solid #f9af5e;
+    border-left: 2px solid var(--brand-accent, #db7900);
     background: transparent;
     box-shadow: none;
   }
@@ -336,8 +361,8 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
     width: 100%;
     min-height: 48px;
     justify-content: flex-start;
-    background: #0a0a0a;
-    color: #f6f3ee;
+    background: #fffdf8;
+    color: #343638;
   }
   .site-account--mobile .site-account__menu > summary b {
     display: block;
@@ -348,7 +373,7 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
     position: static;
     width: 100%;
     margin-top: 8px;
-    box-shadow: 3px 3px 0 #0a0a0a;
+    box-shadow: 3px 3px 0 rgba(52, 54, 56, .10);
   }
   body:has(.site-conf-nav) { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
   .site-conf-nav {
@@ -359,13 +384,16 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
     left: 0;
     z-index: 60;
     min-height: calc(58px + env(safe-area-inset-bottom));
-    border-top: 1px solid rgba(246, 243, 238, .28);
+    border-top: 1px solid rgba(249, 246, 238, .28);
     border-bottom: 0;
     box-shadow: 0 -8px 24px rgba(10, 10, 10, .2);
   }
-  .site-conf-nav__identity { display: none; }
+  .site-conf-nav__identity { display: none;
+  color: #343638 !important;
+  background: #fff0e3;
+}
   .site-conf-nav__context { display: none; }
-  .site-conf-nav__event-back { display: inline-flex !important; color: #f9af5e !important; }
+  .site-conf-nav__event-back { display: inline-flex !important; color: var(--brand-accent-text, #a65b00) !important; }
   .site-conf-nav__links {
     width: 100%;
     gap: 0;
@@ -379,18 +407,18 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
   .site-conf-nav__links a {
     min-height: 58px;
     padding: 0 15px;
-    border-right: 1px solid rgba(246, 243, 238, .16);
+    border-right: 1px solid rgba(249, 246, 238, .16);
     border-bottom: 3px solid transparent;
-    font-size: 11px;
+    font-size: 12px;
     scroll-snap-align: start;
   }
   .site-conf-nav__links a:last-child { border-right: 0; }
   .site-conf-nav__links a:hover,
-  .site-conf-nav__links a:focus-visible { background: rgba(249, 175, 94, .12); }
+  .site-conf-nav__links a:focus-visible { background: rgba(219, 121, 0, .12); }
   .site-conf-nav__links a.is-active {
-    border-bottom-color: #f9af5e;
-    background: #f9af5e;
-    color: #0a0a0a;
+    border-bottom-color: var(--brand-accent, #db7900);
+    background: var(--brand-accent-compact, #b35f00);
+    color: #fff;
   }
   html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(112px + var(--btcpp-site-banner-height)); }
 }
@@ -398,8 +426,28 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
 @media (max-width: 640px) {
   .site-nav { --btcpp-mobile-menu-chrome-height: 92px; }
   .site-nav__inner { grid-template-columns: minmax(0, 1fr) auto auto; padding: 12px 16px; }
+  .site-nav__brand img { max-width: 100%; height: auto; max-height: 32px; }
   .site-nav__controls { display: contents; }
   .site-nav__cta { grid-column: 2; grid-row: 1; justify-self: end; }
   .site-nav__menu { grid-column: 3; grid-row: 1; justify-self: end; }
   .site-nav__links { grid-row: 2; }
+}
+
+/* Conference navigation sits on a dark surface. */
+.site-conf-nav__identity span { color: var(--brand-accent-text, #a65b00); }
+@media (min-width: 901px) {
+  /* Split the 26px text gap into link padding so highlights meet halfway. */
+  .site-conf-nav__links {
+    gap: 0;
+    padding-inline: 11px;
+  }
+  .site-conf-nav__links a {
+    padding-inline: 13px;
+  }
+  .site-conf-nav__links a:hover,
+  .site-conf-nav__links a:focus-visible,
+  .site-conf-nav__links a.is-active { color: var(--brand-accent, #db7900); }
+}
+@media (max-width: 900px) {
+  .site-conf-nav__event-back { color: var(--brand-accent-text, #a65b00) !important; }
 }

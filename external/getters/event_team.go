@@ -19,6 +19,7 @@ type EventTeamMember struct {
 	Email          string     `json:"email"`
 	Name           string     `json:"name"`
 	Responsibility string     `json:"responsibility"`
+	Track          string     `json:"track"`
 	Role           string     `json:"role"`
 	PersonID       string     `json:"person_id"`
 	AcceptedAt     *time.Time `json:"accepted_at"`
@@ -26,7 +27,7 @@ type EventTeamMember struct {
 }
 
 func ListEventTeam(ctx *config.AppContext, confID string) ([]EventTeamMember, error) {
-	rows, e := ctx.DB.Query(ctx.DatabaseContext(), `SELECT id::text,coalesce(email::text,''),name,responsibility,role,coalesce(person_id::text,''),accepted_at,expires_at FROM event_team_members WHERE conference_id=$1 ORDER BY role,name,email`, confID)
+	rows, e := ctx.DB.Query(ctx.DatabaseContext(), `SELECT id::text,coalesce(email::text,''),name,responsibility,track,role,coalesce(person_id::text,''),accepted_at,expires_at FROM event_team_members WHERE conference_id=$1 ORDER BY role,name,email`, confID)
 	if e != nil {
 		return nil, e
 	}
@@ -34,7 +35,7 @@ func ListEventTeam(ctx *config.AppContext, confID string) ([]EventTeamMember, er
 	out := []EventTeamMember{}
 	for rows.Next() {
 		var m EventTeamMember
-		if e = rows.Scan(&m.ID, &m.Email, &m.Name, &m.Responsibility, &m.Role, &m.PersonID, &m.AcceptedAt, &m.ExpiresAt); e != nil {
+		if e = rows.Scan(&m.ID, &m.Email, &m.Name, &m.Responsibility, &m.Track, &m.Role, &m.PersonID, &m.AcceptedAt, &m.ExpiresAt); e != nil {
 			return nil, e
 		}
 		out = append(out, m)
@@ -57,13 +58,21 @@ func CreateEventTeamInvite(ctx *config.AppContext, confID, actor string, m Event
 	default:
 		return "", fmt.Errorf("choose a valid event role")
 	}
+	if m.Role != "steering" {
+		m.Track = ""
+	}
+	track, err := normalizeSteeringTrack(m.Track)
+	if err != nil {
+		return "", err
+	}
+	m.Track = track
 	tokenBytes := make([]byte, 32)
 	if _, e = rand.Read(tokenBytes); e != nil {
 		return "", e
 	}
 	token := hex.EncodeToString(tokenBytes)
 	hash := sha256.Sum256([]byte(token))
-	tag, e := ctx.DB.Exec(ctx.DatabaseContext(), `INSERT INTO event_team_members(conference_id,email,name,responsibility,role,invited_by,token_hash,expires_at) VALUES($1,$2,$3,$4,$5,$6::uuid,$7,now()+interval '14 days') ON CONFLICT(conference_id,email) DO UPDATE SET name=excluded.name,responsibility=excluded.responsibility,role=excluded.role,invited_by=excluded.invited_by,token_hash=excluded.token_hash,expires_at=excluded.expires_at WHERE event_team_members.accepted_at IS NULL`, confID, m.Email, m.Name, m.Responsibility, m.Role, nullableUUID(actor), hex.EncodeToString(hash[:]))
+	tag, e := ctx.DB.Exec(ctx.DatabaseContext(), `INSERT INTO event_team_members(conference_id,email,name,responsibility,role,invited_by,token_hash,expires_at,track) VALUES($1,$2,$3,$4,$5,$6::uuid,$7,now()+interval '14 days',$8) ON CONFLICT(conference_id,email) DO UPDATE SET name=excluded.name,responsibility=excluded.responsibility,role=excluded.role,invited_by=excluded.invited_by,token_hash=excluded.token_hash,expires_at=excluded.expires_at,track=excluded.track WHERE event_team_members.accepted_at IS NULL`, confID, m.Email, m.Name, m.Responsibility, m.Role, nullableUUID(actor), hex.EncodeToString(hash[:]), m.Track)
 	if e != nil {
 		return "", e
 	}
@@ -146,6 +155,14 @@ func AddEventTeamMember(app *config.AppContext, confID, actor string, m EventTea
 	default:
 		return fmt.Errorf("choose a valid event role")
 	}
+	if m.Role != "steering" {
+		m.Track = ""
+	}
+	track, err := normalizeSteeringTrack(m.Track)
+	if err != nil {
+		return err
+	}
+	m.Track = track
 	m.Responsibility = strings.TrimSpace(m.Responsibility)
 	if len(m.Responsibility) > 2000 {
 		return fmt.Errorf("keep responsibilities under 2,000 characters")
@@ -173,7 +190,7 @@ func AddEventTeamMember(app *config.AppContext, confID, actor string, m EventTea
 		return fmt.Errorf("this person is already on the team")
 	}
 	var memberID string
-	e = tx.QueryRow(c, `INSERT INTO event_team_members(conference_id,person_id,email,name,responsibility,role,invited_by,accepted_at) VALUES($1,$2,NULLIF($3,'')::citext,$4,$5,$6,$7,now()) ON CONFLICT(conference_id,email) DO UPDATE SET person_id=excluded.person_id,name=excluded.name,responsibility=excluded.responsibility,role=excluded.role,invited_by=excluded.invited_by,accepted_at=now(),token_hash='',expires_at=NULL WHERE event_team_members.accepted_at IS NULL RETURNING id::text`, confID, m.PersonID, email, name, m.Responsibility, m.Role, nullableUUID(actor)).Scan(&memberID)
+	e = tx.QueryRow(c, `INSERT INTO event_team_members(conference_id,person_id,email,name,responsibility,role,invited_by,accepted_at,track) VALUES($1,$2,NULLIF($3,'')::citext,$4,$5,$6,$7,now(),$8) ON CONFLICT(conference_id,email) DO UPDATE SET person_id=excluded.person_id,name=excluded.name,responsibility=excluded.responsibility,role=excluded.role,invited_by=excluded.invited_by,accepted_at=now(),token_hash='',expires_at=NULL,track=excluded.track WHERE event_team_members.accepted_at IS NULL RETURNING id::text`, confID, m.PersonID, email, name, m.Responsibility, m.Role, nullableUUID(actor), m.Track).Scan(&memberID)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return fmt.Errorf("this email already belongs to a team member")
 	}

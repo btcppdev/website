@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -12,6 +14,13 @@ import (
 )
 
 var conferenceCatalog = mustConferenceCatalog()
+
+var conferenceSectionPrefix = regexp.MustCompile(`^§\s*\d*\s*(?:[·:—–-]\s*)?`)
+
+// Older custom hackathon labels include a section number. Page order now owns it.
+func conferenceSectionLabel(label string) string {
+	return strings.TrimSpace(conferenceSectionPrefix.ReplaceAllString(strings.TrimSpace(label), ""))
+}
 
 func mustConferenceCatalog() *i18n.Catalog {
 	c, err := i18n.Load()
@@ -23,9 +32,10 @@ func mustConferenceCatalog() *i18n.Catalog {
 
 func localeTemplateFunctions(language string) template.FuncMap {
 	return template.FuncMap{
-		"checkoutURL":      func(path string) string { return i18n.CheckoutURL(language, path) },
-		"checkoutMessages": func() (map[string]string, error) { return checkoutClientMessages(language) },
-		"locale":           func() string { return language },
+		"conferenceSectionLabel": conferenceSectionLabel,
+		"checkoutURL":            func(path string) string { return i18n.CheckoutURL(language, path) },
+		"checkoutMessages":       func() (map[string]string, error) { return checkoutClientMessages(language) },
+		"locale":                 func() string { return language },
 		"msg": func(key string, args ...map[string]any) (string, error) {
 			return conferenceCatalog.Message(language, key, args...)
 		},

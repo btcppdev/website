@@ -61,6 +61,8 @@ type ConfPage struct {
 	EventSpeakers     []*types.Speaker
 	FeaturedSpeakers  []*types.Speaker
 	CommunitySpeakers []*types.Speaker
+	AttendeeSponsors  map[string][]*types.Org
+	SteeringCommittee []*types.ConferenceCommitteeMember
 	Buckets           map[string]types.SessionTime
 	Days              []*Day
 

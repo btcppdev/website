@@ -41,7 +41,7 @@ func TestPublicEventCountsInclude2022AndExcludeDrafts(t *testing.T) {
 	if err := ticker.ExecuteTemplate(&out, "site_ticker_items", nav); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "21 EDITIONS IN THE ARCHIVE") {
+	if !strings.Contains(out.String(), "21 editions in the archive") {
 		t.Fatalf("ticker count does not match the published archive: %s", out.String())
 	}
 

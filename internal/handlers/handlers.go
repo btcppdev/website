@@ -5061,6 +5061,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		EventSpeakers:           evSpeakers,
 		FeaturedSpeakers:        featuredSpeakers,
 		CommunitySpeakers:       communitySpeakers,
+		AttendeeSponsors:        conferenceAttendeeSponsors(ctx, conf, evSpeakers),
+		SteeringCommittee:       conferenceCommittee(ctx, conf),
 		Buckets:                 buckets,
 		Days:                    days,
 		AgendaDays:              agendaDays,
@@ -5164,10 +5166,11 @@ func RenderConfSpeakers(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	conf = publicHackathonNavConference(ctx, &confCopy, talks)
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "conf/speakers.tmpl", &ConfPage{
-		Conf:          conf,
-		Talks:         talks,
-		EventSpeakers: evSpeakers,
-		Year:          helpers.CurrentYear(),
+		Conf:             conf,
+		Talks:            talks,
+		EventSpeakers:    evSpeakers,
+		AttendeeSponsors: conferenceAttendeeSponsors(ctx, conf, evSpeakers),
+		Year:             helpers.CurrentYear(),
 	}); err != nil {
 		http.Error(w, "Unable to load speakers, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s/speakers ExecuteTemplate failed: %s", conf.Tag, err.Error())

@@ -174,6 +174,22 @@ func EventWizard(w http.ResponseWriter, r *http.Request, app *config.AppContext)
 			wizardJSON(w, 200, map[string]bool{"saved": true})
 			return
 		}
+		if in.Section == "steering-track" {
+			var m struct {
+				ID    string `json:"id"`
+				Track string `json:"track"`
+			}
+			if e := json.Unmarshal(in.Data, &m); e != nil {
+				wizardError(w, fmt.Errorf("invalid steering member"))
+				return
+			}
+			if e := getters.UpdateEventSteeringTrack(app, conf.Ref, m.ID, m.Track); e != nil {
+				wizardError(w, e)
+				return
+			}
+			wizardJSON(w, 200, map[string]bool{"saved": true})
+			return
+		}
 		if in.Section == "team" {
 			var m getters.EventTeamMember
 			if e := json.Unmarshal(in.Data, &m); e != nil {
@@ -277,7 +293,11 @@ func eventWizardData(app *config.AppContext, conf *types.Conf, edit bool) (map[s
 	for _, o := range orgs {
 		organizations = append(organizations, map[string]string{"id": o.Ref, "name": o.Name})
 	}
-	return map[string]any{"new": false, "can_edit": edit, "revision": saved.Revision, "tag": conf.Tag, "published": conf.IsPublished(), "basics": eventplan.Basics{Tag: conf.Tag, Name: conf.Desc, Edition: conf.EditionType, Location: conf.Location, Country: saved.Plan.Country, Timezone: conf.Timezone, Start: local(&conf.StartDate), End: local(&conf.EndDate), Description: conf.AboutBody}, "artwork": map[string]string{"leading": artwork.Resolve(conf, "leading").Web(), "black": conferenceArtwork(conf, "logo-black"), "white": conferenceArtwork(conf, "logo-white")}, "plan": saved.Plan, "team": team, "tickets": tickets, "offers": offers, "applications": eventplan.Applications{TalksOpen: local(conf.SpeakerApplicationsOpen), TalksClose: local(conf.SpeakerApplicationsClose), VolunteersOpen: local(conf.VolunteerApplicationsOpen), VolunteersClose: local(conf.VolunteerApplicationsClose), Notes: saved.Plan.VolunteerNotes, ShiftHours: saved.Plan.ShiftHours, MerchDesk: saved.Plan.MerchDesk}, "products": choices, "product_ids": productIDs, "organizations": organizations}, nil
+	hackathon, e := getters.LoadPlanningHackathon(app, conf)
+	if e != nil {
+		return nil, e
+	}
+	return map[string]any{"hackathon": hackathon, "new": false, "can_edit": edit, "revision": saved.Revision, "tag": conf.Tag, "published": conf.IsPublished(), "basics": eventplan.Basics{Tag: conf.Tag, Name: conf.Desc, Edition: conf.EditionType, Location: conf.Location, Country: saved.Plan.Country, Timezone: conf.Timezone, Start: local(&conf.StartDate), End: local(&conf.EndDate), Description: conf.AboutBody}, "artwork": map[string]string{"leading": artwork.Resolve(conf, "leading").Web(), "black": conferenceArtwork(conf, "logo-black"), "white": conferenceArtwork(conf, "logo-white")}, "plan": saved.Plan, "team": team, "tickets": tickets, "offers": offers, "applications": eventplan.Applications{TalksOpen: local(conf.SpeakerApplicationsOpen), TalksClose: local(conf.SpeakerApplicationsClose), VolunteersOpen: local(conf.VolunteerApplicationsOpen), VolunteersClose: local(conf.VolunteerApplicationsClose), Notes: saved.Plan.VolunteerNotes, ShiftHours: saved.Plan.ShiftHours, MerchDesk: saved.Plan.MerchDesk}, "products": choices, "product_ids": productIDs, "organizations": organizations}, nil
 }
 func EventWizardArtwork(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 	id, conf, _ := wizardIdentity(w, r, app)

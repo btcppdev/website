@@ -26,6 +26,12 @@
       "Keep public hours and contracted staff access together. Add setup-only days with staff access and no public doors.",
     ],
     [
+      "hackathon",
+      "Hackathon",
+      "Make room to build.",
+      "Add an optional hackathon, then set its schedule, prizes, and judging.",
+    ],
+    [
       "team",
       "People & committee",
       "Bring your people together.",
@@ -123,7 +129,7 @@
     input.addEventListener("input", () => {
       obj[key] =
         type === "number"
-          ? input.value === "" && key === "student_price"
+          ? input.value === "" && ["student_price", "max_team_size"].includes(key)
             ? null
             : Number(input.value)
           : input.value;
@@ -205,11 +211,6 @@
     side.append(links);
   }
   main.append(
-    el(
-      "p",
-      "ew-kicker",
-      "STEP " + (steps.indexOf(current) + 1) + " / " + steps.length,
-    ),
     el("h1", "", data.new ? "Start your next event." : current[2]),
     el("p", "ew-description", current[3]),
   );
@@ -465,6 +466,51 @@
       "The first venue supplies the event’s primary address. Public hours and stages also populate the existing schedule tools.",
     );
   }
+  if (current[0] === "hackathon") {
+    const h = data.hackathon,
+      s = section(h.id ? "Hackathon settings" : "Include a hackathon?"),
+      fields = el("div");
+    if (!h.id) {
+      const included = check(s, h, "included", "This event includes a hackathon");
+      included.addEventListener("change", () => { fields.hidden = !h.included; });
+    }
+    fields.hidden = !h.included;
+    s.append(fields);
+    const g = grid(fields);
+    const title = field(g, h, "title", "Hackathon title");
+    title.maxLength = 160;
+    field(g, h, "visibility", "Visibility", "text", "Hidden until you choose Public.", [
+      ["hidden", "Hidden"], ["public", "Public"],
+    ]);
+    const size = field(g, h, "max_team_size", "Maximum team size", "number", "Leave blank for no limit.");
+    size.min = "1";
+    size.step = "1";
+    field(g, h, "description_format", "Description format", "text", "", [
+      ["markdown", "Markdown"], ["plain", "Plain text"], ["html", "HTML"],
+    ]);
+    field(g, h, "description", "Description", "textarea");
+    check(fields, h, "public_gallery_enabled", "Show submitted projects publicly");
+    check(fields, h, "allow_late_submissions", "Allow submissions after the deadline");
+    check(fields, h, "public_tables_enabled", "Show project tables publicly");
+    if (h.id) {
+      const manage = section("Plan the hackathon"),
+        links = el("div", "ew-hackathon-links"),
+        base = "/" + data.tag + "/admin/hackathon";
+      [
+        ["Schedule & submissions", base + "?setup=2"],
+        ["Awards & prizes", base + "/awards"],
+        ["Judges & judging", base + "/judging"],
+        ["Hackathon managers", base + "/managers"],
+        ["Projects", base + "/projects"],
+        ["Preview hackathon ↗", "/" + data.tag + "/hackathon"],
+      ].forEach(([label, href]) => links.append(link(label, href, "ew-secondary")));
+      manage.append(links);
+      note(manage, "Uses this event’s location and artwork. Schedule times use " + data.basics.timezone + ".");
+    } else {
+      note(fields, "Save to set up the schedule, prizes, and judges.");
+    }
+    payload = () => h;
+  }
   if (current[0] === "team") {
     const people = data.team || [],
       s = section("The team");
@@ -485,6 +531,36 @@
         el("small", "", [p.role, p.email].filter(Boolean).join(" · ")),
         el("small", "", p.responsibility),
       );
+      if (p.role === "steering") {
+        if (readonly) {
+          if (p.track) text.append(el("small", "", "Track · " + p.track));
+        } else {
+          const editor = el("form", "ew-track-editor");
+          const label = el("label", "ew-field");
+          const input = el("input");
+          label.append(el("span", "", "Track (optional)"));
+          input.type = "text";
+          input.value = p.track || "";
+          input.maxLength = 120;
+          label.append(input);
+          const save = el("button", "ew-secondary", "Save track");
+          save.type = "submit";
+          editor.append(label, save);
+          editor.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (save.disabled) return;
+            save.disabled = true;
+            try {
+              await request("steering-track", {id: p.id, track: input.value});
+              p.track = input.value.trim();
+              input.value = p.track;
+              show("Track saved");
+            } catch (error) { show(error.message, true); }
+            finally { save.disabled = false; }
+          });
+          text.append(editor);
+        }
+      }
       li.append(text);
       const status = el("div");
       status.append(
@@ -508,6 +584,7 @@
       list.append(li);
     });
     s.append(list);
+    note(s, "Steering members appear on the event page with their track and organization affiliations.");
     if (!readonly) {
       const member = { role: "steering" },
         form = section("Add an existing user"),
@@ -704,7 +781,7 @@
         options[active].scrollIntoView({ block: "nearest" });
       });
       const g = grid(form);
-      field(
+      const role = field(
         g,
         member,
         "role",
@@ -718,13 +795,19 @@
           ["admin", "Event administrator"],
         ],
       );
+      const track = field(g, member, "track", "Track (optional)", "text", "Shown on the public committee card.");
+      track.maxLength = 120;
+      role.addEventListener("change", () => {
+        track.parentElement.hidden = role.value !== "steering";
+        if (role.value !== "steering") { member.track = ""; track.value = ""; }
+      });
       field(
         g,
         member,
         "responsibility",
         "Responsibility",
         "text",
-        "Example: venue lead, program chair, sponsor contact",
+        "Internal only. Example: venue lead, program chair, sponsor contact",
       );
       const add = button(
         "Add to team",
@@ -1121,6 +1204,14 @@
       list.append(li);
     });
     s.append(list);
+    const hackathon = el("li");
+    hackathon.append(
+      link("Hackathon", "?step=hackathon"),
+      el("span", "ew-pill", data.hackathon?.included
+        ? (data.hackathon.visibility === "public" ? "Public" : "Hidden")
+        : "Not included"),
+    );
+    list.append(hackathon);
     main.append(
       link(
         "Review publication & event settings ↗",

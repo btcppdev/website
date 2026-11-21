@@ -672,7 +672,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render conference hackathon section with prior judges: %v", err)
 	}
-	for _, want := range []string{`>PAST JUDGES</strong>`, `Berlin 2025 · This event’s panel is coming soon`} {
+	for _, want := range []string{`>Past judges</strong>`, `Berlin 2025 · This event’s panel is coming soon`} {
 		if !strings.Contains(confHackathonSection.String(), want) {
 			t.Fatalf("conference prior-judge context missing %q: %s", want, confHackathonSection.String())
 		}
@@ -879,7 +879,7 @@ func TestLoadTemplates(t *testing.T) {
 	for _, want := range []string{
 		`class="site-conf-nav site-conf-nav--hackathon"`,
 		`class="site-conf-nav__identity site-conf-nav__identity--back" href="/dev26"`,
-		`<span>← THIS EVENT</span>`,
+		`<span>← This event</span>`,
 		`<strong>Hackathon</strong>`,
 		`href="/dev26/hackathon" data-hackathon-tab="overview" data-active-exact>/start</a>`,
 		`href="/dev26/hackathon#projects" data-hackathon-tab="projects"`,

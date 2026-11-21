@@ -90,6 +90,12 @@ func SaveEventPlanning(ctx *config.AppContext, conf *types.Conf, revision int64,
 		return 0, err
 	}
 	switch section {
+	case "hackathon":
+		var h eventplan.Hackathon
+		if err = json.Unmarshal(payload, &h); err != nil {
+			return 0, fmt.Errorf("invalid hackathon settings")
+		}
+		err = savePlanningHackathon(c, tx, conf, h)
 	case "basics":
 		var b eventplan.Basics
 		if err = json.Unmarshal(payload, &b); err != nil {

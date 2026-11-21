@@ -127,7 +127,29 @@ func TestEventWizardAccessAndStudentPricing(t *testing.T) {
 	if w := request(path, `{"section":"add-team-member","data":{"person_id":"`+person+`","role":"steering"}}`, "wrong"); w.Code != 403 {
 		t.Fatal("team CSRF bypass", w.Code)
 	}
+	if w := request(path, `{"section":"add-team-member","data":{"person_id":"`+person+`","role":"steering","track":"Cryptography"}}`, "test-token"); w.Code != 200 {
+		t.Fatal("add committee member", w.Code, w.Body.String())
+	}
+	members, err := getters.ListEventTeam(app, confID)
+	if err != nil || len(members) != 1 {
+		t.Fatal("load committee", err)
+	}
+	trackBody := `{"section":"steering-track","data":{"id":"` + members[0].ID + `","track":"Protocol"}}`
+	if w := request(path, trackBody, "wrong"); w.Code != 403 {
+		t.Fatal("track CSRF bypass", w.Code)
+	}
+	if w := request(path, trackBody, "test-token"); w.Code != 200 {
+		t.Fatal("save track", w.Code, w.Body.String())
+	}
+	members, _ = getters.ListEventTeam(app, confID)
+	if members[0].Track != "Protocol" {
+		t.Fatal("track was not saved")
+	}
 	app.DB.Exec(c, `UPDATE people_roles SET position='staff' WHERE person_id=$1`, person)
+	if w := request(path, trackBody, "test-token"); w.Code != 403 {
+		t.Fatal("staff changed public track", w.Code)
+	}
+
 	if w := request(searchPath, "", ""); w.Code != 403 {
 		t.Fatal("staff searched private accounts", w.Code)
 	}

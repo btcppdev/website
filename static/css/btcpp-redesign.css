@@ -1,8 +1,8 @@
 body.btcpp-redesign {
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-smoothing: antialiased;
-  background: #f6f3ee;
-  color: #121212;
+  background: #f9f6ee;
+  color: #343638;
 }
 
 /* Match public people pages to the authenticated 1040px workspace channel. */
@@ -35,6 +35,45 @@ body.btcpp-redesign {
 
 }
 
+/* Directory titles share the homepage and shop landing page's origin. */
+body.whois-page.whois-page--directory {
+  --whois-hero-space: 48px;
+  --whois-hero-inline: 48px;
+  background: var(--brand-paper, #f9f6ee);
+}
+
+body.whois-page--directory:has(.archive-rain) {
+  background: #ded8ce;
+}
+
+body.whois-page.whois-page--directory .whois-shell {
+  margin: 24px auto 48px;
+  border-inline: 1px solid #d7d4cc;
+  background: var(--brand-paper, #f9f6ee);
+}
+
+.whois-page--directory .whois-hero {
+  padding: var(--whois-hero-space) var(--whois-hero-inline);
+}
+
+@media (max-width: 980px) {
+  body.whois-page.whois-page--directory {
+    --whois-hero-space: 40px;
+    --whois-hero-inline: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  body.whois-page.whois-page--directory {
+    --whois-hero-space: 32px;
+    --whois-hero-inline: 20px;
+  }
+
+  body.whois-page.whois-page--directory .whois-shell {
+    margin: 16px auto 32px;
+  }
+}
+
 html {
   scroll-padding-top: var(--btcpp-anchor-offset, 112px);
 }
@@ -45,12 +84,15 @@ html {
 
 /* Vegas handoff-inspired event pages. Scoped to generic conference pages. */
 body.btcpp-rebrand-page {
-  --rebrand-accent: #f9af5e;
-  --rebrand-ink: #1c1c1e;
-  --rebrand-paper: #f6f3ee;
-  --rebrand-warm: #efeae2;
+  --rebrand-accent: var(--brand-accent, #db7900);
+  --rebrand-ink: #343638;
+  --rebrand-rule: #d7d4cc;
+  --rebrand-rule-on-dark: #55595b;
+  --rebrand-accent-on-dark: #f7931a;
+  --rebrand-paper: #f9f6ee;
+  --rebrand-warm: #f1eee5;
   --rebrand-muted: #666;
-  --rebrand-soft: #efeae2;
+  --rebrand-soft: #f1eee5;
   --btcpp-anchor-offset: 126px;
   margin: 0;
   background: var(--rebrand-paper);
@@ -64,8 +106,8 @@ body.btcpp-rebrand-page {
   width: min(1040px, calc(100% - 48px));
   max-width: none;
   margin: 36px auto 64px;
-  border-right: 1px solid var(--rebrand-ink);
-  border-left: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
   overflow-x: clip;
 }
@@ -87,7 +129,7 @@ body.btcpp-rebrand-page {
   border-radius: 0;
 }
 
-.btcpp-rebrand-page a {
+:where(.btcpp-rebrand-page) a {
   color: inherit;
 }
 
@@ -104,10 +146,10 @@ body.btcpp-rebrand-page {
   padding: 0;
   background: var(--rebrand-ink);
   color: var(--rebrand-paper);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -170,7 +212,7 @@ body.btcpp-rebrand-page {
   justify-content: space-between;
   gap: 24px;
   padding: 24px 32px;
-  border-bottom: 2px solid var(--rebrand-ink);
+  border-bottom: 2px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -197,7 +239,7 @@ body.btcpp-rebrand-page {
   display: flex;
   align-items: center;
   gap: 20px;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 500;
   text-transform: lowercase;
@@ -210,14 +252,14 @@ body.btcpp-rebrand-page {
   width: 40px;
   height: 40px;
   padding: 0;
-  border: 2px solid var(--rebrand-ink);
+  border: 2px solid #d7d4cc;
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-nav__toggle span {
@@ -265,12 +307,12 @@ body.btcpp-rebrand-page {
 .rebrand-nav__ticket {
   display: inline-block;
   background: var(--rebrand-accent);
-  color: #000;
+  color: #fff;
   padding: 10px 18px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-nav__ticket--persistent {
@@ -279,7 +321,7 @@ body.btcpp-rebrand-page {
 
 .rebrand-nav__links a:hover,
 .rebrand-nav__links a:focus-visible {
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .rebrand-hero {
@@ -324,10 +366,10 @@ body.btcpp-rebrand-page {
   display: flex;
   justify-content: space-between;
   gap: 24px;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-hero h1 {
@@ -370,7 +412,7 @@ body.btcpp-rebrand-page {
   background: transparent;
   color: #fff;
   padding: 0;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 40px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -397,19 +439,19 @@ body.btcpp-rebrand-page {
   display: inline-block;
   border: 1px solid var(--rebrand-accent);
   background: var(--rebrand-accent);
-  color: #000;
+  color: #fff;
   padding: 16px 32px;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-button.is-secondary,
 .btcpp-rebrand-page .redesign-button.is-outline {
-  border-color: var(--rebrand-ink);
+  border-color: #d7d4cc;
   background: transparent;
   color: var(--rebrand-ink);
 }
@@ -424,7 +466,7 @@ body.btcpp-rebrand-page {
 .rebrand-venue__intro,
 .btcpp-rebrand-page .redesign-section {
   padding: 72px 56px;
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -435,60 +477,130 @@ body.btcpp-rebrand-page {
   gap: 64px;
 }
 
-.rebrand-spec-list,
-.rebrand-section-label,
 .rebrand-mono-line,
 .rebrand-lineup-label,
 .btcpp-rebrand-page .redesign-kicker,
-.btcpp-rebrand-page .event-redesign-ticket__eyebrow,
+.btcpp-rebrand-page .event-redesign-ticket__title,
 .btcpp-rebrand-page .event-redesign-hotel__type {
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: 1.5px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
   line-height: 1.6;
-  text-transform: uppercase;
+  text-transform: none;
+}
+
+.rebrand-masthead {
+  padding: 28px 40px;
 }
 
 .rebrand-masthead__content {
   display: grid;
-  grid-template-columns: minmax(0, 30fr) minmax(0, 65fr);
-  align-items: start;
-  justify-content: space-between;
-  column-gap: 5%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 32px;
 }
 
-.rebrand-spec-list {
-  align-self: start;
-  color: var(--rebrand-ink);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.8;
-  text-align: left;
+.rebrand-masthead__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.rebrand-masthead__copy {
+.rebrand-masthead__facts li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
 }
 
-.rebrand-masthead__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  margin-top: 32px;
+.rebrand-masthead__facts svg {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  fill: none;
+  stroke: var(--rebrand-accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.rebrand-section-label,
+.rebrand-masthead__facts li > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rebrand-masthead__facts strong {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.rebrand-masthead__facts span,
+.rebrand-masthead__facts a {
+  color: var(--rebrand-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.rebrand-masthead__actions {
+  display: grid;
+  gap: 14px;
+  justify-items: stretch;
+}
+
+.rebrand-masthead__actions .rebrand-button {
+  box-sizing: border-box;
+  padding: 14px 28px;
+  font-size: 18px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.rebrand-masthead__participate {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+}
+
+.rebrand-masthead__participate a {
+  font-size: 14px;
+  line-height: 1.5;
+  text-decoration: none;
+}
+
+.rebrand-masthead__participate a:hover {
+  color: var(--brand-accent-text, #a65b00);
+  text-decoration: underline;
+}
+
 .btcpp-rebrand-page .redesign-kicker,
-.btcpp-rebrand-page .event-redesign-ticket__eyebrow,
+.btcpp-rebrand-page .event-redesign-ticket__title,
 .btcpp-rebrand-page .event-redesign-hotel__type {
   margin: 0 0 16px;
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
+}
+
+.btcpp-rebrand-page .rebrand-section-label {
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand-accent-text, #a65b00);
+  font: normal 600 12px/1.6 "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign {
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-warm);
 }
 
@@ -496,17 +608,17 @@ body.btcpp-rebrand-page {
   display: grid;
   grid-template-columns: minmax(320px, .82fr) minmax(0, 1.18fr);
   min-height: 430px;
-  border-bottom: 1px solid var(--rebrand-ink);
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  border-bottom: 1px solid #d7d4cc;
+  background: #fffdf8;
+  color: #343638;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__trophy {
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border-right: 1px solid rgba(246, 243, 238, .28);
-  background: #050505;
+  border-right: 1px solid rgba(249, 246, 238, .28);
+  background: #fffdf8;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__trophy img {
@@ -525,19 +637,19 @@ body.btcpp-rebrand-page {
   justify-content: center;
   flex-direction: column;
   padding: 52px 56px;
-  background: radial-gradient(circle at 100% 0%, rgba(249, 175, 94, .2), transparent 42%), var(--rebrand-ink);
+  background: radial-gradient(circle at 100% 0%, rgba(219, 121, 0, .2), transparent 42%), var(--rebrand-ink);
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__prize-callout p,
 .btcpp-rebrand-page .conf-hackathon-redesign__prize-callout span {
   margin: 0;
   color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 2px;
+  letter-spacing: normal;
   line-height: 1.3;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__prize-callout strong {
@@ -562,13 +674,13 @@ body.btcpp-rebrand-page {
   margin-top: 30px;
   border-bottom: 1px solid var(--rebrand-accent);
   color: var(--rebrand-paper);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1.2px;
+  letter-spacing: normal;
   line-height: 1.5;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__inner {
@@ -586,12 +698,12 @@ body.btcpp-rebrand-page {
 .btcpp-rebrand-page .conf-hackathon-redesign__edition {
   margin: 0 0 18px;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: normal;
   line-height: 1.4;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign h2 {
@@ -604,7 +716,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign h2 span {
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__summary {
@@ -657,14 +769,14 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__actions .rebrand-button {
-  border-color: var(--rebrand-ink);
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  border-color: #d7d4cc;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   padding: 16px 28px;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__actions .rebrand-button.is-secondary {
-  border-color: var(--rebrand-ink);
+  border-color: #d7d4cc;
   background: transparent;
   color: var(--rebrand-ink);
 }
@@ -674,19 +786,19 @@ body.btcpp-rebrand-page {
   padding-top: 4px;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__proof-kicker {
+.btcpp-rebrand-page .conf-hackathon-redesign__proof-title {
   margin: 0 0 14px;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: normal;
   line-height: 1.4;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__rows {
-  border-top: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__row {
@@ -696,14 +808,14 @@ body.btcpp-rebrand-page {
   align-items: baseline;
   min-width: 0;
   padding: 18px 0;
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   color: var(--rebrand-ink);
   text-decoration: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__place {
   color: #888;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0;
@@ -711,7 +823,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__row:first-child .conf-hackathon-redesign__place {
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__project {
@@ -769,8 +881,8 @@ body.btcpp-rebrand-page {
   overflow: hidden;
   border: 2px solid var(--rebrand-warm);
   border-radius: 50%;
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  background: #fffdf8;
+  color: #343638;
   place-items: center;
 }
 
@@ -782,7 +894,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__member > span {
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
 }
@@ -790,14 +902,14 @@ body.btcpp-rebrand-page {
 .btcpp-rebrand-page .conf-hackathon-redesign__all {
   display: inline-block;
   margin-top: 20px;
-  color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--brand-accent-text, #a65b00);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1.4px;
+  letter-spacing: normal;
   text-decoration: underline;
   text-underline-offset: 4px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__judges {
@@ -814,7 +926,7 @@ body.btcpp-rebrand-page {
   align-items: baseline;
   gap: 14px;
   padding-top: 14px;
-  border-top: 3px solid var(--rebrand-ink);
+  border-top: 3px solid #d7d4cc;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__past-judges-note strong {
@@ -828,11 +940,11 @@ body.btcpp-rebrand-page {
 
 .btcpp-rebrand-page .conf-hackathon-redesign__past-judges-note span {
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__avatars {
@@ -848,11 +960,11 @@ body.btcpp-rebrand-page {
   width: 44px;
   height: 44px;
   margin-left: -10px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   border-radius: 50%;
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
@@ -865,17 +977,18 @@ body.btcpp-rebrand-page {
 .btcpp-rebrand-page .conf-hackathon-redesign__avatars span:first-child,
 .btcpp-rebrand-page .conf-hackathon-redesign__avatars img:first-child {
   margin-left: 0;
-  background: var(--rebrand-accent);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__judges p {
   margin: 0;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: 1px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
   line-height: 1.4;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 @media (max-width: 640px) {
@@ -886,29 +999,16 @@ body.btcpp-rebrand-page {
   }
 }
 
-.rebrand-masthead p {
-  margin: 0;
-  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
-  font-size: clamp(30px, 3.4vw, 40px);
-  letter-spacing: 0;
-  line-height: 1.15;
-}
-
-.rebrand-masthead p span {
-  color: var(--rebrand-accent);
-  font-style: italic;
-}
-
 .rebrand-glance {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
 .rebrand-glance > div {
   padding: 40px 32px;
-  border-right: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
 }
 
 .rebrand-glance > div:last-child {
@@ -927,16 +1027,16 @@ body.btcpp-rebrand-page {
   display: block;
   margin-top: 8px;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
-  letter-spacing: .5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-important-dates {
   display: grid;
   grid-template-columns: minmax(300px, .7fr) minmax(0, 1.3fr);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -944,13 +1044,13 @@ body.btcpp-rebrand-page {
   container-type: inline-size;
   min-width: 0;
   padding: 52px 48px;
-  border-right: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
   background: var(--rebrand-accent);
-  color: #090909;
+  color: #fff;
 }
 
 .rebrand-important-dates__intro .rebrand-section-label {
-  color: #090909;
+  color: #fff;
 }
 
 .rebrand-important-dates__intro h2 {
@@ -990,7 +1090,7 @@ body.btcpp-rebrand-page {
   align-items: center;
   min-height: 116px;
   padding: 22px 28px;
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   color: var(--rebrand-ink);
   text-decoration: none;
   transition: background-color .14s ease, color .14s ease;
@@ -1007,13 +1107,13 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-important-date.is-next {
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  background: #fffdf8;
+  color: #343638;
 }
 
 .rebrand-important-date.is-next:hover,
 .rebrand-important-date.is-next:focus-visible {
-  background: #090909;
+  background: #fffdf8;
 }
 
 .rebrand-important-date.is-past {
@@ -1024,11 +1124,11 @@ body.btcpp-rebrand-page {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 9px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: .8px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-important-date__status i {
@@ -1045,8 +1145,8 @@ body.btcpp-rebrand-page {
 
 .rebrand-important-date.is-next .rebrand-important-date__status i {
   border-color: var(--rebrand-accent);
-  background: var(--rebrand-accent);
-  box-shadow: 0 0 0 4px rgba(249, 175, 94, .14);
+  background: var(--brand-accent-compact, #b35f00);
+  box-shadow: 0 0 0 4px rgba(219, 121, 0, .14);
 }
 
 .rebrand-important-date__date strong,
@@ -1057,10 +1157,10 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-important-date__date strong {
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: .4px;
-  text-transform: uppercase;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-important-date__date span,
@@ -1133,7 +1233,7 @@ body.btcpp-rebrand-page {
   line-height: 1.3;
 }
 
-.rebrand-venue__intro p {
+.rebrand-venue__intro p:not(.rebrand-section-label) {
   margin: 0;
   color: #333;
   font-size: 17px;
@@ -1148,9 +1248,9 @@ body.btcpp-rebrand-page {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  border-bottom: 1px solid var(--rebrand-ink);
-  border-top: 1px solid var(--rebrand-ink);
-  background: var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
+  border-top: 1px solid #d7d4cc;
+  background: #fffdf8;
 }
 
 .rebrand-venue-grid img {
@@ -1161,7 +1261,7 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-map {
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .rebrand-map iframe {
@@ -1176,8 +1276,8 @@ body.btcpp-rebrand-page {
   display: grid;
   gap: 0;
   margin-top: 32px;
-  border-top: 1px solid var(--rebrand-ink);
-  border-left: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
 }
 
 .rebrand-featured-speakers,
@@ -1193,8 +1293,8 @@ body.btcpp-rebrand-page {
 .rebrand-speaker-card,
 .btcpp-rebrand-page .event-redesign-hotel,
 .btcpp-rebrand-page .event-redesign-ticket {
-  border-right: 1px solid var(--rebrand-ink);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
   text-decoration: none;
 }
@@ -1226,7 +1326,7 @@ body.btcpp-rebrand-page {
 .rebrand-speaker-card__profile:focus-visible + div h3 a,
 .rebrand-speaker-card h3 a:hover,
 .rebrand-speaker-card h3 a:focus-visible {
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .rebrand-featured-card div {
@@ -1235,10 +1335,10 @@ body.btcpp-rebrand-page {
 
 .rebrand-featured-card p {
   margin: 0 0 10px;
-  color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: 1px;
+  color: var(--brand-accent-text, #a65b00);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
 }
 
 .rebrand-featured-card h3 {
@@ -1252,11 +1352,11 @@ body.btcpp-rebrand-page {
   display: block;
   margin-top: 10px;
   color: var(--rebrand-ink);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.35;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-featured-card span {
@@ -1285,13 +1385,13 @@ body.btcpp-rebrand-page {
   width: 56px;
   height: 56px;
   object-fit: cover;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
 }
 
 .rebrand-speaker-card span {
-  color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  color: var(--brand-accent-text, #a65b00);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
 }
 
 .rebrand-speaker-card h3,
@@ -1322,20 +1422,20 @@ body.btcpp-rebrand-page {
   align-items: center;
   min-height: 44px;
   padding: 0 16px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   background: var(--rebrand-accent);
-  color: #000;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #fff;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-speaker-directory {
   min-height: calc(100vh - 82px);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -1343,12 +1443,83 @@ body.btcpp-rebrand-page {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
-  border-top: 1px solid var(--rebrand-ink);
-  border-left: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
 }
 
 .rebrand-speaker-directory-card {
   min-width: 0;
+}
+
+/* Sponsor affiliations stay attached to the portrait at every card size. */
+.rebrand-featured-card .rebrand-featured-card__profile,
+.rebrand-speaker-card .rebrand-speaker-card__profile {
+  position: relative;
+  display: block;
+  min-width: 0;
+  padding: 0;
+}
+
+.rebrand-featured-card__profile > img,
+.rebrand-speaker-card__profile > img {
+  display: block;
+}
+
+:is(.rebrand-featured-card, .rebrand-speaker-card) .rebrand-attendee-sponsors {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: calc(100% - 20px);
+  margin: 0;
+}
+
+:is(.rebrand-featured-card, .rebrand-speaker-card) .rebrand-attendee-sponsor {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 46px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 7px;
+  border: 1px solid var(--brand-line, #d7d4cc);
+  border-radius: 7px;
+  background: var(--brand-surface, #fffdf8);
+  box-shadow: 0 2px 8px rgba(52, 54, 56, .12);
+}
+
+:is(.rebrand-featured-card, .rebrand-speaker-card) .rebrand-attendee-sponsor--dark-logo {
+  background: var(--brand-accent-compact, #b35f00);
+  border-color: var(--brand-accent-compact, #b35f00);
+}
+
+:is(.rebrand-featured-card, .rebrand-speaker-card) .rebrand-attendee-sponsor img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: auto;
+  margin: 0;
+  border: 0;
+  object-fit: contain;
+  filter: none;
+}
+
+.rebrand-speaker-card .rebrand-attendee-sponsors {
+  right: -5px;
+  bottom: -5px;
+  gap: 2px;
+  max-width: 66px;
+}
+
+.rebrand-speaker-card .rebrand-attendee-sponsor {
+  width: 32px;
+  height: 24px;
+  padding: 3px;
+  border-radius: 4px;
 }
 
 .rebrand-featured-card .rebrand-speaker-directory-card__logo {
@@ -1375,16 +1546,16 @@ body.btcpp-rebrand-page {
   align-items: center;
   gap: 6px;
   min-height: 28px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   padding: 0 8px;
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: .06em;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .speaker-link-icon {
@@ -1427,14 +1598,14 @@ body.btcpp-rebrand-page {
 
 .rebrand-speaker-directory-card__links a:hover,
 .rebrand-speaker-directory-card__links a:focus-visible {
-  background: var(--rebrand-accent);
-  color: #000;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .whois-page {
-  --whois-ink: #0a0a0a;
-  --whois-paper: #f6f3ee;
-  --whois-accent: #f9af5e;
+  --whois-ink: #343638;
+  --whois-paper: #f9f6ee;
+  --whois-accent: var(--brand-accent, #db7900);
   background: #e9e4da;
 }
 
@@ -1447,8 +1618,8 @@ body.btcpp-rebrand-page {
   color: var(--whois-paper);
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -1472,14 +1643,14 @@ body.btcpp-rebrand-page {
   max-width: 1240px;
   min-height: 100vh;
   margin: 0 auto;
-  border-right: 1px solid var(--whois-ink);
-  border-left: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
   background: var(--whois-paper);
   color: var(--whois-ink);
 }
 
 .whois-page:has(.archive-rain) .whois-shell {
-  background: rgba(246, 243, 238, .70);
+  background: rgba(249, 246, 238, .70);
 }
 
 .whois-section-tag {
@@ -1487,17 +1658,17 @@ body.btcpp-rebrand-page {
   color: #666;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
-  gap: 40px 56px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
   align-items: end;
   padding: 56px 40px 36px;
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-hero h1 {
@@ -1517,6 +1688,7 @@ body.btcpp-rebrand-page {
 }
 
 .whois-hero__copy {
+  max-width: 70ch;
   margin: 0;
   color: #555;
   font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
@@ -1531,7 +1703,7 @@ body.btcpp-rebrand-page {
   align-items: center;
   gap: 12px;
   margin-top: 8px;
-  border: 1px solid var(--whois-ink);
+  border: 1px solid #d7d4cc;
   background: #fff;
   padding: 4px 4px 4px 16px;
 }
@@ -1559,14 +1731,14 @@ body.btcpp-rebrand-page {
   align-items: center;
   justify-content: center;
   min-height: 42px;
-  border: 1px solid var(--whois-ink);
+  border: 1px solid #d7d4cc;
   padding: 0 14px;
   background: var(--whois-accent);
-  color: #000;
+  color: #fff;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-decoration: none;
 }
 
@@ -1585,7 +1757,7 @@ body.btcpp-rebrand-page {
   gap: 10px;
   flex-wrap: wrap;
   padding: 14px 40px;
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-filters__group {
@@ -1603,8 +1775,8 @@ body.btcpp-rebrand-page {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-filters__group a,
@@ -1612,42 +1784,42 @@ body.btcpp-rebrand-page {
   display: inline-flex;
   min-height: 30px;
   align-items: center;
-  border: 1px solid var(--whois-ink);
+  border: 1px solid #d7d4cc;
   background: #fff;
   color: var(--whois-ink);
   padding: 0 10px;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .whois-filters__group a:hover,
 .whois-filters__group a:focus-visible,
 .whois-filters__group a.is-active {
-  background: var(--whois-accent);
-  color: #000;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .whois-filters__rule {
   width: 1px;
   height: 22px;
   margin: 0 4px;
-  background: var(--whois-ink);
+  background: #fff0e3;
 }
 
 .whois-page a.whois-filters__clear {
   margin: 0;
-  background: var(--whois-ink);
-  color: var(--whois-paper);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .whois-page a.whois-filters__clear:hover,
 .whois-page a.whois-filters__clear:focus-visible {
   background: var(--whois-accent);
-  color: var(--whois-ink);
+  color: #fff;
   outline: 0;
 }
 
@@ -1662,7 +1834,7 @@ body.btcpp-rebrand-page {
   align-content: start;
   gap: 28px;
   padding: 24px;
-  border-right: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
 }
 
 .whois-rail p {
@@ -1670,8 +1842,8 @@ body.btcpp-rebrand-page {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-rail span,
@@ -1682,28 +1854,28 @@ body.btcpp-rebrand-page {
   min-height: 30px;
   align-items: center;
   margin: 8px 0 0;
-  border: 1px solid var(--whois-ink);
+  border: 1px solid #d7d4cc;
   padding: 0 10px;
   background: #fff;
   color: var(--whois-ink);
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .whois-rail a:hover,
 .whois-rail a:focus-visible,
 .whois-rail a.is-active {
-  background: var(--whois-accent);
-  color: #000;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .whois-rail__clear {
-  background: var(--whois-ink);
-  color: var(--whois-paper);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .whois-rail small {
@@ -1725,7 +1897,7 @@ body.btcpp-rebrand-page {
   align-items: center;
   flex-wrap: wrap;
   padding: 18px 56px;
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-results__bar strong,
@@ -1743,7 +1915,7 @@ body.btcpp-rebrand-page {
 .whois-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-left: 1px solid var(--whois-ink);
+  border-left: 1px solid #d7d4cc;
   margin-left: -1px;
 }
 
@@ -1752,8 +1924,8 @@ body.btcpp-rebrand-page {
   min-height: 200px;
   flex-direction: column;
   justify-content: space-between;
-  border-right: 1px solid var(--whois-ink);
-  border-bottom: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   background: #fff;
   color: var(--whois-ink);
   padding: 18px;
@@ -1767,7 +1939,7 @@ body.btcpp-rebrand-page {
 .whois-card:hover,
 .whois-card:focus-visible {
   background: var(--whois-accent);
-  color: #000;
+  color: #fff;
   outline: 0;
 }
 
@@ -1793,11 +1965,12 @@ body.btcpp-rebrand-page {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--whois-ink);
-  color: var(--whois-accent);
+  background: #fff0e3;
+  color: #a65b00;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 16px;
   font-weight: 800;
+  border-color: #d7d4cc;
 }
 
 .whois-card__photo-fallback[hidden],
@@ -1811,7 +1984,7 @@ body.btcpp-rebrand-page {
 
 .whois-card p {
   margin: 0 0 4px;
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   font-weight: 700;
@@ -1820,7 +1993,7 @@ body.btcpp-rebrand-page {
 
 .whois-card:hover p,
 .whois-card:focus-visible p {
-  color: #000;
+  color: #fff;
 }
 
 .whois-card h2 {
@@ -1856,7 +2029,7 @@ body.btcpp-rebrand-page {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .whois-card__stats {
@@ -1872,13 +2045,19 @@ body.btcpp-rebrand-page {
   color: #666;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
-  letter-spacing: .8px;
+  letter-spacing: normal;
 }
 
 .whois-card__stats b {
   display: block;
   color: var(--whois-ink);
   font-size: 18px;
+}
+
+.whois-card:is(:hover, :focus-visible) .whois-card__top span:not(.whois-card__photo-fallback),
+.whois-card:is(:hover, :focus-visible) .whois-card__stats span,
+.whois-card:is(:hover, :focus-visible) .whois-card__stats b {
+  color: #fff;
 }
 
 .whois-empty {
@@ -1906,12 +2085,12 @@ body.btcpp-rebrand-page {
   color: #888;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-directory__footer {
-  border-top: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
 }
 
 .whois-profile-dossier {
@@ -1921,7 +2100,7 @@ body.btcpp-rebrand-page {
 
 .whois-profile-identity {
   min-width: 0;
-  border-right: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
 }
 
 .whois-profile-archive {
@@ -1929,13 +2108,13 @@ body.btcpp-rebrand-page {
 }
 
 .whois-profile-record {
-  border-top: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
 }
 
 .whois-profile-breadcrumb {
   display: flex;
   padding: 18px 40px;
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--whois-paper);
 }
 
@@ -1954,14 +2133,14 @@ body.btcpp-rebrand-page {
 
 .whois-profile-breadcrumb a:hover,
 .whois-profile-breadcrumb a:focus-visible {
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .whois-profile-portrait {
   position: relative;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  background: var(--whois-ink);
+  background: #f1eee5;
 }
 
 .whois-profile-portrait img {
@@ -1976,9 +2155,10 @@ body.btcpp-rebrand-page {
   position: absolute;
   inset: 0;
   display: grid;
-  background: linear-gradient(145deg, #191714, #050505);
-  color: #8f877d;
+  background: linear-gradient(rgba(52, 54, 56, .06) 1px, transparent 1px), linear-gradient(90deg, rgba(52, 54, 56, .06) 1px, transparent 1px), #f1eee5;
+  color: #65635e;
   place-items: center;
+  background-size: 28px 28px;
 }
 
 .whois-profile-photo-fallback span {
@@ -1987,14 +2167,16 @@ body.btcpp-rebrand-page {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   letter-spacing: 1px;
+  border-color: #8b8880;
+  background: #f9f6ee;
 }
 
 .whois-profile-member-since {
   position: absolute;
   top: 12px;
   left: 12px;
-  background: var(--whois-accent);
-  color: #000;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   padding: 4px 9px;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
@@ -2023,7 +2205,7 @@ body.btcpp-rebrand-page {
 .whois-profile-title span {
   display: block;
   margin-top: 8px;
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 15px;
   font-weight: 700;
@@ -2034,8 +2216,8 @@ body.btcpp-rebrand-page {
   color: #666;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-  letter-spacing: .5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-profile-bio-copy {
@@ -2059,9 +2241,9 @@ body.btcpp-rebrand-page {
   min-height: 40px;
   align-items: center;
   margin-top: 18px;
-  border: 1px solid var(--whois-ink);
+  border: 1px solid #d7d4cc;
   background: var(--whois-accent);
-  color: #000;
+  color: #fff;
   padding: 0 14px;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
@@ -2074,15 +2256,15 @@ body.btcpp-rebrand-page {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 28px;
-  border-top: 1px solid var(--whois-ink);
-  border-left: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
   padding-top: 0;
 }
 
 .whois-profile-stats div {
   min-width: 0;
-  border-right: 1px solid var(--whois-ink);
-  border-bottom: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   padding: 15px 12px;
 }
 
@@ -2100,12 +2282,12 @@ body.btcpp-rebrand-page {
   color: #777;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-profile-section {
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-section-head {
@@ -2133,24 +2315,24 @@ body.btcpp-rebrand-page {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-decoration: underline;
-  text-transform: uppercase;
+  text-transform: none;
   text-underline-offset: 4px;
 }
 
 .whois-event-badges {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  border-top: 1px solid var(--whois-ink);
-  border-left: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
 }
 
 .whois-credential-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--whois-ink);
-  border-left: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
 }
 
 .whois-credential {
@@ -2159,8 +2341,8 @@ body.btcpp-rebrand-page {
   gap: 12px;
   min-width: 0;
   min-height: 184px;
-  border-right: 1px solid var(--whois-ink);
-  border-bottom: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   padding: 18px;
   background: #fffdf7;
 }
@@ -2176,8 +2358,8 @@ body.btcpp-rebrand-page {
 .whois-credential > div:last-child { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .whois-credential h3 { margin: 0 0 5px; font-size: 17px; line-height: 1.12; }
 .whois-credential p { margin: 0 0 8px; color: #666; font-size: 12px; line-height: 1.4; }
-.whois-credential-issuer { margin: 0 0 8px; color: #777; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.whois-credential-status { display: inline-flex; width: max-content; max-width: 100%; margin-top: auto; padding: 3px 7px; background: var(--whois-accent); color: #000; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 800; letter-spacing: .05em; line-height: 1.3; text-transform: lowercase; }
+.whois-credential-issuer { margin: 0 0 8px; color: #777; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 700; letter-spacing: normal; text-transform: none; }
+.whois-credential-status { display: inline-flex; width: max-content; max-width: 100%; margin-top: auto; padding: 3px 7px; background: var(--brand-accent-compact, #b35f00); color: #fff; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 800; letter-spacing: .05em; line-height: 1.3; text-transform: lowercase; }
 .whois-credential-actions { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 9px; color: #666; font-size: 10px; line-height: 1.35; }
 .whois-credential a { color: var(--whois-ink); font-size: 11px; font-weight: 800; text-underline-offset: 3px; }
 .whois-credential.is-pending { background: #fff4e4; }
@@ -2232,7 +2414,7 @@ body.btcpp-rebrand-page {
   overflow: hidden;
   border: 1px solid rgba(10, 10, 10, .48);
   border-radius: 0;
-  background: #f6f3ee;
+  background: #f9f6ee;
   box-shadow:
     5px 6px 0 rgba(10, 10, 10, .16),
     0 18px 26px -18px rgba(10, 10, 10, .72);
@@ -2350,7 +2532,7 @@ body.btcpp-rebrand-page {
 
 .whois-page .whois-credential-section .whois-credential-issuer__logo > span {
   display: grid;
-  background: var(--whois-ink);
+  background: #fff0e3;
   color: var(--whois-accent);
   font-size: 8px;
   font-weight: 900;
@@ -2486,7 +2668,7 @@ body.btcpp-rebrand-page {
   align-items: center;
   gap: 28px;
   padding: 34px 40px;
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-badges-hero__identity {
@@ -2520,9 +2702,10 @@ body.btcpp-rebrand-page {
   display: grid;
   flex: 0 0 70px;
   overflow: hidden;
-  border: 1px solid var(--whois-ink);
-  background: var(--whois-accent);
+  border: 1px solid #d7d4cc;
+  background: var(--brand-accent-compact, #b35f00);
   place-items: center;
+  color: #fff;
 }
 
 .whois-badges-hero__avatar img { object-fit: cover; }
@@ -2531,9 +2714,9 @@ body.btcpp-rebrand-page {
 .whois-page a.whois-badges-manage {
   flex: 0 0 auto;
   padding: 11px 14px;
-  border: 1px solid var(--whois-ink);
-  background: var(--whois-ink);
-  color: var(--whois-paper);
+  border: 1px solid #d7d4cc;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 10px;
   font-weight: 800;
@@ -2542,11 +2725,11 @@ body.btcpp-rebrand-page {
 }
 
 .whois-badges-featured {
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-badge-collection > .whois-section-head {
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-badge-issuer-groups {
@@ -2555,7 +2738,7 @@ body.btcpp-rebrand-page {
 
 .whois-badge-issuer-group {
   width: 100%;
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-badge-issuer-group__head {
@@ -2598,7 +2781,7 @@ body.btcpp-rebrand-page {
 }
 
 .whois-badge-issuer-group__logo img { padding: 3px; object-fit: contain; }
-.whois-badge-issuer-group__logo > span { display: grid; background: var(--whois-ink); color: var(--whois-accent); font-size: 10px; font-weight: 900; place-items: center; }
+.whois-badge-issuer-group__logo > span { display: grid; background: #fff0e3; color: var(--whois-accent); font-size: 10px; font-weight: 900; place-items: center; }
 .whois-badge-issuer-group__head > a > span:last-child,
 .whois-badge-issuer-group__head > div > span:last-child { display: flex; flex-direction: column; gap: 2px; }
 .whois-badge-issuer-group__head small,
@@ -2645,9 +2828,9 @@ body.btcpp-rebrand-page {
 .profile-badges-shell {
   width: min(960px, calc(100% - 40px));
   margin: 36px auto 64px;
-  border: 1px solid #171411;
+  border: 1px solid #d7d4cc;
   background: #f8f4ed;
-  color: #171411;
+  color: #343638;
 }
 
 .profile-badges-breadcrumb {
@@ -2655,7 +2838,7 @@ body.btcpp-rebrand-page {
   justify-content: space-between;
   gap: 18px;
   padding: 15px 24px;
-  border-bottom: 1px solid #171411;
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .profile-badges-breadcrumb a {
@@ -2669,7 +2852,7 @@ body.btcpp-rebrand-page {
 
 .profile-badges-hero {
   padding: 38px 40px;
-  border-bottom: 1px solid #171411;
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .profile-badges-hero h1 { margin: 0; font-size: clamp(38px, 7vw, 64px); line-height: .95; }
@@ -2678,7 +2861,7 @@ body.btcpp-rebrand-page {
 .profile-badges-flash {
   margin: 22px 24px 0;
   padding: 12px 14px;
-  border: 1px solid #171411;
+  border: 1px solid #d7d4cc;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
@@ -2689,7 +2872,7 @@ body.btcpp-rebrand-page {
 
 .profile-badges-section {
   padding: 28px 40px 34px;
-  border-bottom: 1px solid #171411;
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .profile-badges-section:last-child { border-bottom: 0; }
@@ -2700,7 +2883,7 @@ body.btcpp-rebrand-page {
 .profile-badges-section > header p { margin: 0; color: #756c63; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; text-align: right; text-transform: lowercase; }
 
 .profile-badges-list {
-  border-top: 1px solid #171411;
+  border-top: 1px solid #d7d4cc;
 }
 
 .profile-badge-control {
@@ -2717,7 +2900,7 @@ body.btcpp-rebrand-page {
 .profile-badge-control__position { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; text-align: center; }
 .profile-badge-control__art,
 .profile-badge-control__art img { width: 58px; height: 58px; }
-.profile-badge-control__art { overflow: hidden; border: 1px solid #655e57; box-shadow: 3px 3px 0 rgba(23, 20, 17, .13); }
+.profile-badge-control__art { overflow: hidden; border: 1px solid #d7d4cc; box-shadow: 3px 3px 0 rgba(23, 20, 17, .13); }
 .profile-badge-control__art img { display: block; object-fit: cover; }
 .profile-badge-control__copy { min-width: 0; }
 .profile-badge-control__copy h3 { overflow: hidden; margin: 0 0 4px; font-size: 17px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
@@ -2727,9 +2910,9 @@ body.btcpp-rebrand-page {
 .profile-badge-control__actions button {
   min-height: 34px;
   padding: 0 11px;
-  border: 1px solid #171411;
-  background: #171411;
-  color: #fffaf2;
+  border: 1px solid #d7d4cc;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 9px;
   font-weight: 800;
@@ -2737,8 +2920,8 @@ body.btcpp-rebrand-page {
   cursor: pointer;
 }
 .profile-badge-control__actions button:hover:not(:disabled),
-.profile-badge-control__actions button:focus-visible { background: #f9af5e; color: #171411; }
-.profile-badge-control__actions button.is-secondary { background: transparent; color: #171411; }
+.profile-badge-control__actions button:focus-visible { background: var(--brand-accent-compact, #b35f00); color: #fff; }
+.profile-badge-control__actions button.is-secondary { background: transparent; color: #343638; }
 .profile-badge-control__actions button.is-danger { border-color: #9a3224; background: transparent; color: #8d2c20; }
 .profile-badge-control__actions button:disabled { opacity: .28; cursor: not-allowed; }
 .profile-badges-empty { margin: 0; padding: 18px; border: 1px dashed #8b8177; color: #6d645c; font-family: "Source Serif 4", Georgia, serif; }
@@ -2781,7 +2964,7 @@ body.btcpp-rebrand-page {
 .organization-badge-grant-form { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(260px, 1.3fr) auto; gap: 14px; align-items: end; margin: 24px 0 32px; padding: 20px; border: 1px solid #c9beb2; background: #fffaf3; }
 .organization-badge-grant-form label span { display: block; margin-bottom: 7px; font-size: 11px; font-weight: 800; text-transform: lowercase; }
 .organization-badge-grant-form select, .organization-badge-grant-form input { width: 100%; min-height: 46px; border: 1px solid #7e756d; background: #fff; color: inherit; }
-.organization-badge-grant-form button { min-height: 46px; padding: 0 20px; border: 1px solid #28231f; background: #28231f; color: white; font-weight: 800; }
+.organization-badge-grant-form button { min-height: 46px; padding: 0 20px; border: 1px solid #d7d4cc; background: var(--brand-accent-compact, #b35f00); color: #fff; font-weight: 800; }
 .organization-badge-grant-list { display: grid; gap: 10px; }
 .organization-badge-grant-list article { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px; border: 1px solid #c9beb2; background: #fffaf3; }
 .organization-badge-grant-list article > img { width: 58px; aspect-ratio: 1; object-fit: cover; }
@@ -2790,7 +2973,7 @@ body.btcpp-rebrand-page {
 .organization-badge-grant-list small { color: #73529b; font-size: 10px; font-weight: 800; text-transform: lowercase; }
 .organization-badge-grant-list span { margin-top: 4px; color: #70665d; font-size: 12px; }
 .organization-badge-grant-actions { display: flex; gap: 8px; align-items: center; }
-.organization-badge-grant-actions a, .organization-badge-grant-actions button { min-height: 40px; padding: 9px 12px; border: 1px solid #28231f; background: transparent; color: inherit; font-size: 11px; font-weight: 800; text-decoration: none; }
+.organization-badge-grant-actions a, .organization-badge-grant-actions button { min-height: 40px; padding: 9px 12px; border: 1px solid #d7d4cc; background: transparent; color: inherit; font-size: 11px; font-weight: 800; text-decoration: none; }
 @media (max-width: 760px) {
   .organization-badge-grant-form { grid-template-columns: 1fr; padding: 15px; }
   .organization-badge-grant-list article { grid-template-columns: 48px minmax(0, 1fr); align-items: start; }
@@ -2804,8 +2987,8 @@ body.btcpp-rebrand-page {
   min-height: 116px;
   flex-direction: column;
   gap: 8px;
-  border-right: 1px solid var(--whois-ink);
-  border-bottom: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   color: var(--whois-ink);
   padding: 18px 16px;
   text-decoration: none;
@@ -2854,23 +3037,23 @@ body.btcpp-rebrand-page {
 
 .whois-profile-empty {
   margin: 0;
-  border-top: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
   padding: 18px 40px 28px;
   color: #777;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-  letter-spacing: .5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-project-list {
-  border-top: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
 }
 
 .whois-project-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 260px;
-  border-bottom: 1px solid var(--whois-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .whois-project-row:last-child {
@@ -2879,7 +3062,7 @@ body.btcpp-rebrand-page {
 
 .whois-project-row__main {
   min-width: 0;
-  border-right: 1px solid var(--whois-ink);
+  border-right: 1px solid #d7d4cc;
   padding: 24px 40px;
 }
 
@@ -2905,18 +3088,18 @@ body.btcpp-rebrand-page {
 
 .whois-project-row__title h3 a:hover,
 .whois-project-row__title h3 a:focus-visible {
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .whois-project-row__title > span {
   background: var(--whois-accent);
-  color: #000;
+  color: #fff;
   padding: 4px 8px;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   font-weight: 800;
   line-height: 1.2;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .whois-project-row__edition {
@@ -2929,12 +3112,12 @@ body.btcpp-rebrand-page {
   font-size: 11px;
   font-weight: 700;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .whois-project-row__edition a:hover,
 .whois-project-row__edition a:focus-visible {
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .whois-project-row__description {
@@ -2967,11 +3150,11 @@ body.btcpp-rebrand-page {
   font-weight: 700;
   line-height: 1.2;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .whois-project-row__links a {
-  border-color: var(--whois-ink);
+  border-color: #d7d4cc;
   background: #efeae1;
   color: var(--whois-ink);
 }
@@ -2979,14 +3162,14 @@ body.btcpp-rebrand-page {
 .whois-project-row__links a:hover,
 .whois-project-row__links a:focus-visible,
 .whois-project-row__links .is-project {
-  background: var(--whois-ink);
-  color: var(--whois-paper);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .whois-project-row__links .is-project:hover,
 .whois-project-row__links .is-project:focus-visible {
-  background: var(--whois-accent);
-  color: #000;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .whois-project-row__team {
@@ -3020,7 +3203,7 @@ body.btcpp-rebrand-page {
 
 .whois-project-row__team a:hover,
 .whois-project-row__team a:focus-visible {
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .whois-project-row__avatar,
@@ -3036,11 +3219,12 @@ body.btcpp-rebrand-page {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: var(--whois-ink);
-  color: var(--whois-accent);
+  background: #fff0e3;
+  color: #a65b00;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 9px;
   font-weight: 800;
+  border-color: #d7d4cc;
 }
 
 .whois-project-row__avatar > span {
@@ -3071,12 +3255,12 @@ body.btcpp-rebrand-page {
 }
 
 .whois-project-row__team em {
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
   font-style: normal;
 }
 
 .whois-talk-list {
-  border-top: 1px solid var(--whois-ink);
+  border-top: 1px solid #d7d4cc;
 }
 
 .whois-talk-row {
@@ -3106,7 +3290,7 @@ body.btcpp-rebrand-page {
   width: 86px;
   height: 86px;
   flex: 0 0 86px;
-  border: 1px solid var(--whois-ink);
+  border: 1px solid #d7d4cc;
 }
 
 .whois-talk-row__visual {
@@ -3122,8 +3306,8 @@ body.btcpp-rebrand-page {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--whois-accent);
-  color: #000;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 17px;
   font-weight: 800;
@@ -3132,12 +3316,12 @@ body.btcpp-rebrand-page {
 .whois-talk-row__type {
   display: block;
   margin-bottom: 4px;
-  color: var(--whois-accent);
+  color: var(--brand-accent-text, #a65b00);
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .whois-talk-row__type a {
@@ -3196,7 +3380,7 @@ body.btcpp-rebrand-page {
 .whois-talk-row__actions span {
   color: #999;
   font-size: 11px;
-  text-transform: uppercase;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -3204,14 +3388,14 @@ body.btcpp-rebrand-page {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  border: 1px solid var(--whois-ink);
+  border: 1px solid #d7d4cc;
   padding: 0 8px;
   background: #fff;
   color: var(--whois-ink);
   font-size: 10px;
   font-weight: 800;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .whois-talk-row__actions a.is-watch {
@@ -3259,7 +3443,7 @@ body.btcpp-rebrand-page {
     width: 100%;
     min-height: 52px;
     flex-basis: auto;
-    border: 1px solid var(--whois-ink);
+    border: 1px solid #8b8880;
     background: #fff;
     padding: 12px 14px 12px 40px;
   }
@@ -3300,7 +3484,8 @@ body.btcpp-rebrand-page {
   .whois-profile-portrait {
     border-right: 0;
     border-bottom: 1px solid var(--whois-ink);
-  }
+  background: #f1eee5;
+}
 
   .whois-profile-portrait img {
     aspect-ratio: 1 / 1;
@@ -3429,10 +3614,10 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page #tickets {
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
-  padding: 96px 56px;
-  border-bottom: 1px solid var(--rebrand-ink);
+  background: #fffdf8;
+  color: #343638;
+  padding: 56px 40px;
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .rebrand-tickets__inner {
@@ -3440,18 +3625,31 @@ body.btcpp-rebrand-page {
   margin: 0 auto;
 }
 
+.btcpp-rebrand-page #tickets .rebrand-tickets__countdown {
+  justify-self: end;
+  margin: 0;
+  color: var(--rebrand-paper);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: clamp(16px, 1.8vw, 22px);
+  font-style: normal;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  text-align: right;
+}
+
 .rebrand-tickets__intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, .75fr);
-  align-items: end;
-  gap: 64px;
-  margin-bottom: 56px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: last baseline;
+  gap: 32px;
+  margin-bottom: 24px;
 }
 
 .rebrand-tickets__intro h2 {
   margin: 0;
   color: var(--rebrand-paper);
-  font-size: clamp(64px, 8vw, 112px);
+  font-size: clamp(56px, 6vw, 88px);
   font-weight: 700;
   line-height: .9;
 }
@@ -3474,44 +3672,48 @@ body.btcpp-rebrand-page {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
   margin-top: 0;
-  background: #333;
+  background: var(--rebrand-rule-on-dark);
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket {
   position: relative;
   display: flex;
-  min-height: 360px;
+  min-height: 0;
   flex-direction: column;
   justify-content: space-between;
-  gap: 32px;
-  padding: 48px 40px;
+  gap: 20px;
+  padding: 32px 28px;
   border: 0;
   border-radius: 0;
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  background: #fffdf8;
+  color: #343638;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured {
-  background: var(--rebrand-accent);
-  color: #000;
+  border: 2px solid var(--rebrand-accent);
+  background: var(--rebrand-paper);
+  color: var(--rebrand-ink);
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket--sold-out {
   grid-column: 1 / -1;
 }
 
-.btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured::after {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  padding: 4px 8px;
-  background: #000;
-  color: var(--rebrand-accent);
-  content: "★ RECOMMENDED";
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
+.btcpp-rebrand-page #tickets :is(.event-redesign-ticket--standard, .event-redesign-ticket--supporter) .event-redesign-ticket__price > span:not(.event-redesign-ticket__compare, .event-redesign-ticket__availability) {
+  flex-basis: 100%;
+}
+
+/* Keep a single primary option full width when no supporter tier is configured. */
+.btcpp-rebrand-page #tickets .event-redesign-tickets:not(:has(> .event-redesign-ticket--supporter)) > .event-redesign-ticket--standard {
+  grid-column: 1 / -1;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-tickets:has(> .event-redesign-ticket--supporter) > .event-redesign-ticket--sold-out {
+  grid-column: auto;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured .event-redesign-ticket__compare {
+  color: inherit;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket h3,
@@ -3519,14 +3721,14 @@ body.btcpp-rebrand-page {
   color: inherit;
 }
 
-.btcpp-rebrand-page #tickets .event-redesign-ticket__eyebrow {
-  margin: 0 0 20px;
-  font-family: "IBM Plex Mono", monospace;
+.btcpp-rebrand-page #tickets .event-redesign-ticket__title {
+  margin: 0 0 12px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: normal;
   opacity: .72;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .event-redesign-ticket__price {
@@ -3537,50 +3739,71 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .event-redesign-ticket__price strong {
-  font-size: clamp(72px, 8vw, 112px);
+  font-size: clamp(64px, 7vw, 96px);
   font-weight: 700;
   line-height: .9;
 }
 
-.btcpp-rebrand-page .event-redesign-ticket__price span {
-  font-family: "IBM Plex Mono", monospace;
+.btcpp-rebrand-page .event-redesign-ticket__price span:not(.event-redesign-ticket__compare) {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
   opacity: .72;
 }
 
+.btcpp-rebrand-page #tickets .event-redesign-ticket__price .event-redesign-ticket__availability {
+  margin-left: auto;
+  font-size: 14px;
+  line-height: 1.3;
+  text-align: right;
+}
+
 .btcpp-rebrand-page .event-redesign-ticket__compare {
-  color: rgba(0, 0, 0, .38);
+  color: inherit;
   font-size: clamp(34px, 4vw, 52px);
   font-weight: 700;
+  line-height: 1;
+  opacity: 1;
   text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket__summary {
   max-width: 420px;
-  margin-top: 20px;
+  margin-top: 14px;
   font-family: "Source Serif 4", Georgia, serif;
-  font-size: 22px;
+  font-size: 20px;
   font-style: italic;
   line-height: 1.3;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket--local {
-  grid-column: 1 / -1;
-  display: grid;
+  grid-column: auto;
+  display: flex;
   min-height: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 32px;
-  padding: 28px 40px;
+  gap: 16px;
+  padding: 24px;
   border: 2px solid var(--rebrand-accent);
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);
 }
 
+.btcpp-rebrand-page #tickets .event-redesign-ticket__compact-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 20px;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__compact-copy {
+  min-width: 0;
+}
+
 .btcpp-rebrand-page #tickets .event-redesign-ticket--local h3 {
   margin: 0;
-  font-size: clamp(24px, 3vw, 36px);
+  min-width: 0;
+  font-size: 28px;
   line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket--local p {
@@ -3594,18 +3817,19 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .event-redesign-ticket__price--compact strong {
-  color: var(--rebrand-accent);
-  font-size: clamp(48px, 5vw, 72px);
+  color: var(--brand-accent-text, #a65b00);
+  font-size: clamp(40px, 4.5vw, 64px);
 }
 
 .btcpp-rebrand-page .event-redesign-ticket__features {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 24px;
-  padding: 6px 18px 24px;
-  margin: 10px 0 0;
-  border-top: 1px solid #333;
+  gap: 16px;
+  padding: 16px 18px;
+  margin: 0;
+  border-top: 1px solid var(--rebrand-rule-on-dark);
+  background: #fffdf8;
 }
 
 .btcpp-rebrand-page .event-redesign-ticket__features div {
@@ -3619,41 +3843,98 @@ body.btcpp-rebrand-page {
 
 .btcpp-rebrand-page .event-redesign-ticket__features span {
   display: block;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-style: normal;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   line-height: 1.2;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .event-redesign-ticket__actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
+  margin-top: 0;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__buy-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--brand-accent-text, #a65b00);
+  font: 700 18px/1.3 "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-decoration: none;
+  text-underline-offset: 4px;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__buy-link:hover,
+.btcpp-rebrand-page #tickets .event-redesign-ticket__buy-link:focus-visible {
+  text-decoration: underline;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__buy-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+
+.btcpp-rebrand-page #tickets .redesign-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  max-width: 100%;
+  padding: 14px 28px;
+  font-size: 18px;
+  line-height: 1.25;
+  text-align: center;
+  transition: background-color .15s ease, box-shadow .15s ease;
+}
+
+.btcpp-rebrand-page #tickets .redesign-button:not(.is-outline):hover {
+  background: #a65b00;
+  box-shadow: 0 3px 10px rgba(28, 28, 30, .14);
+}
+
+.btcpp-rebrand-page #tickets .redesign-button:focus-visible {
+  outline: 2px solid var(--rebrand-accent);
+  outline-offset: 4px;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured .redesign-button {
-  border-color: #000;
-  background: #000;
-  color: var(--rebrand-accent);
+  border-color: var(--rebrand-accent);
+  background: var(--rebrand-accent);
+  color: #fff;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured .redesign-button:not(.is-outline):hover {
+  background: var(--brand-accent-hover, #bf6900);
+  color: #fff;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured .redesign-button:focus-visible {
+  outline: 2px solid var(--rebrand-ink);
+  outline-offset: 4px;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured .redesign-button.is-outline {
   background: transparent;
-  color: #000;
+  color: #fff;
 }
 
 .btcpp-rebrand-page #tickets .event-redesign-ticket--local .redesign-button.is-outline {
-  border-color: var(--rebrand-ink);
+  border-color: #d7d4cc;
   color: var(--rebrand-ink);
 }
 
 .rebrand-agenda {
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -3677,9 +3958,9 @@ body.btcpp-rebrand-page {
 
 .rebrand-agenda__note {
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-align: right;
 }
 
@@ -3690,9 +3971,9 @@ body.btcpp-rebrand-page {
   justify-content: center;
   min-height: 48px;
   padding: 14px 22px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   background: var(--rebrand-accent);
-  color: var(--rebrand-ink);
+  color: #fff;
   font-size: 15px;
   font-weight: 800;
   line-height: 1.4;
@@ -3701,8 +3982,8 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-agenda__browser-link:hover {
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .rebrand-agenda__browser-link:focus-visible {
@@ -3723,8 +4004,8 @@ body.btcpp-rebrand-page {
 .rebrand-agenda-tabs__menu {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--rebrand-ink);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .w-tab-link {
@@ -3745,7 +4026,7 @@ body.btcpp-rebrand-page {
 
 .rebrand-agenda-tab {
   display: block;
-  border-right: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);
   padding: 28px 32px;
@@ -3757,18 +4038,18 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-agenda-tab.w--current {
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  background: #fffdf8;
+  color: #343638;
 }
 
 .rebrand-agenda-tab span {
   display: block;
   margin-bottom: 6px;
-  color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  color: var(--brand-accent-text, #a65b00);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-agenda-tab strong {
@@ -3789,7 +4070,7 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-agenda-rows {
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .rebrand-agenda-row {
@@ -3798,7 +4079,7 @@ body.btcpp-rebrand-page {
   grid-template-columns: minmax(112px, .52fr) minmax(0, 2.8fr) minmax(96px, .48fr) auto;
   gap: 24px;
   align-items: flex-start;
-  border-top: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
   color: var(--rebrand-ink);
   padding: 18px 0;
 }
@@ -3813,12 +4094,12 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-agenda-row:last-child {
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .rebrand-agenda-row__open:hover h3,
 .rebrand-agenda-row__open:focus-visible h3 {
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .rebrand-agenda-row__time {
@@ -3855,7 +4136,7 @@ body.btcpp-rebrand-page {
   width: 34px;
   height: 34px;
   margin-left: -8px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   background: var(--rebrand-soft);
   object-fit: cover;
 }
@@ -3885,12 +4166,12 @@ body.btcpp-rebrand-page {
 
 .rebrand-agenda-row__type {
   flex: 0 0 auto;
-  color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  color: var(--brand-accent-text, #a65b00);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-agenda-row__type::before {
@@ -3920,11 +4201,11 @@ body.btcpp-rebrand-page {
 .rebrand-agenda-row__venue {
   padding-top: 4px;
   color: #888;
-  font-size: 11px;
-  letter-spacing: 1px;
+  font-size: 12px;
+  letter-spacing: normal;
   line-height: 1.3;
   text-align: right;
-  text-transform: uppercase;
+  text-transform: none;
   overflow-wrap: anywhere;
 }
 
@@ -3938,13 +4219,13 @@ body.btcpp-rebrand-page {
   border: 1px solid #c63f28;
   background: #c63f28;
   color: #fff;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-agenda-row__watch:hover,
@@ -4005,7 +4286,7 @@ body.btcpp-rebrand-page {
   z-index: 2;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);
   font-size: 28px;
@@ -4040,15 +4321,15 @@ body.btcpp-rebrand-page {
 .btcpp-rebrand-page .btcpp-agenda-dialog__type {
   width: fit-content;
   padding: 7px 10px;
-  border: 1px solid var(--rebrand-ink);
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  border: 1px solid #d7d4cc;
+  background: #fff0e3;
+  color: #343638;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   line-height: 1;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .btcpp-agenda-dialog__speaker-summary {
@@ -4084,16 +4365,16 @@ body.btcpp-rebrand-page {
 
 .btcpp-rebrand-page .btcpp-agenda-dialog__meta div {
   padding: 12px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
 }
 
 .btcpp-rebrand-page .btcpp-agenda-dialog__meta dt {
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .btcpp-agenda-dialog__meta dd {
@@ -4135,7 +4416,7 @@ body.btcpp-rebrand-page {
   align-items: center;
   justify-content: center;
   padding: 0 14px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   background: #fff;
   color: var(--rebrand-ink);
   font-size: 13px;
@@ -4162,8 +4443,8 @@ body.btcpp-rebrand-page {
   color: var(--rebrand-ink);
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-rebrand-page .btcpp-agenda-dialog__speaker {
@@ -4172,7 +4453,7 @@ body.btcpp-rebrand-page {
   gap: 18px;
   align-items: center;
   padding: 12px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
 }
 
 .btcpp-rebrand-page .btcpp-agenda-dialog__speaker img {
@@ -4213,7 +4494,7 @@ body.btcpp-rebrand-page {
 
 .rebrand-agenda-browser {
   min-height: calc(100vh - 82px);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -4223,7 +4504,7 @@ body.btcpp-rebrand-page {
   gap: 56px;
   align-items: end;
   padding: 72px 56px 48px;
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .rebrand-agenda-browser__intro h1 {
@@ -4249,23 +4530,23 @@ body.btcpp-rebrand-page {
   display: inline-block;
   margin-top: 18px;
   color: var(--rebrand-ink);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-decoration: underline;
-  text-transform: uppercase;
+  text-transform: none;
   text-underline-offset: 4px;
 }
 
 .rebrand-agenda-browser__empty {
   padding: 48px 56px;
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-schedule-panel {
@@ -4288,7 +4569,7 @@ body.btcpp-rebrand-page {
   grid-template-columns: var(--agenda-time-width) repeat(var(--agenda-venue-count), minmax(var(--agenda-venue-width), 1fr));
   min-width: calc(var(--agenda-time-width) + var(--agenda-venue-count) * var(--agenda-venue-width));
   align-items: stretch;
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .rebrand-schedule-head {
@@ -4296,15 +4577,15 @@ body.btcpp-rebrand-page {
   top: 0;
   z-index: 4;
   padding: 14px 14px;
-  border-right: 1px solid var(--rebrand-ink);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-soft);
   color: var(--rebrand-ink);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-schedule-head--time {
@@ -4317,7 +4598,7 @@ body.btcpp-rebrand-page {
   left: 0;
   z-index: 3;
   grid-column: 1;
-  border-right: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -4326,14 +4607,14 @@ body.btcpp-rebrand-page {
   right: 10px;
   transform: translateY(-50%);
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   line-height: 1;
 }
 
 .rebrand-schedule-venue {
   position: relative;
-  border-right: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
   background:
     repeating-linear-gradient(to bottom, rgba(28, 28, 30, 0.025), rgba(28, 28, 30, 0.025) 1px, transparent 1px, transparent 30px),
     var(--rebrand-paper);
@@ -4352,7 +4633,7 @@ body.btcpp-rebrand-page {
   right: 8px;
   overflow: hidden;
   padding: 10px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);
   text-align: left;
@@ -4380,13 +4661,13 @@ body.btcpp-rebrand-page {
 
 .rebrand-schedule-card__time,
 .rebrand-schedule-card__type {
-  color: var(--rebrand-accent);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  color: var(--brand-accent-text, #a65b00);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   line-height: 1.15;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-schedule-card strong {
@@ -4425,13 +4706,13 @@ body.btcpp-rebrand-page {
   border: 1px solid #c63f28;
   background: #c63f28;
   color: #fff;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   line-height: 1;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-schedule-card__watch:hover,
@@ -4446,7 +4727,7 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-sponsors {
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -4488,19 +4769,19 @@ body.btcpp-rebrand-page {
   align-items: center;
   min-height: 44px;
   padding: 0 16px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   background: var(--rebrand-accent);
-  color: #000;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #fff;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-sponsor-tiers {
-  border-top: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
 }
 
 .rebrand-sponsor-tier {
@@ -4512,7 +4793,7 @@ body.btcpp-rebrand-page {
   --sponsor-grid-min: 220px;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
 }
 
 .rebrand-sponsor-tier--rank-1 {
@@ -4557,7 +4838,7 @@ body.btcpp-rebrand-page {
 
 .rebrand-sponsor-tier__label {
   padding: 28px 32px;
-  border-right: 1px solid var(--rebrand-ink);
+  border-right: 1px solid #d7d4cc;
   background: var(--rebrand-soft);
 }
 
@@ -4574,10 +4855,10 @@ body.btcpp-rebrand-page {
   display: block;
   margin-top: 12px;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-sponsor-grid {
@@ -4591,8 +4872,8 @@ body.btcpp-rebrand-page {
   min-height: var(--sponsor-card-min);
   place-items: center;
   padding: var(--sponsor-card-pad);
-  border-top: 1px solid var(--rebrand-ink);
-  border-left: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
+  border-left: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
   text-decoration: none;
 }
@@ -4619,7 +4900,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .rebrand-satellites {
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-paper);
 }
 
@@ -4629,10 +4910,10 @@ body.btcpp-rebrand-page {
 
 .rebrand-satellites__intro {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr);
-  gap: 56px;
+  grid-template-columns: 1fr;
+  gap: 12px;
   align-items: end;
-  padding: 72px 56px 0;
+  padding: 40px 56px 0;
   text-align: left;
 }
 
@@ -4667,7 +4948,7 @@ body.btcpp-rebrand-page {
   grid-template-columns: 256px minmax(0, 1fr);
   gap: 32px;
   align-items: start;
-  border-top: 1px solid var(--rebrand-ink);
+  border-top: 1px solid #d7d4cc;
   padding-top: 24px;
   text-align: left;
 }
@@ -4680,7 +4961,7 @@ body.btcpp-rebrand-page {
   aspect-ratio: 1 / 1;
   overflow: hidden;
   background: var(--rebrand-warm);
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
 }
 
 .satellite-event__image-img {
@@ -4700,10 +4981,10 @@ body.btcpp-rebrand-page {
   align-items: center;
   margin-bottom: 14px;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   line-height: 1.3;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-satellite-card__meta time,
@@ -4717,9 +4998,9 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-satellite-card__meta span:first-of-type {
-  border-color: var(--rebrand-ink);
+  border-color: #d7d4cc;
   background: var(--rebrand-accent);
-  color: #000;
+  color: #fff;
   font-weight: 700;
 }
 
@@ -4742,7 +5023,7 @@ body.btcpp-rebrand-page {
 
 .rebrand-satellite-card__copy h3 a:hover,
 .rebrand-satellite-card__copy h3 a:focus-visible {
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .rebrand-satellite-card__copy p {
@@ -4769,7 +5050,7 @@ body.btcpp-rebrand-page {
   width: 42px;
   height: 42px;
   flex: 0 0 auto;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #d7d4cc;
   object-fit: cover;
 }
 
@@ -4784,15 +5065,15 @@ body.btcpp-rebrand-page {
   display: block;
   margin-bottom: 3px;
   color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
   font-weight: 500;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-satellite-card__host a:hover,
 .rebrand-satellite-card__host a:focus-visible {
-  color: var(--rebrand-accent);
+  color: var(--brand-accent-text, #a65b00);
 }
 
 .rebrand-satellites__empty {
@@ -4815,25 +5096,25 @@ body.btcpp-rebrand-page {
   align-items: center;
   justify-content: center;
   background: var(--rebrand-accent);
-  color: #000;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #fff;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
   font-weight: 700;
   padding: 14px 18px;
   text-decoration: none;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .rebrand-satellites__cta a:hover,
 .rebrand-satellites__cta a:focus-visible {
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .rebrand-newsletter {
-  border-bottom: 1px solid var(--rebrand-ink);
+  border-bottom: 1px solid #d7d4cc;
   background: var(--rebrand-accent);
-  color: #000;
+  color: #fff;
 }
 
 .rebrand-newsletter__inner {
@@ -4845,15 +5126,13 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-newsletter .rebrand-section-label {
-  border-color: #000;
-  background: rgba(246, 243, 238, .18);
-  color: #000;
+  color: #fff;
 }
 
 .rebrand-newsletter h2 {
   max-width: 900px;
   margin: 0;
-  color: #000;
+  color: #fff;
   font-size: clamp(48px, 7vw, 72px);
   font-weight: 700;
   letter-spacing: 0;
@@ -4869,7 +5148,7 @@ body.btcpp-rebrand-page {
 .rebrand-newsletter p:not(.rebrand-section-label) {
   max-width: 560px;
   margin: 16px 0 0;
-  color: #000;
+  color: #fff;
   font-size: 20px;
   line-height: 1.45;
   text-wrap: pretty;
@@ -4884,48 +5163,48 @@ body.btcpp-rebrand-page {
 .rebrand-newsletter input[type="email"],
 .rebrand-newsletter button {
   min-height: 58px;
-  border: 1px solid var(--rebrand-ink);
+  border: 1px solid #8b8880;
   border-radius: 0;
   padding: 0 20px;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .rebrand-newsletter input[type="email"] {
   width: 100%;
   background: transparent;
-  color: #000;
+  color: #fff;
   font-size: 18px;
   outline: none;
 }
 
 .rebrand-newsletter input[type="email"]::placeholder {
-  color: rgba(0, 0, 0, .62);
+  color: rgba(255, 255, 255, .8);
 }
 
 .rebrand-newsletter input[type="email"]:focus {
-  box-shadow: 4px 4px 0 var(--rebrand-ink);
+  box-shadow: 4px 4px 0 rgba(52, 54, 56, .10);
 }
 
 .rebrand-newsletter button {
-  background: var(--rebrand-ink);
-  color: var(--rebrand-paper);
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   cursor: pointer;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .rebrand-newsletter button:hover,
 .rebrand-newsletter button:focus-visible {
-  background: #000;
+  background: var(--brand-accent-compact, #b35f00);
   transform: translate(-1px, -1px);
 }
 
 .rebrand-newsletter__result {
   min-height: 22px;
-  color: #000;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #fff;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   line-height: 1.45;
 }
@@ -4944,10 +5223,30 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .redesign-footer {
-  border-top: 1px solid var(--rebrand-ink);
+  border-top: 1px solid var(--rebrand-rule-on-dark);
+  background: #fffdf8;
 }
 
 @media (max-width: 980px) {
+  .rebrand-masthead {
+    padding: 24px;
+  }
+
+  .rebrand-masthead__content {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .rebrand-masthead__actions {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 24px;
+  }
+
+  .rebrand-masthead__participate {
+    justify-content: flex-start;
+  }
+
   .rebrand-nav {
     position: sticky;
     top: 0;
@@ -4977,7 +5276,7 @@ body.btcpp-rebrand-page {
     grid-column: 2;
     grid-row: 1;
     padding: 10px 12px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .btcpp-rebrand-page .conf-hackathon-redesign__inner {
@@ -5021,13 +5320,11 @@ body.btcpp-rebrand-page {
     flex-direction: column;
   }
 
-  .rebrand-masthead__content,
   .rebrand-section--split,
   .rebrand-important-dates,
   .rebrand-venue__intro,
   .rebrand-agenda__intro,
   .rebrand-agenda-browser__intro,
-  .rebrand-tickets__intro,
   .rebrand-satellites__intro,
   .rebrand-satellite-card,
   .rebrand-sponsors__intro,
@@ -5041,7 +5338,7 @@ body.btcpp-rebrand-page {
 
   .rebrand-important-dates__intro {
     border-right: 0;
-    border-bottom: 1px solid var(--rebrand-ink);
+    border-bottom: 1px solid #d7d4cc;
   }
 
   .rebrand-glance,
@@ -5051,7 +5348,6 @@ body.btcpp-rebrand-page {
   }
 
   .rebrand-hero__content,
-  .rebrand-masthead,
   .rebrand-section,
   .rebrand-venue__intro,
   .rebrand-agenda__intro,
@@ -5087,32 +5383,28 @@ body.btcpp-rebrand-page {
   }
 
   .btcpp-rebrand-page #tickets {
-    padding: 56px 24px;
+    padding: 40px 20px;
   }
 
   .rebrand-tickets__intro {
-    gap: 24px;
-    margin-bottom: 32px;
+    gap: 16px;
+    margin-bottom: 24px;
   }
 
   .btcpp-rebrand-page #tickets .event-redesign-ticket {
-    padding: 36px 24px;
-  }
-
-  .btcpp-rebrand-page #tickets .event-redesign-tickets {
-    grid-template-columns: 1fr;
+    padding: 28px 24px;
   }
 
   .btcpp-rebrand-page #tickets .event-redesign-ticket--local {
-    grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 20px;
+    padding: 22px 24px;
   }
 
   .btcpp-rebrand-page .event-redesign-ticket__features {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-    margin-top: 12px;
-    padding-top: 6px;
+    gap: 12px 16px;
+    margin-top: 0;
+    padding-top: 16px;
   }
 
   .rebrand-speaker-directory__grid {
@@ -5199,7 +5491,9 @@ body.btcpp-rebrand-page {
 
   .redesign-footer {
     padding: 72px 30px 44px;
-  }
+  background: var(--brand-paper, #f9f6ee);
+  border-top: 1px solid var(--brand-line, #d7d4cc);
+}
 
   .redesign-footer__inner {
     gap: 48px;
@@ -5211,7 +5505,7 @@ body.btcpp-rebrand-page {
 
   .rebrand-sponsor-tier__label {
     border-right: 0;
-    border-bottom: 1px solid var(--rebrand-ink);
+    border-bottom: 1px solid #d7d4cc;
   }
 }
 
@@ -5236,7 +5530,7 @@ body.btcpp-rebrand-page {
   .btcpp-rebrand-page .conf-hackathon-redesign__trophy {
     height: 320px;
     border-right: 0;
-    border-bottom: 1px solid rgba(246, 243, 238, .28);
+    border-bottom: 1px solid rgba(249, 246, 238, .28);
   }
 
   .btcpp-rebrand-page .conf-hackathon-redesign__trophy img {
@@ -5280,24 +5574,26 @@ body.btcpp-rebrand-page {
   }
 
   .rebrand-masthead__content {
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
   }
 
-  .rebrand-spec-list {
-    font-size: 12px;
-    line-height: 1.7;
+  .rebrand-masthead {
+    padding: 24px;
   }
 
-  .rebrand-masthead p {
-    font-size: 25px;
-    line-height: 1.18;
+  .rebrand-masthead__facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
   }
 
   .rebrand-masthead__actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    margin-top: 28px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .rebrand-masthead__participate {
+    justify-content: center;
   }
 
   .rebrand-masthead__actions .rebrand-button {
@@ -5344,12 +5640,12 @@ body.btcpp-rebrand-page {
 
   .rebrand-hero .rebrand-button {
     padding: 10px 9px;
-    font-size: 9px;
+    font-size: 12px;
     white-space: nowrap;
   }
 
   .rebrand-satellites__intro {
-    gap: 22px;
+    gap: 12px;
   }
 
   .rebrand-satellites__intro h2 {
@@ -5384,11 +5680,13 @@ body.btcpp-rebrand-page {
 
   .rebrand-newsletter h2 {
     font-size: 42px;
-  }
+  color: #fff;
+}
 
   .rebrand-newsletter p:not(.rebrand-section-label) {
     font-size: 17px;
-  }
+  color: #fff;
+}
 
   .rebrand-newsletter input[type="email"],
   .rebrand-newsletter button {
@@ -5397,8 +5695,7 @@ body.btcpp-rebrand-page {
   }
 
   .rebrand-venue-grid,
-  .rebrand-agenda-tabs__menu,
-  .btcpp-rebrand-page .event-redesign-ticket__features {
+  .rebrand-agenda-tabs__menu {
     grid-template-columns: 1fr;
   }
 
@@ -5409,7 +5706,7 @@ body.btcpp-rebrand-page {
   .rebrand-glance > div {
     min-width: 0;
     padding: 16px;
-    border-bottom: 1px solid var(--rebrand-ink);
+    border-bottom: 1px solid #d7d4cc;
   }
 
   .rebrand-glance > div:nth-child(even) {
@@ -5426,7 +5723,7 @@ body.btcpp-rebrand-page {
 
   .rebrand-glance span {
     margin-top: 4px;
-    font-size: 9px;
+    font-size: 12px;
     line-height: 1.3;
   }
 
@@ -5466,19 +5763,79 @@ body.btcpp-rebrand-page {
   }
 
   .rebrand-important-date.is-next .rebrand-important-date__event {
-    border-top-color: rgba(246, 243, 238, .2);
+    border-top-color: rgba(249, 246, 238, .2);
   }
 
   .btcpp-rebrand-page #tickets .event-redesign-ticket__actions {
-    display: grid;
+    display: flex;
   }
 
-  .btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured::after {
-    position: static;
-    width: fit-content;
-    max-width: 100%;
-    margin-bottom: 8px;
-    white-space: normal;
+  .btcpp-rebrand-page #tickets {
+    padding: 32px 16px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-tickets {
+    grid-template-columns: 1fr;
+  }
+
+  .rebrand-tickets__intro {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .rebrand-tickets__intro h2 {
+    font-size: 48px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket {
+    gap: 16px;
+    padding: 20px 18px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__title {
+    margin-bottom: 10px;
+    font-size: 12px;
+    letter-spacing: normal;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__price {
+    gap: 6px 10px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__price strong {
+    font-size: clamp(48px, 15vw, 60px);
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__price > span:not(.event-redesign-ticket__compare, .event-redesign-ticket__availability) {
+    flex-basis: 100%;
+    font-size: 12px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__summary {
+    margin-top: 12px;
+    font-size: 18px;
+  }
+
+  .btcpp-rebrand-page #tickets .ticket-eligibility-offer {
+    margin-top: 12px;
+    font-size: 14px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__features {
+    padding: 14px 18px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__features div {
+    font-size: 14px;
+  }
+
+  .btcpp-rebrand-page #tickets .event-redesign-ticket__features span {
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .btcpp-rebrand-page #tickets .redesign-button {
+    padding: 12px 24px;
   }
 
   .rebrand-agenda-browser__intro h1 {
@@ -5496,7 +5853,8 @@ body.btcpp-rebrand-page {
 
   .redesign-footer__tagline {
     text-align: left;
-  }
+  color: var(--brand-ink, #343638);
+}
 
   .redesign-footer__menus {
     flex-direction: column;
@@ -5506,7 +5864,8 @@ body.btcpp-rebrand-page {
   .redesign-footer__bottom {
     flex-direction: column;
     align-items: flex-start;
-  }
+  border-top-color: var(--brand-line, #d7d4cc);
+}
 
 }
 
@@ -5522,7 +5881,7 @@ body.btcpp-rebrand-page {
 
   .rebrand-nav__ticket--persistent {
     padding: 9px 10px;
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .rebrand-agenda-browser__intro h1 {
@@ -5534,7 +5893,7 @@ body.btcpp-rebrand-page {
   box-sizing: border-box;
 }
 
-.btcpp-redesign a {
+:where(.btcpp-redesign) a {
   color: inherit;
 }
 
@@ -5547,7 +5906,7 @@ body.btcpp-rebrand-page {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at 78% 22%, rgba(249, 175, 94, 0.18), rgba(249, 175, 94, 0) 26rem),
+    radial-gradient(circle at 78% 22%, rgba(219, 121, 0, 0.18), rgba(219, 121, 0, 0) 26rem),
     linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.93) 46%, rgba(255, 255, 255, 0.62) 100%),
     url("/static/img/rebrand/light-sketch-bg.avif") center / cover no-repeat;
   border-bottom: 1px solid #e3ded6;
@@ -5667,15 +6026,16 @@ body.btcpp-rebrand-page {
   font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btc-event-card.active .btc-event-badge {
-  background: #f9af5e;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
 }
 
 .btc-event-name {
-  color: #111827;
+  color: #343638;
   font-size: 16px;
   font-weight: 800;
   line-height: 1.25;
@@ -5690,7 +6050,7 @@ body.btcpp-rebrand-page {
 }
 
 .redesign-location-display {
-  color: #000;
+  color: #343638;
   font-size: 1.1rem;
   font-weight: 700;
   line-height: 1.5;
@@ -5740,8 +6100,8 @@ body.btcpp-rebrand-page {
   margin: 0 0 18px;
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .redesign-hero__title {
@@ -5773,9 +6133,9 @@ body.btcpp-rebrand-page {
   justify-content: center;
   min-height: 46px;
   padding: 12px 18px;
-  border: 1px solid #111;
+  border: 1px solid #d7d4cc;
   border-radius: 6px;
-  background: #111;
+  background: var(--brand-accent-compact, #b35f00);
   color: #fff;
   font-weight: 700;
   text-decoration: none;
@@ -5793,15 +6153,15 @@ body.btcpp-rebrand-page {
 }
 
 .redesign-button.is-outline {
-  border-color: #111;
+  border-color: #d7d4cc;
   background: transparent;
-  color: #111;
+  color: #343638;
 }
 
 .redesign-button.is-outline:visited,
 .redesign-button.is-outline:hover,
 .redesign-button.is-outline:focus-visible {
-  color: #111;
+  color: #343638;
 }
 
 .redesign-section {
@@ -5814,8 +6174,8 @@ body.btcpp-rebrand-page {
 }
 
 .redesign-section.is-dark {
-  background: #07111f;
-  color: #fff;
+  background: #fffdf8;
+  color: #343638;
 }
 
 .redesign-container {
@@ -5825,11 +6185,11 @@ body.btcpp-rebrand-page {
 
 .redesign-kicker {
   margin: 0 0 12px;
-  color: #f9af5e;
+  color: var(--brand-accent-text, #a65b00);
   font-size: 14px;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .redesign-heading {
@@ -5850,7 +6210,7 @@ body.btcpp-rebrand-page {
 }
 
 .is-dark .redesign-copy {
-  color: rgba(255, 255, 255, 0.76);
+  color: #65635e;
 }
 
 .redesign-events {
@@ -5868,7 +6228,7 @@ body.btcpp-rebrand-page {
   border: 1px solid #e2ded6;
   border-radius: 8px;
   background: #fff;
-  color: #151515;
+  color: #343638;
   text-decoration: none;
 }
 
@@ -5891,8 +6251,8 @@ body.btcpp-rebrand-page {
   color: #6b7280;
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .redesign-event-card__title {
@@ -5910,7 +6270,7 @@ body.btcpp-rebrand-page {
 .redesign-event-card__footer {
   margin-top: auto;
   padding-top: 24px;
-  color: #111;
+  color: #343638;
   font-weight: 800;
 }
 
@@ -5990,7 +6350,7 @@ body.btcpp-rebrand-page {
 
 .redesign-event-row__title {
   display: block;
-  color: #111827;
+  color: #343638;
   font-weight: 800;
 }
 
@@ -6014,7 +6374,7 @@ body.btcpp-rebrand-page {
   place-items: center;
   padding: 34px;
   border-radius: 8px;
-  background: #0c1728;
+  background: #fffdf8;
 }
 
 .redesign-sponsor img {
@@ -6048,8 +6408,9 @@ body.btcpp-rebrand-page {
 
 .redesign-footer {
   padding: 96px 30px 56px;
-  background: #050505;
-  color: #fff;
+  background: var(--brand-paper, #f9f6ee);
+  color: #343638;
+  border-top: 1px solid var(--brand-line, #d7d4cc);
 }
 
 .redesign-footer__inner {
@@ -6061,7 +6422,7 @@ body.btcpp-rebrand-page {
 }
 
 .redesign-footer__tagline {
-  color: rgba(252, 252, 252, 0.33);
+  color: var(--brand-ink, #343638);
   font-size: clamp(38px, 5vw, 56px);
   font-weight: 500;
   letter-spacing: 0;
@@ -6083,21 +6444,21 @@ body.btcpp-rebrand-page {
 }
 
 .redesign-footer__menu-title {
-  color: #fff;
+  color: #343638;
   font-size: 1rem;
   font-weight: 700;
 }
 
 .redesign-footer__menu a {
   width: fit-content;
-  color: rgba(255, 255, 255, 0.5);
+  color: #65635e;
   font-weight: 500;
   text-decoration: none;
   transition: color 160ms ease, opacity 160ms ease;
 }
 
 .redesign-footer__menu a:hover {
-  color: #fff;
+  color: #343638;
 }
 
 .redesign-footer__bottom {
@@ -6107,13 +6468,14 @@ body.btcpp-rebrand-page {
   gap: 24px;
   padding-top: 24px;
   border-top: 1px solid rgba(252, 252, 252, 0.18);
+  border-top-color: var(--brand-line, #d7d4cc);
 }
 
 .redesign-footer__brand {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: #343638;
   font-size: 1rem;
   font-weight: 500;
   text-decoration: none;
@@ -6123,7 +6485,7 @@ body.btcpp-rebrand-page {
   display: block;
   width: auto;
   height: 30px;
-  filter: brightness(0) invert(1);
+  filter: brightness(0) opacity(.78);
 }
 
 .redesign-footer__social {
@@ -6144,6 +6506,7 @@ body.btcpp-rebrand-page {
 .redesign-footer__social img {
   width: 22px;
   height: 22px;
+  filter: brightness(0) opacity(.78);
 }
 
 .event-redesign-hero {
@@ -6218,10 +6581,10 @@ body.btcpp-rebrand-page {
   border: 1px solid #d9d3c9;
   border-radius: 999px;
   background: #f4f2ee;
-  color: #151515;
+  color: #343638;
   font-size: 13px;
   font-weight: 800;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .event-redesign-speakers {
@@ -6252,7 +6615,7 @@ body.btcpp-rebrand-page {
 
 .event-redesign-speaker h3 {
   margin: 0;
-  color: #111827;
+  color: #343638;
   font-size: 22px;
   line-height: 1.08;
 }
@@ -6308,7 +6671,7 @@ body.btcpp-rebrand-page {
 .event-redesign-map iframe {
   overflow: hidden;
   border-radius: 8px;
-  background: #101827;
+  background: #fffdf8;
 }
 
 .event-redesign-hotels {
@@ -6326,7 +6689,7 @@ body.btcpp-rebrand-page {
   border: 1px solid #e2ded6;
   border-radius: 8px;
   background: #fff;
-  color: #151515;
+  color: #343638;
   text-decoration: none;
 }
 
@@ -6338,18 +6701,18 @@ body.btcpp-rebrand-page {
 }
 
 .event-redesign-hotel__type,
-.event-redesign-ticket__eyebrow {
+.event-redesign-ticket__title {
   margin: 18px 18px 0;
-  color: #f9af5e;
+  color: var(--brand-accent-text, #a65b00);
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .event-redesign-hotel__name {
   margin: 10px 18px 0;
-  color: #111827;
+  color: #343638;
   font-size: 22px;
   font-weight: 800;
   line-height: 1.1;
@@ -6385,11 +6748,11 @@ body.btcpp-rebrand-page {
 }
 
 .event-redesign-ticket.is-featured {
-  background: #101010;
-  color: #fff;
+  background: #fffdf8;
+  color: #343638;
 }
 
-.event-redesign-ticket__eyebrow {
+.event-redesign-ticket__title {
   margin: 0;
 }
 
@@ -6407,7 +6770,7 @@ body.btcpp-rebrand-page {
 }
 
 .event-redesign-ticket.is-featured p {
-  color: rgba(255, 255, 255, 0.75);
+  color: #65635e;
 }
 
 .event-redesign-ticket__features {
@@ -6430,7 +6793,7 @@ body.btcpp-rebrand-page {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
-  color: #f9af5e;
+  color: var(--brand-accent, #db7900);
 }
 
 .event-redesign-ticket__actions {
@@ -6440,7 +6803,7 @@ body.btcpp-rebrand-page {
 }
 
 .event-redesign-ticket.is-featured .redesign-button.is-outline {
-  border-color: rgba(255, 255, 255, 0.74);
+  border-color: #d7d4cc;
   color: #fff;
 }
 
@@ -6457,7 +6820,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-event-page .event-side-header_inner {
-  color: #111827;
+  color: #343638;
   text-decoration: none;
 }
 
@@ -6475,14 +6838,14 @@ body.btcpp-rebrand-page {
 
 .btcpp-event-page .side-nav-button.tickets .secondary-button.event-nav {
   margin-left: 0;
-  background: #000;
-  border-color: #000;
+  background: var(--brand-accent-compact, #b35f00);
+  border-color: #d7d4cc;
   color: #fff;
 }
 
 .btcpp-event-page .side-nav-button.tickets .secondary-button.event-nav:hover,
 .btcpp-event-page .side-nav-button.tickets .secondary-button.event-nav:focus-visible {
-  background: #202020;
+  background: var(--brand-accent-compact, #b35f00);
   color: #fff;
 }
 
@@ -6627,7 +6990,7 @@ body.btcpp-rebrand-page {
   padding: 1rem 1.25rem;
   border: 1px dashed rgba(0, 0, 0, 0.22);
   border-radius: 8px;
-  color: #111827;
+  color: #343638;
   font-size: 1rem;
   font-weight: 700;
   text-align: center;
@@ -6643,7 +7006,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-event-page .tab-link {
-  color: #111827;
+  color: #343638;
   text-decoration: none;
 }
 
@@ -6771,7 +7134,7 @@ body.btcpp-rebrand-page {
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-event-page .btcpp-session-card .session-type {
@@ -6780,11 +7143,11 @@ body.btcpp-rebrand-page {
   min-height: 24px;
   padding: 0.24rem 0.52rem;
   background: rgba(255, 255, 255, 0.9);
-  color: #111827;
+  color: #343638;
   font-size: 0.66rem;
   font-weight: 800;
   line-height: 1;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-event-page .btcpp-session-card .session-type.keynote {
@@ -6863,7 +7226,7 @@ body.btcpp-rebrand-page {
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
-  color: #111827;
+  color: #343638;
   font-size: 28px;
   line-height: 1;
   cursor: pointer;
@@ -6883,7 +7246,7 @@ body.btcpp-rebrand-page {
 
 .btcpp-event-page .btcpp-agenda-dialog__body h2 {
   margin: 0;
-  color: #111827;
+  color: #343638;
   font-size: clamp(1.8rem, 4vw, 2.6rem);
   line-height: 1.02;
 }
@@ -6897,13 +7260,13 @@ body.btcpp-rebrand-page {
   width: fit-content;
   padding: 7px 10px;
   border-radius: 999px;
-  background: #111827;
-  color: #fff;
+  background: #fff0e3;
+  color: #343638;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: normal;
   line-height: 1;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-event-page .btcpp-agenda-dialog__speaker-summary {
@@ -6948,12 +7311,12 @@ body.btcpp-rebrand-page {
   color: #6b7280;
   font-size: 11px;
   font-weight: 800;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .btcpp-event-page .btcpp-agenda-dialog__meta dd {
   margin: 4px 0 0;
-  color: #111827;
+  color: #343638;
   font-size: 13px;
   font-weight: 700;
 }
@@ -7000,10 +7363,10 @@ body.btcpp-rebrand-page {
   align-items: center;
   justify-content: center;
   padding: 0 14px;
-  border: 1px solid #111827;
+  border: 1px solid #d7d4cc;
   border-radius: 999px;
   background: #fff;
-  color: #111827;
+  color: #343638;
   font-size: 13px;
   font-weight: 800;
   text-decoration: none;
@@ -7025,11 +7388,11 @@ body.btcpp-rebrand-page {
 
 .btcpp-event-page .btcpp-agenda-dialog__section-title {
   margin: 0;
-  color: #111827;
+  color: #343638;
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .btcpp-event-page .btcpp-agenda-dialog__speaker {
@@ -7051,7 +7414,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-event-page .btcpp-agenda-dialog__speaker-name {
-  color: #111827;
+  color: #343638;
   font-weight: 800;
 }
 
@@ -7072,7 +7435,7 @@ body.btcpp-rebrand-page {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #111827;
+  color: #343638;
   font-size: 12px;
   font-weight: 800;
   text-decoration: underline;
@@ -7213,7 +7576,9 @@ body.btcpp-agenda-dialog-open {
 
   .redesign-footer {
     padding: 72px 30px 44px;
-  }
+  background: var(--brand-paper, #f9f6ee);
+  border-top: 1px solid var(--brand-line, #d7d4cc);
+}
 
   .redesign-footer__inner {
     gap: 48px;
@@ -7376,13 +7741,14 @@ body.btcpp-agenda-dialog-open {
     display: grid;
     grid-template-columns: minmax(260px, 38%) minmax(0, 1fr);
     border-right: 0;
-    border-bottom: 1px solid var(--whois-ink);
+    border-bottom: 1px solid #d7d4cc;
   }
 
   .whois-profile-portrait {
     min-height: 0;
     border-right: 1px solid var(--whois-ink);
-  }
+  background: #f1eee5;
+}
 
   .whois-profile-portrait img {
     width: 100%;
@@ -7469,7 +7835,8 @@ body.btcpp-agenda-dialog-open {
     aspect-ratio: auto;
     border-right: 0;
     border-bottom: 1px solid var(--whois-ink);
-  }
+  background: #f1eee5;
+}
 
   .whois-profile-portrait img {
     height: 100%;
@@ -7536,7 +7903,7 @@ body.btcpp-agenda-dialog-open {
   }
 }
 /* Managed signer consent deliberately stays small and auditable. */
-.managed-signer-consent { min-height: 100vh; margin: 0; display: grid; grid-template-rows: 1fr auto; background: #f6f0e8; color: #211d18; font-family: Ubuntu, system-ui, sans-serif; }
+.managed-signer-consent { min-height: 100vh; margin: 0; display: grid; grid-template-rows: 1fr auto; background: #f6f0e8; color: #343638; font-family: Ubuntu, system-ui, sans-serif; }
 .managed-signer-consent main { width: min(680px, calc(100% - 32px)); margin: auto; padding: clamp(28px, 7vw, 70px); border: 1px solid #c9beb2; background: #fffaf3; box-shadow: 12px 12px 0 #d9eee8; }
 .managed-signer-consent h1 { margin: 0 0 20px; font: 800 clamp(34px, 6vw, 54px)/1 Ubuntu, system-ui, sans-serif; letter-spacing: -.045em; }
 .managed-signer-consent .eyebrow { color: #73529b; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: lowercase; }
@@ -7552,8 +7919,8 @@ body.btcpp-agenda-dialog-open {
 .managed-signer-consent dd { margin: 0; overflow-wrap: anywhere; }
 .managed-signer-consent code { font: 11px ui-monospace, monospace; }
 .managed-signer-consent form { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
-.managed-signer-consent button { min-height: 46px; padding: 10px 18px; border: 1px solid #312b26; border-radius: 999px; background: transparent; color: inherit; font-weight: 800; cursor: pointer; }
-.managed-signer-consent button.is-primary { background: #211d18; color: #fff; }
+.managed-signer-consent button { min-height: 46px; padding: 10px 18px; border: 1px solid #d7d4cc; border-radius: 999px; background: transparent; color: inherit; font-weight: 800; cursor: pointer; }
+.managed-signer-consent button.is-primary { background: var(--brand-accent-compact, #b35f00); color: #fff; }
 .managed-signer-consent__note { color: #70665d; font-size: 13px; line-height: 1.5; }
 .managed-signer-consent__error { padding: 12px; border-left: 3px solid #a94435; background: #f8e5df; color: #7b2e25; }
 .managed-signer-consent details { margin: -12px 0 28px; border: 1px solid #d7cdc1; background: #f6f0e8; }
@@ -7569,11 +7936,11 @@ body.btcpp-agenda-dialog-open {
 @media (max-width: 640px) { .organization-badge-actions { display: grid; } .organization-badge-actions a { justify-content: center; } }
 
 /* Public organization profiles share the dossier restraint of /whois. */
-.organization-public-page { background: #f3efe8; color: #201d19; }
+.organization-public-page { background: #f3efe8; color: #343638; }
 .organization-public-shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 34px 0 100px; }
 .organization-public-back { display: inline-block; margin-bottom: 28px; color: #5d554d; font-size: 12px; font-weight: 800; text-decoration: none; text-transform: lowercase; }
-.organization-public-hero { display: grid; grid-template-columns: minmax(180px, 280px) 1fr; gap: clamp(32px, 7vw, 90px); align-items: center; padding: clamp(32px, 7vw, 78px); border: 1px solid #28231f; background: #fffaf2; box-shadow: 14px 14px 0 #c8e7df; }
-.organization-public-mark { display: grid; aspect-ratio: 1; place-items: center; overflow: hidden; border: 1px solid #28231f; background: #201d19; color: #fffaf2; }
+.organization-public-hero { display: grid; grid-template-columns: minmax(180px, 280px) 1fr; gap: clamp(32px, 7vw, 90px); align-items: center; padding: clamp(32px, 7vw, 78px); border: 1px solid #d7d4cc; background: #fffaf2; box-shadow: 14px 14px 0 #c8e7df; }
+.organization-public-mark { display: grid; aspect-ratio: 1; place-items: center; overflow: hidden; border: 1px solid #d7d4cc; background: #fff0e3; color: #343638; }
 .organization-public-mark img { width: 82%; height: 82%; object-fit: contain; }
 .organization-public-mark span { font: 800 italic clamp(64px, 10vw, 120px)/1 Ubuntu, system-ui, sans-serif; }
 .organization-public-eyebrow { margin: 0 0 12px; color: #654c8b; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: lowercase; }
@@ -7613,14 +7980,14 @@ body.btcpp-agenda-dialog-open {
 
   .rebrand-schedule-head {
     padding: 12px 6px;
-    font-size: 10px;
-    letter-spacing: .3px;
+    font-size: 12px;
+    letter-spacing: normal;
     overflow-wrap: anywhere;
   }
 
   .rebrand-schedule-hour {
     right: 5px;
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .rebrand-schedule-card {
@@ -7636,7 +8003,7 @@ body.btcpp-agenda-dialog-open {
 
   .rebrand-schedule-card__time {
     color: var(--rebrand-ink);
-    font-size: 10px;
+    font-size: 12px;
     line-height: 12px;
     letter-spacing: 0;
     white-space: nowrap;
@@ -7657,7 +8024,7 @@ body.btcpp-agenda-dialog-open {
   }
 
   .rebrand-schedule-card__speakers {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 12px;
   }
 
@@ -7716,4 +8083,274 @@ body.btcpp-agenda-dialog-open {
 .btcpp-agenda-dialog__speaker:has(.btcpp-agenda-dialog__speaker-profile:focus-visible) {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__details {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__details .event-redesign-ticket__actions {
+  margin-top: auto;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__price--compact {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.btcpp-rebrand-page #tickets .event-redesign-ticket__price--compact strong {
+  color: var(--brand-accent-large-text, #cf7300);
+  font-size: 40px;
+  overflow-wrap: anywhere;
+}
+
+/* White labels on the bright accent must remain large and bold. */
+.rebrand-nav__ticket,
+.rebrand-button,
+.btcpp-rebrand-page .redesign-button,
+.btcpp-rebrand-page .primary-button,
+.rebrand-speaker-more a,
+.rebrand-agenda__browser-link,
+.rebrand-satellites__cta a,
+.whois-search button,
+.whois-search a,
+.whois-profile-edit {
+  font-size: 20px;
+  font-weight: 700;
+}
+.btcpp-rebrand-page #tickets .redesign-button,
+.btcpp-rebrand-page .rebrand-masthead .rebrand-button {
+  font-size: 22px;
+  font-weight: 700;
+}
+.btcpp-rebrand-page #tickets .redesign-button:not(.is-outline):hover {
+  background: var(--brand-accent-hover, #bf6900);
+}
+.rebrand-important-dates__intro,
+.rebrand-sponsors__cta,
+.rebrand-newsletter {
+  background: var(--brand-accent-compact, #b35f00);
+}
+.rebrand-agenda-tab.w--current span {
+  color: var(--rebrand-accent);
+}
+
+/* Softer conference surfaces; pale rules separate sections without boxing them in. */
+.btcpp-rebrand-page .rebrand-page,
+.btcpp-rebrand-page .rebrand-page > section,
+.btcpp-rebrand-page .rebrand-important-dates__intro,
+.btcpp-rebrand-page .rebrand-important-date,
+.btcpp-rebrand-page .conf-hackathon-redesign__row,
+.btcpp-rebrand-page .rebrand-speaker-grid,
+.btcpp-rebrand-page .rebrand-speaker-card,
+.btcpp-rebrand-page .rebrand-agenda__intro,
+.btcpp-rebrand-page .site-nav {
+  border-color: var(--rebrand-rule);
+}
+
+.btcpp-rebrand-page .site-nav {
+  color: var(--rebrand-ink);
+}
+
+.btcpp-rebrand-page .site-ticker,
+.btcpp-rebrand-page .site-ticker__label,
+.btcpp-rebrand-page .site-conf-nav,
+.btcpp-rebrand-page .site-conf-nav__identity {
+  background: var(--rebrand-ink);
+}
+
+.btcpp-rebrand-page .site-conf-nav {
+  border-color: var(--rebrand-rule-on-dark);
+}
+
+.btcpp-rebrand-page .site-nav .site-button.is-accent {
+  border-color: var(--rebrand-accent);
+}
+
+/* Small orange lettering needs a lighter tone against charcoal. */
+.btcpp-rebrand-page .site-conf-nav__identity span,
+.btcpp-rebrand-page .event-redesign-ticket__features span,
+.btcpp-rebrand-page .rebrand-important-date.is-next .rebrand-important-date__status,
+.btcpp-rebrand-page .conf-hackathon-redesign__prize-callout :is(p, span),
+.btcpp-rebrand-page .rebrand-tickets__note strong {
+  color: var(--rebrand-accent-on-dark);
+}
+
+.btcpp-rebrand-page .rebrand-important-date.is-next:hover .rebrand-important-date__status,
+.btcpp-rebrand-page .rebrand-important-date.is-next:focus-visible .rebrand-important-date__status {
+  color: #fff;
+}
+
+.btcpp-rebrand-page .redesign-footer__tagline {
+  color: #65635e;
+}
+
+.btcpp-rebrand-page .redesign-footer__menu a {
+  color: #65635e;
+}
+
+.btcpp-rebrand-page .redesign-footer__menu a:hover,
+.btcpp-rebrand-page .redesign-footer__menu a:focus-visible {
+  color: #343638;
+}
+
+@media (min-width: 901px) {
+  .btcpp-rebrand-page .site-conf-nav__links a:hover,
+  .btcpp-rebrand-page .site-conf-nav__links a:focus-visible,
+  .btcpp-rebrand-page .site-conf-nav__links a.is-active {
+    background: rgba(255, 255, 255, .04);
+    color: var(--rebrand-accent-on-dark);
+  }
+}
+
+/* Light conference surfaces, with the charcoal ticker retained above. */
+.btcpp-rebrand-page #tickets,
+.btcpp-rebrand-page .site-conf-nav,
+.btcpp-rebrand-page .site-conf-nav__identity,
+.btcpp-rebrand-page .redesign-footer,
+.btcpp-rebrand-page .rebrand-important-date.is-next,
+.btcpp-rebrand-page .conf-hackathon-redesign__prize-hero,
+.btcpp-rebrand-page .conf-hackathon-redesign__prize-callout {
+  background: var(--rebrand-paper);
+  color: var(--rebrand-ink);
+  border-color: var(--rebrand-rule);
+}
+.btcpp-rebrand-page .site-conf-nav__identity {
+  color: var(--rebrand-ink) !important;
+  border-right-color: var(--rebrand-accent);
+}
+.btcpp-rebrand-page #tickets .event-redesign-tickets {
+  background: var(--rebrand-rule);
+  border-color: var(--rebrand-rule);
+}
+.btcpp-rebrand-page #tickets .event-redesign-ticket {
+  background: #fffdf8;
+  color: var(--rebrand-ink);
+}
+.btcpp-rebrand-page #tickets .event-redesign-ticket--local {
+  border-color: var(--rebrand-rule);
+}
+.btcpp-rebrand-page #tickets .rebrand-tickets__intro h2,
+.btcpp-rebrand-page #tickets .rebrand-tickets__countdown,
+.btcpp-rebrand-page .rebrand-tickets__note,
+.btcpp-rebrand-page .event-redesign-ticket__features div,
+.btcpp-rebrand-page .redesign-footer__tagline,
+.btcpp-rebrand-page .redesign-footer__menu-title,
+.btcpp-rebrand-page .redesign-footer__brand,
+.btcpp-rebrand-page .redesign-footer__menu a,
+.btcpp-rebrand-page .conf-hackathon-redesign__prize-callout strong,
+.btcpp-rebrand-page .conf-hackathon-redesign__prize-callout > a {
+  color: var(--rebrand-ink);
+}
+.btcpp-rebrand-page .event-redesign-ticket__features {
+  background: var(--rebrand-paper);
+  border-color: var(--rebrand-rule);
+}
+.btcpp-rebrand-page .site-conf-nav__identity span,
+.btcpp-rebrand-page .event-redesign-ticket__features span,
+.btcpp-rebrand-page .rebrand-important-date.is-next .rebrand-important-date__status,
+.btcpp-rebrand-page .conf-hackathon-redesign__prize-callout :is(p, span),
+.btcpp-rebrand-page .rebrand-tickets__note strong {
+  color: var(--brand-accent-text, #a65b00);
+}
+.btcpp-rebrand-page .rebrand-important-date.is-next .rebrand-important-date__date span,
+.btcpp-rebrand-page .rebrand-important-date.is-next .rebrand-important-date__event span {
+  color: #66635e;
+}
+.btcpp-rebrand-page .redesign-footer__menu a:hover,
+.btcpp-rebrand-page .redesign-footer__menu a:focus-visible {
+  color: var(--brand-accent-text, #a65b00);
+  text-decoration: underline;
+}
+.btcpp-rebrand-page .rebrand-important-date.is-next {
+  background: #fff0e3;
+  box-shadow: inset 3px 0 var(--rebrand-accent);
+}
+.btcpp-rebrand-page .rebrand-important-date.is-next:hover,
+.btcpp-rebrand-page .rebrand-important-date.is-next:focus-visible {
+  background: #fff0e3;
+}
+.btcpp-rebrand-page .redesign-footer__brand img,
+.btcpp-rebrand-page .redesign-footer__social img {
+  filter: brightness(0);
+}
+.btcpp-rebrand-page .redesign-footer__social a { opacity: .7; }
+.btcpp-rebrand-page .redesign-footer__bottom {
+  border-color: var(--rebrand-rule);
+}
+.btcpp-rebrand-page .site-conf-nav__links a {
+  border-right-color: var(--rebrand-rule);
+}
+@media (min-width: 901px) {
+  .btcpp-rebrand-page .site-conf-nav__links a:hover,
+  .btcpp-rebrand-page .site-conf-nav__links a:focus-visible,
+  .btcpp-rebrand-page .site-conf-nav__links a.is-active {
+    background: rgba(219, 121, 0, .06);
+    color: var(--brand-accent-text, #a65b00);
+    border-bottom-color: var(--rebrand-accent);
+  }
+}
+
+.btcpp-rebrand-page .rebrand-important-date.is-next:hover .rebrand-important-date__status,
+.btcpp-rebrand-page .rebrand-important-date.is-next:focus-visible .rebrand-important-date__status {
+  color: var(--brand-accent-text, #a65b00);
+}
+.btcpp-rebrand-page #tickets .event-redesign-ticket.is-featured .redesign-button.is-outline {
+  color: var(--rebrand-ink);
+}
+@media (max-width: 900px) {
+  .btcpp-rebrand-page .site-conf-nav__event-back {
+    color: var(--brand-accent-text, #a65b00) !important;
+  }
+}
+
+/* Keep committee portraits smaller than the featured speakers. */
+.rebrand-featured-speakers.rebrand-committee__grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.rebrand-committee-card { min-width: 0; align-content: start; }
+.rebrand-committee-card > div:not(.rebrand-featured-card__profile) { padding: 16px; }
+.rebrand-committee-card h3 { font-size: 22px; overflow-wrap: anywhere; }
+.rebrand-committee-card .rebrand-attendee-sponsor { width: 60px; height: 36px; padding: 5px; }
+.rebrand-committee-card .rebrand-committee-card__track {
+  overflow-wrap: anywhere;
+  margin: 10px 0 0;
+  color: var(--brand-accent-text, #a65b00);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.rebrand-committee-card .rebrand-committee-card__affiliations {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .rebrand-featured-speakers.rebrand-committee__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rebrand-committee-card > div:not(.rebrand-featured-card__profile) { padding: 14px; }
+}
+@media (max-width: 400px) {
+  .rebrand-committee-card h3 { font-size: 19px; }
+  .rebrand-committee-card .rebrand-committee-card__track { font-size: 14px; }
+}
+
+/* Ticket types and the results list have ordinary headings. */
+.btcpp-rebrand-page #tickets .event-redesign-ticket__title {
+  margin: 0 0 12px;
+  color: inherit;
+  font: 700 20px/1.25 "IBM Plex Sans", system-ui, sans-serif;
+  opacity: 1;
+}
+.btcpp-rebrand-page .conf-hackathon-redesign__proof-title {
+  color: var(--rebrand-ink);
+  font-size: 20px;
 }

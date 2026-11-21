@@ -1,4 +1,35 @@
 (function () {
+  document.querySelectorAll("[data-ticket-countdown]").forEach(function (countdown) {
+    const deadline = Number(countdown.dataset.ticketCountdown) * 1000;
+    if (!Number.isFinite(deadline) || deadline <= 0) return;
+    let timer;
+
+    function updateCountdown() {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        countdown.hidden = true;
+        window.clearTimeout(timer);
+        return;
+      }
+      const hours = Math.floor(remaining / 3600000);
+      const days = Math.floor(hours / 24);
+      const duration = hours === 0 ? countdown.dataset.soon :
+        (days ? days + countdown.dataset.days + " " : "") +
+        (hours % 24) + countdown.dataset.hours;
+      countdown.textContent = countdown.dataset.format.replace("{time}", duration);
+      countdown.hidden = false;
+      window.clearTimeout(timer);
+      // Refresh at the next displayed-hour boundary (or at expiration).
+      timer = window.setTimeout(updateCountdown, remaining % 3600000 + 1);
+    }
+
+    updateCountdown();
+    window.addEventListener("pageshow", updateCountdown);
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) updateCountdown();
+    });
+  });
+
   document.querySelectorAll(".conf-hackathon-redesign__prize-callout strong").forEach(function (amount) {
     const callout = amount.parentElement;
     let lastWidth = 0;

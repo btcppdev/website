@@ -1,6 +1,5 @@
 {{ define "conf_hackathon_section" }}
 {{ if .Hackathon }}
-{{ $sectionLabel := .Conf.HackathonSectionLabel }}{{ if not $sectionLabel }}{{ $sectionLabel = msg "hackathon.section" }}{{ end }}
 {{ $headline := .Conf.HackathonHeadline }}{{ if not $headline }}{{ $headline = msg "hackathon.headline" }}{{ end }}
 {{ $judgesNote := msg "hackathon.judges_soon" }}
 {{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = msg "hackathon.proof" }}{{ end }}
@@ -26,7 +25,6 @@
   {{ end }}
   <div class="conf-hackathon-redesign__inner">
     <div class="conf-hackathon-redesign__copy">
-      <p class="rebrand-section-label">{{ $sectionLabel }}</p>
       <p class="conf-hackathon-redesign__edition">{{ .Hackathon.Title }}</p>
       <h2>{{ ishtml $headline }}</h2>
       <div class="conf-hackathon-redesign__summary">
@@ -59,7 +57,7 @@
     </div>
 
     <aside class="conf-hackathon-redesign__proof" aria-label="Last edition hackathon highlights">
-      <p class="conf-hackathon-redesign__proof-kicker">{{ $proofLabel }}</p>
+      <h3 class="conf-hackathon-redesign__proof-title">{{ $proofLabel }}</h3>
       <div class="conf-hackathon-redesign__rows">
         {{ if .HackathonPlaceRows }}
         {{ range .HackathonPlaceRows }}

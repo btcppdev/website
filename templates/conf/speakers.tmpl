@@ -13,7 +13,6 @@
       <section class="rebrand-speaker-directory">
         <div class="rebrand-agenda-browser__intro">
           <div>
-            <p class="rebrand-section-label">Who's coming</p>
             <h1>{{ .Conf.Desc }}</h1>
           </div>
           <div>
@@ -25,7 +24,7 @@
         {{ if .EventSpeakers }}
         <div class="rebrand-speaker-directory__grid">
           {{ range $idx, $speaker := .EventSpeakers }}
-            {{ template "generic_conf_large_speaker" (dict "Speaker" $speaker "Idx" $idx) }}
+            {{ template "generic_conf_large_speaker" (dict "Speaker" $speaker "Idx" $idx "Sponsors" (index $.AttendeeSponsors $speaker.ID)) }}
           {{ end }}
         </div>
         {{ else }}

@@ -10,7 +10,7 @@
 .event-wizard {
   margin: 0;
   background: #f5f2eb;
-  color: #191919;
+  color: #343638;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 15px;
   line-height: 1.5;
@@ -26,7 +26,7 @@
 }
 .ew-header {
   height: 78px;
-  border-top: 7px solid #f9af5e;
+  border-top: 7px solid var(--brand-accent, #db7900);
   border-bottom: 1px solid #d6d0c6;
   display: flex;
   align-items: center;
@@ -65,8 +65,8 @@
 }
 .ew-kicker {
   font: 700 11px/1.5 monospace;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   color: #76664e;
 }
 .event-wizard h1 {
@@ -91,18 +91,18 @@
   justify-content: center;
   gap: 8px;
   padding: 12px 20px;
-  border: 1px solid #171717;
+  border: 1px solid #d7d4cc;
   text-decoration: none;
   font-weight: 700;
   cursor: pointer;
   border-radius: 3px;
 }
 .ew-primary {
-  background: #171717;
+  background: #fffdf8;
   color: #fff !important;
 }
 .ew-primary:hover {
-  background: #35312c;
+  background: #fffdf8;
 }
 .ew-secondary {
   background: transparent;
@@ -130,7 +130,7 @@
   display: flex;
   flex-direction: column;
   min-height: 240px;
-  border-top: 5px solid #f9af5e;
+  border-top: 5px solid var(--brand-accent, #db7900);
 }
 .ew-event-card h2 {
   font-size: 28px;
@@ -150,8 +150,8 @@
 }
 .ew-pill {
   font: 700 10px/1.4 monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  text-transform: none;
+  letter-spacing: normal;
   background: #e8e2d8;
   padding: 5px 9px;
   align-self: flex-start;
@@ -202,12 +202,13 @@
   color: #80786a;
 }
 .ew-step.active {
-  background: #f9af5e;
+  background: var(--brand-accent-compact, #b35f00);
   border-color: #ba864f;
   font-weight: bold;
+  color: #fff;
 }
 .ew-step.active b {
-  color: #1b1b1b;
+  color: #fff;
 }
 .ew-step:hover:not(.active) {
   background: #ebe5d9;
@@ -268,9 +269,9 @@
 }
 .ew-field > span:first-child {
   font-size: 11px;
-  letter-spacing: 0.07em;
+  letter-spacing: normal;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: none;
 }
 .ew-field input,
 .ew-field select,
@@ -280,7 +281,7 @@
   background: #fff;
   border: 1px solid #bdb5a8;
   border-radius: 3px;
-  color: #171717;
+  color: #343638;
   min-height: 45px;
 }
 .ew-field textarea {
@@ -318,6 +319,11 @@
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+}
+.ew-hackathon-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 12px;
 }
 .ew-footer {
   position: sticky;
@@ -627,8 +633,8 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #f9af5e;
-  color: #241c16;
+  background: var(--brand-accent-compact, #b35f00);
+  color: #fff;
   font-size: 14px;
   font-weight: 700;
 }
@@ -638,3 +644,18 @@
   border: 0;
   padding: 0;
 }
+
+.ew-primary { background: var(--brand-accent, #db7900); color: #fff; font-size: 20px; font-weight: 700; }
+.ew-primary:hover { background: var(--brand-accent-hover, #bf6900); }
+
+.ew-track-editor {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ew-track-editor .ew-field { flex: 1 1 180px; margin: 0; }
+.ew-track-editor button { min-height: 44px; }
+.ew-list li > div { min-width: 0; }
+.ew-field[hidden] { display: none; }
