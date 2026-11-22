@@ -14,7 +14,7 @@ func (w RecordingScheduler) reconcileRecordings(ctx context.Context, conn *pgxpo
 	}
 	// Recheck uncertain releases and cancellations at most every five minutes. Never
 	// recreate broadcasts, change visibility, or reapply a requested schedule.
-	rows, err := conn.Query(ctx, `SELECT recording_id::text,channel_id,target_at,youtube_url,file_uri,version,broadcast_id
+	rows, err := conn.Query(ctx, `SELECT recording_id::text,channel_id,coalesce(staging_at,target_at),youtube_url,file_uri,version,broadcast_id,staging_at IS NOT NULL,target_at
  FROM recording_schedule_changes WHERE (channel_id='youtube' OR target_at IS NULL) AND state='needs_review'
  AND updated_at < now()-interval '5 minutes' AND (target_at IS NULL OR target_at>now())
  ORDER BY updated_at LIMIT 10`)
@@ -24,7 +24,7 @@ func (w RecordingScheduler) reconcileRecordings(ctx context.Context, conn *pgxpo
 	var changes []RecordingChange
 	for rows.Next() {
 		var d RecordingChange
-		if err = rows.Scan(&d.RecordingID, &d.ChannelID, &d.TargetAt, &d.YouTubeURL, &d.FileURI, &d.Version, &d.BroadcastID); err != nil {
+		if err = rows.Scan(&d.RecordingID, &d.ChannelID, &d.TargetAt, &d.YouTubeURL, &d.FileURI, &d.Version, &d.BroadcastID, &d.Staging, &d.FinalAt); err != nil {
 			rows.Close()
 			return err
 		}
@@ -66,8 +66,8 @@ func completeRecordingChange(ctx context.Context, conn *pgxpool.Conn, d Recordin
 	if err = lockRecordings(ctx, tx); err != nil {
 		return err
 	}
-	tag, err := tx.Exec(ctx, `UPDATE recording_schedule_changes SET state='applied',error='',lease_until=NULL,version=version+1,updated_at=now()
- WHERE recording_id=$1 AND channel_id=$2 AND version=$3 AND state=$4`, d.RecordingID, d.ChannelID, d.Version, state)
+	tag, err := tx.Exec(ctx, `UPDATE recording_schedule_changes SET state=CASE WHEN $5 THEN 'pending' ELSE 'applied' END,previous_at=CASE WHEN $5 THEN $6 ELSE previous_at END,staging_at=NULL,error='',lease_until=NULL,version=version+1,updated_at=now()
+ WHERE recording_id=$1 AND channel_id=$2 AND version=$3 AND state=$4`, d.RecordingID, d.ChannelID, d.Version, state, d.Staging, d.TargetAt)
 	if err != nil {
 		return err
 	}

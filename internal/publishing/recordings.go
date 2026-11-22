@@ -324,14 +324,24 @@ func (s Store) SaveRecordingMoves(ctx context.Context, moves []RecordingMove) er
 	}
 	seen := map[string]bool{}
 	for _, m := range moves {
+		if seen[m.ID] {
+			return ErrChanged
+		}
+		seen[m.ID] = true
+	}
+	// Validate the final batch against destinations outside it. The old provider
+	// times stay in the database until each individual move is confirmed.
+	occupied := recordingReservationsOutsideBatch(reservations, seen)
+	selected := make(map[string]RecordingItem, len(moves))
+	for _, m := range moves {
 		d, e := recordingByID(items, m.ID)
 		if e != nil {
 			return e
 		}
-		if seen[m.ID] || m.Revision != d.Revision {
+		if m.Revision != d.Revision {
 			return ErrChanged
 		}
-		seen[m.ID] = true
+		selected[m.ID] = d
 		if m.At == nil {
 			if reason := recordingCancellationUnavailable(d, time.Now()); reason != "" {
 				return fmt.Errorf("%s: %s", d.Title, reason)
@@ -354,20 +364,31 @@ func (s Store) SaveRecordingMoves(ctx context.Context, moves []RecordingMove) er
 			if !valid {
 				return fmt.Errorf("Choose a configured publication slot for this channel")
 			}
-			conflict, e := getters.RecordingScheduleConflictForRecording(d.RecordingID, *m.At, d.DurationSeconds, reservations)
+			conflict, e := getters.RecordingScheduleConflictForRecording(d.RecordingID, *m.At, d.DurationSeconds, occupied)
 			if e != nil {
 				return e
 			}
 			if conflict != nil {
 				return fmt.Errorf("This slot overlaps %s, including the five-minute broadcast gap", conflict.Label())
 			}
-			reservations = append(reservations, getters.RecordingPublishReservation{RecordingID: d.RecordingID, Title: d.Title, ConferenceTag: d.Conference, PublishAt: *m.At, DurationSeconds: d.DurationSeconds})
+			occupied = append(occupied, getters.RecordingPublishReservation{RecordingID: d.RecordingID, Title: d.Title, ConferenceTag: d.Conference, PublishAt: *m.At, DurationSeconds: d.DurationSeconds})
+		}
+	}
+	staging, e := planRecordingTransitions(ctx, tx, moves, selected, reservations)
+	if e != nil {
+		return e
+	}
+	for _, m := range moves {
+		d := selected[m.ID]
+		// Reusing an already confirmed slot is a no-op, not a provider write.
+		if d.State == "scheduled" && m.At != nil && d.ConfirmedAt != nil && m.At.Equal(*d.ConfirmedAt) {
+			continue
 		}
 		previous := d.ConfirmedAt
 		if m.At == nil && previous == nil {
 			previous = d.At
 		}
-		_, e = tx.Exec(ctx, `INSERT INTO recording_schedule_changes(recording_id,channel_id,target_at,state,youtube_url,file_uri,previous_at,broadcast_id) VALUES($1,$2,$3,'pending',$4,$5,$6,$7) ON CONFLICT(recording_id,channel_id) DO UPDATE SET broadcast_id=EXCLUDED.broadcast_id, target_at=EXCLUDED.target_at,previous_at=EXCLUDED.previous_at,state='pending',youtube_url=EXCLUDED.youtube_url,file_uri=EXCLUDED.file_uri,error='',lease_until=NULL,version=recording_schedule_changes.version+1,updated_at=now()`, d.RecordingID, d.ChannelID, m.At, d.YouTubeURL, d.FileURI, previous, d.BroadcastID)
+		_, e = tx.Exec(ctx, `INSERT INTO recording_schedule_changes(recording_id,channel_id,target_at,state,youtube_url,file_uri,previous_at,broadcast_id,staging_at) VALUES($1,$2,$3,'pending',$4,$5,$6,$7,$8) ON CONFLICT(recording_id,channel_id) DO UPDATE SET staging_at=EXCLUDED.staging_at,broadcast_id=EXCLUDED.broadcast_id, target_at=EXCLUDED.target_at,previous_at=EXCLUDED.previous_at,state='pending',youtube_url=EXCLUDED.youtube_url,file_uri=EXCLUDED.file_uri,error='',lease_until=NULL,version=recording_schedule_changes.version+1,updated_at=now()`, d.RecordingID, d.ChannelID, m.At, d.YouTubeURL, d.FileURI, previous, d.BroadcastID, staging[m.ID])
 		if e != nil {
 			return e
 		}
@@ -391,16 +412,19 @@ func (s Store) PreviewRecordingQueue(ctx context.Context, ids []string) ([]Recor
 	}
 	out := []RecordingMove{}
 	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			return nil, fmt.Errorf("Select each item once")
+		}
+		seen[id] = true
+	}
+	reservations = recordingReservationsOutsideBatch(reservations, seen)
 	now := time.Now()
 	for _, id := range ids {
 		d, e := recordingByID(items, id)
 		if e != nil {
 			return nil, e
 		}
-		if seen[id] {
-			return nil, fmt.Errorf("Select each item once")
-		}
-		seen[id] = true
 		if d.Reason != "" {
 			return nil, fmt.Errorf("%s: %s", d.Title, d.Reason)
 		}
@@ -410,9 +434,6 @@ func (s Store) PreviewRecordingQueue(ctx context.Context, ids []string) ([]Recor
 		}
 		found := false
 		for _, at := range slots {
-			if d.At != nil && at.Equal(*d.At) {
-				continue
-			}
 			conflict, e := getters.RecordingScheduleConflictForRecording(d.RecordingID, at, d.DurationSeconds, reservations)
 			if e != nil {
 				return nil, e

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"btcpp-web/external/getters"
 )
 
 type RecordingChange struct {
+	Staging     bool
+	FinalAt     *time.Time
 	BroadcastID string
 	RecordingID string
 	ChannelID   string
@@ -66,50 +68,88 @@ func (w RecordingScheduler) RunOnce(ctx context.Context) error {
 			tx.Rollback(ctx)
 			return e
 		}
-		var d RecordingChange
-		e = tx.QueryRow(ctx, `SELECT recording_id::text,channel_id,target_at,youtube_url,file_uri,version,broadcast_id FROM recording_schedule_changes WHERE state='pending' ORDER BY updated_at LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&d.RecordingID, &d.ChannelID, &d.TargetAt, &d.YouTubeURL, &d.FileURI, &d.Version, &d.BroadcastID)
-		if errors.Is(e, pgx.ErrNoRows) {
-			tx.Rollback(ctx)
-			return nil
-		}
+		// A batch may reuse another item's old slot. Only send a move once
+		// that slot is actually free, not merely promised by a pending job.
+		rows, e := tx.Query(ctx, `SELECT recording_id::text,channel_id,coalesce(staging_at,target_at),youtube_url,file_uri,version,broadcast_id,staging_at IS NOT NULL,target_at FROM recording_schedule_changes WHERE state='pending' ORDER BY updated_at,recording_id,channel_id FOR UPDATE SKIP LOCKED`)
 		if e != nil {
 			tx.Rollback(ctx)
 			return e
+		}
+		var pending []RecordingChange
+		for rows.Next() {
+			var d RecordingChange
+			if e = rows.Scan(&d.RecordingID, &d.ChannelID, &d.TargetAt, &d.YouTubeURL, &d.FileURI, &d.Version, &d.BroadcastID, &d.Staging, &d.FinalAt); e != nil {
+				break
+			}
+			pending = append(pending, d)
+		}
+		if e == nil {
+			e = rows.Err()
+		}
+		rows.Close()
+		if e != nil {
+			tx.Rollback(ctx)
+			return e
+		}
+		if len(pending) == 0 {
+			tx.Rollback(ctx)
+			return nil
 		}
 		items, e := recordingItems(ctx, tx)
 		if e != nil {
 			tx.Rollback(ctx)
 			return e
 		}
-		prefix := "youtube:"
-		if d.ChannelID == "broadcasts" {
-			prefix = "broadcast:"
-		}
-		item, e := recordingByID(items, prefix+d.RecordingID)
-		reason := ""
+		reservations, e := getters.RecordingScheduleReservations(ctx, tx)
 		if e != nil {
-			reason = e.Error()
-		} else if d.TargetAt == nil {
-			reason = validateRecordingCancellation(item, d, time.Now())
-		} else if item.Reason != "" {
-			reason = item.Reason
-		} else if item.YouTubeURL != d.YouTubeURL || item.FileURI != d.FileURI {
-			reason = "The recording media changed. Review and schedule the replacement again."
-		} else if d.TargetAt != nil && !d.TargetAt.After(time.Now().Add(time.Minute)) {
-			reason = "The requested slot is too close or has passed. Choose a future publication slot."
+			tx.Rollback(ctx)
+			return e
 		}
-		if reason != "" {
-			_, e = tx.Exec(ctx, `UPDATE recording_schedule_changes SET state='failed',error=$3,version=version+1,updated_at=now() WHERE recording_id=$1 AND channel_id=$2`, d.RecordingID, d.ChannelID, reason)
-			if e != nil {
-				tx.Rollback(ctx)
-				return e
+		var d RecordingChange
+		ready := false
+		for _, candidate := range pending {
+			item, itemErr := recordingByID(items, recordingDestinationID(candidate.RecordingID, candidate.ChannelID))
+			reason := ""
+			if itemErr != nil {
+				reason = itemErr.Error()
+			} else if candidate.TargetAt == nil {
+				reason = validateRecordingCancellation(item, candidate, time.Now())
+			} else if item.Reason != "" {
+				reason = item.Reason
+			} else if item.YouTubeURL != candidate.YouTubeURL || item.FileURI != candidate.FileURI {
+				reason = "The recording media changed. Review and schedule the replacement again."
+			} else if !candidate.TargetAt.After(time.Now().Add(time.Minute)) || (candidate.FinalAt != nil && !candidate.FinalAt.After(time.Now().Add(time.Minute))) {
+				reason = "The requested slot is too close or has passed. Choose a future publication slot."
 			}
-			if e = tx.Commit(ctx); e != nil {
-				return e
+			if reason == "" && candidate.TargetAt != nil {
+				conflict, conflictErr := getters.RecordingScheduleConflictForRecording(candidate.RecordingID, *candidate.TargetAt, item.DurationSeconds, reservations)
+				if conflictErr != nil {
+					reason = conflictErr.Error()
+				} else if conflict != nil {
+					_, e = tx.Exec(ctx, `UPDATE recording_schedule_changes SET error=$3 WHERE recording_id=$1 AND channel_id=$2`, candidate.RecordingID, candidate.ChannelID, "Waiting for "+conflict.Label()+" to finish moving out of this slot")
+					if e != nil {
+						tx.Rollback(ctx)
+						return e
+					}
+					continue
+				}
 			}
-			continue
+			if reason != "" {
+				_, e = tx.Exec(ctx, `UPDATE recording_schedule_changes SET state='failed',error=$3,version=version+1,updated_at=now() WHERE recording_id=$1 AND channel_id=$2`, candidate.RecordingID, candidate.ChannelID, reason)
+				if e != nil {
+					tx.Rollback(ctx)
+					return e
+				}
+				continue
+			}
+			d = candidate
+			ready = true
+			break
 		}
-		_, e = tx.Exec(ctx, `UPDATE recording_schedule_changes SET state='syncing',lease_until=now()+interval '5 minutes',version=version+1,updated_at=now() WHERE recording_id=$1 AND channel_id=$2`, d.RecordingID, d.ChannelID)
+		if !ready {
+			return tx.Commit(ctx)
+		}
+		_, e = tx.Exec(ctx, `UPDATE recording_schedule_changes SET state='syncing',error='',lease_until=now()+interval '5 minutes',version=version+1,updated_at=now() WHERE recording_id=$1 AND channel_id=$2`, d.RecordingID, d.ChannelID)
 		if e != nil {
 			tx.Rollback(ctx)
 			return e

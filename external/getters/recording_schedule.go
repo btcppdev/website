@@ -14,6 +14,8 @@ import (
 // Publish slots belong to the shared channel, regardless of conference.
 type RecordingPublishReservation struct {
 	RecordingID     string
+	ChannelID       string // destination owning this reservation; empty for live/unidentified sources
+	Requested       bool   // requested target or temporary move, not yet confirmed
 	Title           string
 	ConferenceTag   string
 	PublishAt       time.Time
@@ -48,7 +50,7 @@ func RecordingScheduleReservations(dbctx context.Context, db recordingScheduleQu
 
 func listRecordingPublishReservations(dbctx context.Context, db recordingScheduleQuerier) ([]RecordingPublishReservation, error) {
 	rows, err := db.Query(dbctx, `
-		SELECT r.id::text, r.talk_name, coalesce(c.tag, ''), coalesce(r.publish_at, rb.started_at, rb.heartbeat_at), r.duration_seconds, false
+		SELECT r.id::text, r.talk_name, coalesce(c.tag, ''), coalesce(r.publish_at, rb.started_at, rb.heartbeat_at), r.duration_seconds, false, CASE WHEN r.publish_at IS NOT NULL THEN 'youtube' ELSE '' END, false
 		FROM recordings r
 		LEFT JOIN conf_talks ct ON ct.id = r.conf_talk_id
 		LEFT JOIN conferences c ON c.id = ct.conference_id
@@ -57,7 +59,7 @@ func listRecordingPublishReservations(dbctx context.Context, db recordingSchedul
 		   OR (rb.state = 'live' AND rb.heartbeat_at > now() - interval '5 minutes' AND r.duration_seconds = 0)
 		UNION ALL
 		SELECT coalesce(r.id::text, s.recording_id::text, ''),
-			coalesce(nullif(r.talk_name, ''), 'YouTube post'), coalesce(c.tag, ''), s.scheduled_at, coalesce(r.duration_seconds, 0), false
+			coalesce(nullif(r.talk_name, ''), 'YouTube post'), coalesce(c.tag, ''), s.scheduled_at, coalesce(r.duration_seconds, 0), false, 'youtube', false
 		FROM social_posts s
 		LEFT JOIN recordings r ON r.id = s.recording_id
 			OR (s.recording_id IS NULL AND s.ref = 'recording:' || r.id::text || ':youtube')
@@ -65,22 +67,28 @@ func listRecordingPublishReservations(dbctx context.Context, db recordingSchedul
 		LEFT JOIN conferences c ON c.id = ct.conference_id
 		WHERE s.posted_to IN ('youtube', $1) AND s.scheduled_at + (coalesce(r.duration_seconds, 0) + 300) * interval '1 second' >= now()
 		UNION ALL
-		SELECT r.id::text, r.talk_name, coalesce(c.tag, ''), xb.scheduled_at, r.duration_seconds, true
+		SELECT r.id::text, r.talk_name, coalesce(c.tag, ''), xb.scheduled_at, r.duration_seconds, true, 'broadcasts', false
 		FROM recording_x_broadcasts xb
 		JOIN recordings r ON r.id = xb.recording_id
 		LEFT JOIN conf_talks ct ON ct.id = r.conf_talk_id
 		LEFT JOIN conferences c ON c.id = ct.conference_id
 		WHERE xb.status<>'canceled' AND xb.scheduled_at + (r.duration_seconds + 300) * interval '1 second' >= now()
         UNION ALL
-        SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.target_at,r.duration_seconds,true
+        SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.target_at,r.duration_seconds,true,j.channel_id,true
         FROM recording_schedule_changes j JOIN recordings r ON r.id=j.recording_id
         JOIN conf_talks ct ON ct.id=r.conf_talk_id JOIN conferences c ON c.id=ct.conference_id
         WHERE j.state IN ('pending','syncing','failed','needs_review') AND j.target_at + (r.duration_seconds+300)*interval '1 second' >= now()
         UNION ALL
-        SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.previous_at,r.duration_seconds,true
+        SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.previous_at,r.duration_seconds,true,j.channel_id,false
         FROM recording_schedule_changes j JOIN recordings r ON r.id=j.recording_id
         JOIN conf_talks ct ON ct.id=r.conf_talk_id JOIN conferences c ON c.id=ct.conference_id
         WHERE j.state IN ('pending','syncing','failed','needs_review') AND j.previous_at + (r.duration_seconds+300)*interval '1 second' >= now()
+
+        UNION ALL
+        SELECT r.id::text,r.talk_name,coalesce(c.tag,''),j.staging_at,r.duration_seconds,true,j.channel_id,true
+        FROM recording_schedule_changes j JOIN recordings r ON r.id=j.recording_id
+        JOIN conf_talks ct ON ct.id=r.conf_talk_id JOIN conferences c ON c.id=ct.conference_id
+        WHERE j.state IN ('pending','syncing','failed','needs_review') AND j.staging_at + (r.duration_seconds+300)*interval '1 second' >= now()
 
         ORDER BY 4, 1
 	`, YouTubePublishChannel)
@@ -91,7 +99,7 @@ func listRecordingPublishReservations(dbctx context.Context, db recordingSchedul
 	var reservations []RecordingPublishReservation
 	for rows.Next() {
 		var reservation RecordingPublishReservation
-		if err := rows.Scan(&reservation.RecordingID, &reservation.Title, &reservation.ConferenceTag, &reservation.PublishAt, &reservation.DurationSeconds, &reservation.Persistent); err != nil {
+		if err := rows.Scan(&reservation.RecordingID, &reservation.Title, &reservation.ConferenceTag, &reservation.PublishAt, &reservation.DurationSeconds, &reservation.Persistent, &reservation.ChannelID, &reservation.Requested); err != nil {
 			return nil, fmt.Errorf("read shared recording schedule: %w", err)
 		}
 		reservations = append(reservations, reservation)
