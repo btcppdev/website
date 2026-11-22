@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
@@ -191,12 +192,88 @@ func failRecordingXBroadcast(ctx *config.AppContext, recordingID string, err err
 	ctx.Err.Printf("recording X broadcast failed recording=%s: %s", recordingID, message)
 }
 
+// Keep the title compact for the broadcast player. This is our display budget,
+// not a claim about X's limit. Only the talk title is ellipsized: handles stay whole.
+const recordingBroadcastTitleLimit = 140
+
 func recordingBroadcastTitle(row *RecordingRow) string {
-	if row != nil && row.ConfTalk != nil && row.ConfTalk.Proposal != nil && strings.TrimSpace(row.ConfTalk.Proposal.Title) != "" {
-		return strings.TrimSpace(row.ConfTalk.Proposal.Title)
+	title := "Bitcoin++ broadcast"
+	if row == nil {
+		return title
 	}
-	if row != nil && row.Recording != nil {
-		return strings.TrimSpace(row.Recording.TalkName)
+	if row.Recording != nil && strings.TrimSpace(row.Recording.TalkName) != "" {
+		title = row.Recording.TalkName
 	}
-	return "Bitcoin++ broadcast"
+	event := ""
+	if row.ConfTalk != nil {
+		if p := row.ConfTalk.Proposal; p != nil && strings.TrimSpace(p.Title) != "" {
+			title = p.Title
+		}
+		if conf := row.ConfTalk.Conf; conf != nil {
+			label := strings.TrimSpace(strings.SplitN(conf.Desc, ",", 2)[0])
+			if label == "" {
+				label = strings.TrimSpace(strings.SplitN(conf.Location, ",", 2)[0])
+			}
+			if label != "" {
+				if strings.HasPrefix(strings.ToLower(label), "bitcoin++") {
+					label = strings.TrimSpace(label[len("bitcoin++"):])
+				}
+				event = " | " + strings.TrimSpace("bitcoin++ "+label)
+			}
+		}
+	}
+	title = strings.Join(strings.Fields(title), " ")
+	event = strings.Join(strings.Fields(event), " ")
+	if event != "" {
+		event = " " + event
+	}
+	var credits []string
+	seen := map[string]bool{}
+	for _, speaker := range row.Speakers {
+		if speaker == nil || speaker.IsDeletedAccount {
+			continue
+		}
+		credit := strings.Join(strings.Fields(speaker.Name), " ")
+		if handle := recordingBroadcastHandle(speaker.Twitter.Handle); handle != "" {
+			credit = "@" + handle
+		}
+		if credit == "" || seen[strings.ToLower(credit)] {
+			continue
+		}
+		seen[strings.ToLower(credit)] = true
+		credits = append(credits, credit)
+	}
+	suffix := func(n int) string {
+		if n == 0 {
+			return ""
+		}
+		out := " — " + strings.Join(credits[:n], ", ")
+		if n < len(credits) {
+			out += fmt.Sprintf(" +%d more", len(credits)-n)
+		}
+		return out
+	}
+	n := len(credits)
+	if utf8.RuneCountInString(title+suffix(n)+event) > recordingBroadcastTitleLimit {
+		event = ""
+	}
+	// Leave at least 40 characters for the talk when a large panel is credited.
+	for n > 0 && utf8.RuneCountInString(suffix(n)+event) > recordingBroadcastTitleLimit-40 {
+		n--
+	}
+	ending := suffix(n) + event
+	return truncateRunes(title, recordingBroadcastTitleLimit-utf8.RuneCountInString(ending)) + ending
+}
+
+func recordingBroadcastHandle(raw string) string {
+	handle := types.ParseTwitter(raw).Handle
+	if len(handle) == 0 || len(handle) > 15 {
+		return ""
+	}
+	for _, ch := range handle {
+		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '_') {
+			return ""
+		}
+	}
+	return handle
 }
