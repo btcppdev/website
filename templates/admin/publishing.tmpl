@@ -5,11 +5,11 @@
     {{ block "header" . }}{{ end }}
     <link
       rel="stylesheet"
-      href="/static/css/publishing.css?v=20261121-sentence-case"
+      href="/static/css/publishing.css?v=20261121-calendar-cancel"
     />
     <script
       defer
-      src="/static/js/publishing.js?v=20261121-sentence-case"
+      src="/static/js/publishing.js?v=20261121-calendar-cancel"
     ></script>
   </head>
   <body class="btcpp-admin-page publishing-page">
@@ -253,6 +253,7 @@
               them, or use the up/down buttons.
             </p>
             <p id="recording-schedule-error" role="alert"></p>
+            <p id="recording-schedule-status" role="status"></p>
             <div class="pub-recording-filters">
               <label
                 >Event<select id="schedule-event">
@@ -270,7 +271,7 @@
             <div class="pub-recording-includes">
               <label class="pub-recording-check"
                 ><input type="checkbox" id="include-scheduled" /><span
-                  >Include already scheduled recordings</span
+                  >Show scheduled recordings</span
                 ></label
               >
               <label class="pub-recording-check"
@@ -280,7 +281,9 @@
               >
             </div>
             <p class="pub-legend">
-              Uncheck a talk or remove it from the preview to skip this batch.
+              To cancel an existing schedule, show scheduled recordings and
+              use its Cancel button. Unchecking or removing a talk from the
+              preview only skips this batch.
               Exclude from scheduling keeps this destination out of future
               batches until you restore it. Excluding does not change YouTube
               visibility.

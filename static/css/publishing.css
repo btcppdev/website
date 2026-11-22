@@ -491,6 +491,45 @@
   margin: 0;
   padding-right: 38px !important;
 }
+.pub-item--cancellable .pub-card {
+  border-bottom: 0;
+}
+.pub-card-actions {
+  padding: 0 10px 4px;
+  border: 1px solid #d7d4cc;
+  border-top: 0;
+  background: #fff;
+}
+.publishing-page .pub-card-actions button {
+  min-height: 32px;
+  max-width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #8b3c20;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: normal;
+}
+.publishing-page .pub-card-actions button:disabled {
+  color: #6a6258;
+  text-decoration: none;
+}
+.pub-card-actions .pub-action-error {
+  margin: 4px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 950px) {
+  .publishing-page .pub-card-actions button {
+    min-height: 44px;
+    font-size: 13px;
+  }
+}
 .publishing-page .pub-drag-handle {
   position: absolute;
   top: 2px;

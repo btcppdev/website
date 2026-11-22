@@ -536,27 +536,72 @@
       };
     }
     const d = deliveryFor(e);
-    if (!canMove(d)) return button;
-    button.draggable = true;
-    button.ondragstart = (ev) => {
-      if (moveSaving) {
-        ev.preventDefault();
-        return;
-      }
-      ev.dataTransfer.setData("text/plain", d.id);
-      ev.dataTransfer.effectAllowed = "move";
-      beginDrag(d);
-    };
-    button.ondragend = () => {
-      if (dragged)
-        moveStatus(
-          "Post unchanged. Choose an available publication slot for this account.",
-        );
-      endDrag();
-      suppressClickUntil = performance.now() + 300;
-    };
+    const movable = canMove(d);
+    const showCancellation = isRecording(d) && (d.cancelable || d.cancel_pending);
+    if (!movable && !showCancellation) return button;
+    if (movable) {
+      button.draggable = true;
+      button.ondragstart = (ev) => {
+        if (moveSaving) {
+          ev.preventDefault();
+          return;
+        }
+        ev.dataTransfer.setData("text/plain", d.id);
+        ev.dataTransfer.effectAllowed = "move";
+        beginDrag(d);
+      };
+      button.ondragend = () => {
+        if (dragged)
+          moveStatus(
+            "Post unchanged. Choose an available publication slot for this account.",
+          );
+        endDrag();
+        suppressClickUntil = performance.now() + 300;
+      };
+    }
     const item = el("div", undefined, "pub-item");
-    item.append(button, moveHandle(d));
+    item.append(button);
+    if (movable) item.append(moveHandle(d));
+    if (showCancellation) {
+      item.classList.add("pub-item--cancellable");
+      const actions = el("div", undefined, "pub-card-actions");
+      const review =
+        d.cancel_pending && ["failed", "needs_review"].includes(d.state);
+      const cancel = actionButton(
+        review
+          ? "Review cancellation"
+          : d.cancel_pending
+            ? "Cancellation pending"
+            : d.channel_id === "youtube"
+              ? "Cancel release"
+              : "Cancel broadcast",
+        async () => {
+          if (review) {
+            details(e);
+            return;
+          }
+          actions.querySelector(".pub-action-error")?.remove();
+          try {
+            await cancelRecording(d);
+          } catch (err) {
+            const error = el(
+              "p",
+              err.message,
+              "pub-action-error pub-recording-error",
+            );
+            error.setAttribute("role", "alert");
+            actions.append(error);
+          }
+        },
+      );
+      cancel.disabled = !d.cancelable && !review;
+      cancel.setAttribute(
+        "aria-label",
+        cancel.textContent + ": " + d.title + " · " + account.name,
+      );
+      actions.append(cancel);
+      item.append(actions);
+    }
     return item;
   }
   async function fetchAvailableSlots(d) {
@@ -686,23 +731,14 @@
         );
       return;
     }
-    const legend = el("p", undefined, "pub-legend");
-    legend.append(
-      el(
-        "span",
-        "Drag a post, YouTube release, or broadcast to an available slot for its channel. Use the move handle to choose a slot by touch or keyboard.",
-        view === "month" ? "pub-month-key" : "",
-      ),
-    );
     if (view === "month")
-      legend.append(
+      container.append(
         el(
-          "span",
+          "p",
           "Tap a day for details · Numbers: posts, releases & streams · Dots: default slots",
-          "pub-month-hint",
+          "pub-legend pub-month-hint",
         ),
       );
-    container.append(legend);
     const grid = el(
       "div",
       undefined,
@@ -834,6 +870,9 @@
             $("#detail-body").append(error);
           }
           error.textContent = e.message;
+        } else if ($("#recording-scheduler").open) {
+          $("#recording-schedule-error").textContent = e.message;
+          $("#recording-schedule-error").scrollIntoView({ block: "nearest" });
         } else notice(e.message);
       } finally {
         b.disabled = false;
@@ -1172,6 +1211,42 @@
       return "";
     }
   }
+  function recordingCancelLabel(d) {
+    return d.channel_id === "youtube"
+      ? "Cancel scheduled release"
+      : "Cancel broadcast";
+  }
+  async function cancelRecording(d) {
+    const youtube = d.channel_id === "youtube";
+    if (
+      !window.confirm(
+        youtube
+          ? `Cancel the YouTube release for “${d.title}” and set the video to unlisted? Its broadcast schedule will stay unchanged.`
+          : `Cancel the X broadcast for “${d.title}” and its queued playback? Its YouTube release will stay unchanged.`,
+      )
+    )
+      return;
+    const schedulerOpen = $("#recording-scheduler").open;
+    const selected = [
+      ...$("#recording-options").querySelectorAll("input:checked"),
+    ].map((x) => x.value);
+    if (schedulerOpen) {
+      invalidateRecordingPreview();
+      $("#recording-schedule-error").textContent = "";
+      $("#recording-schedule-status").textContent = "";
+    }
+    await api({ action: "recording_cancel", id: d.id, revision: d.revision });
+    $("#detail").close();
+    $("#calendar-day").close();
+    await load();
+    const message = youtube
+      ? "Release cancellation requested. Waiting for YouTube confirmation."
+      : "Broadcast cancellation requested. Waiting for X and streamer confirmation.";
+    if (schedulerOpen) {
+      renderRecordingOptions(selected.filter((id) => id !== d.id));
+      $("#recording-schedule-status").textContent = message;
+    } else moveStatus(message);
+  }
   function details(e) {
     if (e.kind === "slot") {
       if (channel(e.channel_id).provider === "recordings") {
@@ -1229,31 +1304,7 @@
           ),
         );
         box.append(
-          actionButton(
-            youtube ? "Cancel scheduled release" : "Cancel broadcast",
-            async () => {
-              if (
-                !window.confirm(
-                  youtube
-                    ? "Cancel this YouTube release and set the video to unlisted? Its broadcast schedule will stay unchanged."
-                    : "Cancel this X broadcast and its queued playback? Its YouTube release will stay unchanged.",
-                )
-              )
-                return;
-              await api({
-                action: "recording_cancel",
-                id: d.id,
-                revision: d.revision,
-              });
-              $("#detail").close();
-              await load();
-              moveStatus(
-                youtube
-                  ? "Release cancellation is pending confirmation from YouTube."
-                  : "Broadcast cancellation requested. Queued playback is disabled on the next streamer sync; X confirmation is pending.",
-              );
-            },
-          ),
+          actionButton(recordingCancelLabel(d), () => cancelRecording(d)),
         );
       } else if (d.cancel_reason && !d.cancel_pending && d.at) {
         box.append(el("p", d.cancel_reason));
@@ -1534,11 +1585,38 @@
           el(
             "small",
             d.reason,
-            d.excluded ? "pub-legend" : "pub-recording-error",
+            d.excluded ||
+              (d.cancel_pending && ["pending", "syncing"].includes(d.state))
+              ? "pub-legend"
+              : "pub-recording-error",
           ),
         );
       label.append(check, text);
       row.append(label);
+      if (d.at || d.confirmed_at || d.cancel_pending || d.cancelable) {
+        const button = actionButton(
+          d.cancel_pending ? "Cancellation pending" : recordingCancelLabel(d),
+          () => cancelRecording(d),
+        );
+        button.disabled = !d.cancelable;
+        button.setAttribute(
+          "aria-label",
+          button.textContent + ": " + d.title + " · " + channel(d.channel_id).name,
+        );
+        if (!d.cancelable && !d.cancel_pending && d.cancel_reason) {
+          button.title = d.cancel_reason;
+          if (d.cancel_reason !== d.reason)
+            text.append(el("small", d.cancel_reason, "pub-legend"));
+        }
+        row.append(button);
+        if (["failed", "needs_review"].includes(d.state))
+          row.append(
+            actionButton("Review schedule", () => {
+              $("#recording-scheduler").close();
+              details(recordingEntry(d));
+            }),
+          );
+      }
       if (d.excluded || (d.state === "draft" && !d.at && !d.confirmed_at)) {
         const button = el(
           "button",
@@ -1605,6 +1683,7 @@
     $("#include-scheduled").checked = Boolean(recording);
     $("#include-excluded").checked = Boolean(recording);
     $("#recording-schedule-error").textContent = "";
+    $("#recording-schedule-status").textContent = "";
     renderRecordingOptions();
     $("#recording-scheduler").showModal();
   }
