@@ -928,14 +928,6 @@
         "number",
         "1000 = 10%. Current checkout uses 10% when this is 0.",
       );
-      field(
-        g,
-        t,
-        "tax_code",
-        "Stripe product tax code",
-        "text",
-        "Use the event’s reviewed tax classification.",
-      );
       if (isEvergreen) {
         field(g, t, "ticket_kind", "Category", "text", "", [
           ["general", "Other"],
@@ -959,6 +951,18 @@
         );
       }
       check(s, t, "disabled", "Pause sales of this ticket");
+      const taxSettings = el("details");
+      taxSettings.append(el("summary", "", "Advanced tax settings"));
+      s.append(taxSettings);
+      const taxCode = field(
+        taxSettings,
+        t,
+        "tax_code",
+        "Stripe tax code override (optional)",
+        "text",
+        "Leave blank to keep this ticket’s classification or use the site default for a new ticket.",
+      );
+      taxCode.placeholder = "Use existing ticket tax settings";
     }
     const defaults = (isEvergreen) => ({
       tier: "",

@@ -336,18 +336,27 @@ func savePlanningTickets(c context.Context, tx pgx.Tx, conf *types.Conf, tickets
 		if e != nil || (!t.Evergreen && end == nil) {
 			return fmt.Errorf("each ticket tier needs a sales deadline")
 		}
-		if !eventplan.TaxCodePattern.MatchString(t.TaxCode) {
-			return fmt.Errorf("choose a tax classification for each tier")
-		}
+		t.TaxCode = strings.TrimSpace(t.TaxCode)
 		if t.ID != "" {
 			if seen[t.ID] {
 				return fmt.Errorf("duplicate ticket tier")
 			}
 			seen[t.ID] = true
-			var owner string
-			if e = tx.QueryRow(c, `SELECT conference_id::text FROM conference_tickets WHERE id=$1`, t.ID).Scan(&owner); e != nil || owner != conf.Ref {
+			var owner, savedTaxCode string
+			if e = tx.QueryRow(c, `SELECT conference_id::text,stripe_tax_code FROM conference_tickets WHERE id=$1`, t.ID).Scan(&owner, &savedTaxCode); e != nil || owner != conf.Ref {
 				return fmt.Errorf("ticket tier does not belong to this event")
 			}
+			// Editing prices without a tax override must retain the saved classification.
+			if t.TaxCode == "" {
+				t.TaxCode = strings.TrimSpace(savedTaxCode)
+			}
+		}
+		if t.TaxCode == "" {
+			// Match the existing conference_tickets database and checkout default.
+			t.TaxCode = types.StripeTaxCodeNontaxable
+		}
+		if !eventplan.TaxCodePattern.MatchString(t.TaxCode) {
+			return fmt.Errorf("invalid Stripe tax code override for %s; use txcd_ followed by eight digits, or leave it blank", t.Tier)
 		}
 		symbol := map[string]string{"USD": "$", "EUR": "€", "BRL": "R$", "JPY": "¥"}[t.Currency]
 		if symbol == "" {
