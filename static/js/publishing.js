@@ -1058,48 +1058,70 @@
         document.createTextNode(" Use for event X announcements"),
       );
       const save = el("button", "Save schedule");
+      const feedback = el("p", "", "pub-channel-feedback");
+      feedback.setAttribute("role", "status");
+      feedback.setAttribute("aria-live", "polite");
       save.type = "submit";
       form.append(zoneLabel, slotLabel);
       if (c.provider === "direct") form.append(pausedLabel, routingLabel);
-      form.append(save);
+      form.append(save, feedback);
+      form.addEventListener("input", () => {
+        feedback.textContent = "";
+        feedback.classList.remove("is-error");
+      });
       form.onsubmit = async (ev) => {
         ev.preventDefault();
         save.disabled = true;
+        save.textContent = "Saving…";
+        feedback.textContent = "";
+        feedback.classList.remove("is-error");
         try {
-          const parsed = slots.value.trim()
-            ? slots.value
-                .trim()
-                .split("\n")
-                .map((line) => {
-                  const m =
-                    /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(\d{2}:\d{2})$/i.exec(
-                      line.trim(),
-                    );
-                  if (!m)
-                    throw Error("Use one slot per line, such as Mon 10:00.");
-                  return {
-                    day: days.findIndex(
-                      (x) => x.toLowerCase() === m[1].toLowerCase(),
-                    ),
-                    time: m[2],
-                  };
-                })
-            : [];
+          const parsed = [];
+          const seen = new Set();
+          slots.value.split("\n").forEach((line, index) => {
+            if (!line.trim()) return;
+            const m =
+              /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(\d{1,2}):(\d{2})$/i.exec(
+                line.trim(),
+              );
+            if (!m || Number(m[2]) > 23 || Number(m[3]) > 59)
+              throw Error(
+                `Line ${index + 1}: use a weekday and 24-hour time, such as Mon 6:25.`,
+              );
+            const slot = {
+              day: days.findIndex(
+                (x) => x.toLowerCase() === m[1].toLowerCase(),
+              ),
+              time: m[2].padStart(2, "0") + ":" + m[3],
+            };
+            const key = slot.day + "/" + slot.time;
+            if (seen.has(key))
+              throw Error(
+                `Line ${index + 1}: ${days[slot.day]} ${slot.time} is listed twice.`,
+              );
+            seen.add(key);
+            parsed.push(slot);
+          });
+          const savedChannel = {
+            ...c,
+            timezone: zoneInput.value.trim(),
+            slots: parsed,
+            paused: paused.checked,
+            route_event_posts: routing.checked,
+          };
           await api({
             action: "channel",
-            channel: {
-              ...c,
-              timezone: zoneInput.value,
-              slots: parsed,
-              paused: paused.checked,
-              route_event_posts: routing.checked,
-            },
+            channel: savedChannel,
           });
-          await load();
+          Object.assign(c, savedChannel);
+          feedback.textContent = `Saved ${parsed.length} weekly ${parsed.length === 1 ? "slot" : "slots"}.`;
         } catch (e) {
-          notice(e.message);
+          feedback.classList.add("is-error");
+          feedback.textContent = e.message;
+          feedback.scrollIntoView({ block: "nearest" });
         } finally {
           save.disabled = false;
+          save.textContent = "Save schedule";
         }
       };
       row.append(form);

@@ -269,6 +269,16 @@
   color: #6a6258;
   line-height: 1.6;
 }
+.pub-channel .pub-channel-feedback {
+  margin: 8px 0 0;
+  color: #343638;
+}
+.pub-channel .pub-channel-feedback:empty {
+  display: none;
+}
+.pub-channel .pub-channel-feedback.is-error {
+  color: #b42318;
+}
 .pub-channel label {
   display: block;
   font-size: 12px;
