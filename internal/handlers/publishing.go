@@ -31,12 +31,20 @@ func registerPublishingRoutes(r *mux.Router, app *config.AppContext) {
 }
 func publishingOAuth(app *config.AppContext) *oauth2.Config {
 	c := app.Env.Publishing
-	return xapi.Config(c.XClientID, c.XClientSecret, c.XRedirectURL)
+	return xapi.Config(c.XClientID, c.XClientSecret, publishingXRedirectURL(app))
+}
+
+// Derive the callback from trusted site configuration, never request headers.
+func publishingXRedirectURL(app *config.AppContext) string {
+	if override := strings.TrimSpace(app.Env.Publishing.XRedirectURL); override != "" {
+		return override
+	}
+	return strings.TrimRight(app.Env.GetURI(), "/") + "/admin/publishing/x-callback"
 }
 func publishingXConfigured(app *config.AppContext) bool {
 	c := app.Env.Publishing
 	_, e := secureblob.DecodeKey(app.Env.Recordings.EncryptionKey)
-	return c.XClientID != "" && c.XClientSecret != "" && c.XRedirectURL != "" && e == nil
+	return c.XClientID != "" && c.XClientSecret != "" && e == nil
 }
 func publishingJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -166,7 +174,7 @@ func AdminPublishing(w http.ResponseWriter, r *http.Request, app *config.AppCont
 	switch r.URL.Path {
 	case "/admin/publishing/connect-x":
 		if !publishingXConfigured(app) {
-			http.Error(w, "Set X_OAUTH_CLIENT_ID, X_OAUTH_CLIENT_SECRET, X_OAUTH_REDIRECT_URL and SOCIAL_STATE_KEY on the server first", 503)
+			http.Error(w, "Set X_OAUTH_CLIENT_ID, X_OAUTH_CLIENT_SECRET and SOCIAL_STATE_KEY on the server first", 503)
 			return
 		}
 		state := uuid.NewString()

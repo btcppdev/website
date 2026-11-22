@@ -172,7 +172,7 @@
           ? "Publishing is paused on the server. Schedule changes stay pending until publishing is enabled."
           : data.worker_enabled
             ? ""
-            : "Recording scheduling is enabled. Connect X to enable direct social posts.",
+            : "Recording scheduling is enabled. X app credentials are needed to enable direct social posts.",
       );
     } catch (e) {
       notice(e.message);
@@ -983,7 +983,7 @@
       intro.append(
         el(
           "p",
-          "X connection needs server configuration: X_OAUTH_CLIENT_ID, X_OAUTH_CLIENT_SECRET, X_OAUTH_REDIRECT_URL, and SOCIAL_STATE_KEY.",
+          "X connection needs server configuration: X_OAUTH_CLIENT_ID, X_OAUTH_CLIENT_SECRET, and SOCIAL_STATE_KEY.",
         ),
       );
     intro.append(

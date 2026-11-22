@@ -16,11 +16,10 @@ Configure these server secrets/settings:
 PUBLISHING_ENABLED=false
 X_OAUTH_CLIENT_ID=
 X_OAUTH_CLIENT_SECRET=
-X_OAUTH_REDIRECT_URL=https://btcpp.dev/admin/publishing/x-callback
 SOCIAL_STATE_KEY=<base64-encoded 32-byte encryption key>
 ```
 
-Register the exact callback in the X application. Connect the account in **Channels & schedules**, add weekday/time slots, and review its queue. New connections are paused. Set `PUBLISHING_ENABLED=true` and unpause the account when ready. The X application/account must have API publishing access and credit. Never paste client secrets into the browser or commit them to the repository. Keep the encryption key backed up; losing it requires reconnecting accounts.
+The callback defaults to the configured site URL (`Env.GetURI()`) plus `/admin/publishing/x-callback`: `https://btcpp.dev/admin/publishing/x-callback` in production. Register that exact URL in the X application. No separate redirect environment variable is required. `X_OAUTH_REDIRECT_URL` remains an optional override for a different registered callback; local instances otherwise use their configured host/port or `LOCAL_EXTERNAL` URL. Connect the account in **Channels & schedules**, add weekday/time slots, and review its queue. New connections are paused. Set `PUBLISHING_ENABLED=true` and unpause the account when ready. The X application/account must have API publishing access and credit. Never paste client secrets into the browser or commit them to the repository. Keep the encryption key backed up; losing it requires reconnecting accounts.
 
 The **Use for event X announcements** switch changes the existing speaker/talk/sponsor composer and new recording announcements to this account. Only one X account can own event routing. Pausing it holds new posts locally. There is no fallback publisher. Historical announcement records are retained to prevent duplicate posts during cutover, including uncertain outcomes.
 
