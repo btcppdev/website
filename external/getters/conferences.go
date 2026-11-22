@@ -38,18 +38,16 @@ type ConfDetailsInput struct {
 	PickupAddressCountry            string
 	ShowHackathon                   bool
 	HeroTitle                       string
-	HeroCaption                     string
 	AboutTitle                      string
 	AboutBody                       string
 	AboutBody2                      string
+	AboutQuote                      *string // nil preserves the current value
 	VenueTitle                      string
 	VenueSubtitle                   string
 	VenueBody                       string
 	HotelsIntro                     string
-	LocalTicketBody                 string
 	SpeakersTitle                   string
 	SpeakersBody                    string
-	HackathonSectionLabel           string
 	HackathonHeadline               string
 	HackathonJudgesNote             string
 	HackathonProofLabel             string
@@ -175,7 +173,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			pickup_address_line1, pickup_address_line2, pickup_address_city,
 			pickup_address_region, pickup_address_postal_code, pickup_address_country,
 			show_hackathon, orient_cal_notif,
-			hero_title, hero_caption, about_title, about_body, about_body_2,
+			hero_title, hero_caption, about_title, about_body, about_body_2, about_quote,
 			venue_title, venue_subtitle, venue_body, hotels_intro, local_ticket_body,
 			speakers_title, speakers_body, hackathon_section_label,
 			hackathon_headline, hackathon_judges_note, hackathon_proof_label,
@@ -236,6 +234,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.AboutTitle,
 			&conf.AboutBody,
 			&conf.AboutBody2,
+			&conf.AboutQuote,
 			&conf.VenueTitle,
 			&conf.VenueSubtitle,
 			&conf.VenueBody,
@@ -459,6 +458,7 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
+	// Retired copy fields stay in storage; this form no longer overwrites them.
 	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conferences
 		SET description = $2,
@@ -475,55 +475,53 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			venue_website_url = $13,
 			show_hackathon = $14,
 			hero_title = $15,
-			hero_caption = $16,
-			about_title = $17,
-			about_body = $18,
-			about_body_2 = $19,
-			venue_title = $20,
-			venue_subtitle = $21,
-			venue_body = $22,
-			hotels_intro = $23,
-			local_ticket_body = $24,
-			speakers_title = $25,
-			speakers_body = $26,
-			hackathon_section_label = $27,
-			hackathon_headline = $28,
-			hackathon_judges_note = $29,
-			hackathon_proof_label = $30,
-			map_embed_url = $31,
-			map_latitude = $32,
-			map_longitude = $33,
-			map_x_percent = $34,
-			map_y_percent = $35,
-			map_label = $36,
-			map_label_side = $37,
-			pickup_address_line1 = $38,
-			pickup_address_line2 = $39,
-			pickup_address_city = $40,
-			pickup_address_region = $41,
-			pickup_address_postal_code = $42,
-			pickup_address_country = upper($43),
-			speaker_dinner_start = $44,
-			speaker_dinner_location = $45,
-			speaker_dinner_notes = $46,
-			conference_email_campaigns_enabled = $47,
-			accent_color = $48,
-			speaker_applications_close = $49
+			about_title = $16,
+			about_body = $17,
+			about_body_2 = $18,
+			venue_title = $19,
+			venue_subtitle = $20,
+			venue_body = $21,
+			hotels_intro = $22,
+			speakers_title = $23,
+			speakers_body = $24,
+			hackathon_headline = $25,
+			hackathon_judges_note = $26,
+			hackathon_proof_label = $27,
+			map_embed_url = $28,
+			map_latitude = $29,
+			map_longitude = $30,
+			map_x_percent = $31,
+			map_y_percent = $32,
+			map_label = $33,
+			map_label_side = $34,
+			pickup_address_line1 = $35,
+			pickup_address_line2 = $36,
+			pickup_address_city = $37,
+			pickup_address_region = $38,
+			pickup_address_postal_code = $39,
+			pickup_address_country = upper($40),
+			speaker_dinner_start = $41,
+			speaker_dinner_location = $42,
+			speaker_dinner_notes = $43,
+			conference_email_campaigns_enabled = $44,
+			accent_color = $45,
+			speaker_applications_close = $46,
+			about_quote = COALESCE($47::text, about_quote)
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
 		in.VenueMap, in.VenueWebsite, in.ShowHackathon, in.HeroTitle,
-		in.HeroCaption, in.AboutTitle, in.AboutBody, in.AboutBody2,
+		in.AboutTitle, in.AboutBody, in.AboutBody2,
 		in.VenueTitle, in.VenueSubtitle, in.VenueBody, in.HotelsIntro,
-		in.LocalTicketBody, in.SpeakersTitle, in.SpeakersBody,
-		in.HackathonSectionLabel, in.HackathonHeadline,
+		in.SpeakersTitle, in.SpeakersBody,
+		in.HackathonHeadline,
 		in.HackathonJudgesNote, in.HackathonProofLabel, in.MapEmbedURL,
 		in.MapLatitude, in.MapLongitude, in.MapXPercent, in.MapYPercent,
 		in.MapLabel, in.MapLabelSide, in.PickupAddressLine1, in.PickupAddressLine2,
 		in.PickupAddressCity, in.PickupAddressRegion, in.PickupAddressPostalCode,
 		in.PickupAddressCountry, in.SpeakerDinnerStart,
 		strings.TrimSpace(in.SpeakerDinnerLocation), strings.TrimSpace(in.SpeakerDinnerNotes),
-		in.ConferenceEmailCampaignsEnabled, in.AccentColor, in.SpeakerApplicationsClose)
+		in.ConferenceEmailCampaignsEnabled, in.AccentColor, in.SpeakerApplicationsClose, in.AboutQuote)
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}

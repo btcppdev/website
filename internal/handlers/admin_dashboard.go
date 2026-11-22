@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -400,32 +401,32 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		if loaded, err := time.LoadLocation(timezoneName); err == nil {
 			loc = loaded
 		} else {
-			redirectEventDetails(w, r, conf, "Invalid timezone. Use an IANA timezone such as Asia/Seoul.")
+			respondEventDetails(w, r, conf, http.StatusBadRequest, "Invalid timezone. Use an IANA timezone such as Asia/Seoul.")
 			return
 		}
 	}
 	start, err := parseOptionalDatetimeLocal(r.FormValue("start_date"), loc)
 	if err != nil {
-		redirectEventDetails(w, r, conf, "Invalid start date.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "Invalid start date.")
 		return
 	}
 	end, err := parseOptionalDatetimeLocal(r.FormValue("end_date"), loc)
 	if err != nil {
-		redirectEventDetails(w, r, conf, "Invalid end date.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "Invalid end date.")
 		return
 	}
 	speakerApplicationsClose, err := parseOptionalDatetimeLocal(r.FormValue("speaker_applications_close"), loc)
 	if err != nil {
-		redirectEventDetails(w, r, conf, "Invalid speaker application deadline.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "Invalid speaker application deadline.")
 		return
 	}
 	speakerDinnerStart, err := parseOptionalDatetimeLocal(r.FormValue("speaker_dinner_start"), loc)
 	if err != nil {
-		redirectEventDetails(w, r, conf, "Invalid speaker dinner date.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "Invalid speaker dinner date.")
 		return
 	}
 	if start != nil && end != nil && end.Before(*start) {
-		redirectEventDetails(w, r, conf, "End date must be after start date.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "End date must be after start date.")
 		return
 	}
 	var conferenceEmailCampaignsEnabled *bool
@@ -439,14 +440,24 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		enabled := false
 		conferenceEmailCampaignsEnabled = &enabled
 	default:
-		redirectEventDetails(w, r, conf, "Invalid reminder campaign setting.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "Invalid reminder campaign setting.")
 		return
 	}
 
 	accentColor, validAccentColor := types.NormalizeConferenceAccentColor(r.FormValue("accent_color"))
 	if !validAccentColor {
-		redirectEventDetails(w, r, conf, "Event accent color must be a six-digit hex color such as #f9af5e.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "Event accent color must be a six-digit hex color such as #f9af5e.")
 		return
+	}
+	var aboutQuote *string
+	if r.PostForm.Has("about_quote") {
+		value := strings.TrimSpace(r.PostFormValue("about_quote"))
+		defaultQuote, _ := conferenceCatalog.Message("en", "about.quote")
+		// Saving an untouched default must keep translations working. Older
+		// open forms that omit this field must not erase a saved override.
+		if conf.AboutQuote != nil || value != defaultQuote {
+			aboutQuote = &value
+		}
 	}
 	in := getters.ConfDetailsInput{
 		Description:                     strings.TrimSpace(r.FormValue("description")),
@@ -476,18 +487,16 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		PickupAddressCountry:            strings.TrimSpace(r.FormValue("pickup_address_country")),
 		ShowHackathon:                   r.FormValue("show_hackathon") == "1",
 		HeroTitle:                       strings.TrimSpace(r.FormValue("hero_title")),
-		HeroCaption:                     strings.TrimSpace(r.FormValue("hero_caption")),
 		AboutTitle:                      strings.TrimSpace(r.FormValue("about_title")),
 		AboutBody:                       strings.TrimSpace(r.FormValue("about_body")),
 		AboutBody2:                      strings.TrimSpace(r.FormValue("about_body_2")),
+		AboutQuote:                      aboutQuote,
 		VenueTitle:                      strings.TrimSpace(r.FormValue("venue_title")),
 		VenueSubtitle:                   strings.TrimSpace(r.FormValue("venue_subtitle")),
 		VenueBody:                       strings.TrimSpace(r.FormValue("venue_body")),
 		HotelsIntro:                     strings.TrimSpace(r.FormValue("hotels_intro")),
-		LocalTicketBody:                 strings.TrimSpace(r.FormValue("local_ticket_body")),
 		SpeakersTitle:                   strings.TrimSpace(r.FormValue("speakers_title")),
 		SpeakersBody:                    strings.TrimSpace(r.FormValue("speakers_body")),
-		HackathonSectionLabel:           strings.TrimSpace(r.FormValue("hackathon_section_label")),
 		HackathonHeadline:               strings.TrimSpace(r.FormValue("hackathon_headline")),
 		HackathonProofLabel:             strings.TrimSpace(r.FormValue("hackathon_proof_label")),
 		MapEmbedURL:                     strings.TrimSpace(r.FormValue("map_embed_url")),
@@ -500,11 +509,11 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 	}
 	if err := getters.UpdateConfDetails(ctx, conf.Ref, in); err != nil {
 		ctx.Err.Printf("/%s/admin/details update failed: %s", conf.Tag, err)
-		redirectEventDetails(w, r, conf, "Could not update event details.")
+		respondEventDetails(w, r, conf, http.StatusInternalServerError, "Could not update event details.")
 		return
 	}
 	invalidateConferenceCache(ctx)
-	redirectEventDetails(w, r, conf, "Event details updated.")
+	respondEventDetails(w, r, conf, http.StatusOK, "Event details updated.")
 }
 
 func GlobalAdminUpdateConfInfo(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -524,7 +533,7 @@ func GlobalAdminUpdateConfInfo(w http.ResponseWriter, r *http.Request, ctx *conf
 
 	day, err := strconv.Atoi(strings.TrimSpace(r.FormValue("day")))
 	if err != nil || day < 1 {
-		redirectEventDetails(w, r, conf, "Day must be a positive number.")
+		respondEventDetails(w, r, conf, http.StatusBadRequest, "Day must be a positive number.")
 		return
 	}
 	in := getters.ConfInfoInput{
@@ -541,15 +550,16 @@ func GlobalAdminUpdateConfInfo(w http.ResponseWriter, r *http.Request, ctx *conf
 		Venues:         parseVenueList(r.FormValue("venues")),
 	}
 	if err := validateTimeInputs(in.DoorsStart, in.DoorsEnd, in.BreakfastStart, in.BreakfastEnd, in.LunchStart, in.LunchEnd, in.CoffeeStart, in.CoffeeEnd); err != nil {
-		redirectEventDetails(w, r, conf, err.Error())
+		respondEventDetails(w, r, conf, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := getters.UpsertConfInfo(ctx, conf.Ref, in); err != nil {
 		ctx.Err.Printf("/%s/admin/details/confinfo update failed: %s", conf.Tag, err)
-		redirectEventDetails(w, r, conf, "Could not update venue schedule.")
+		respondEventDetails(w, r, conf, http.StatusInternalServerError, "Could not update venue schedule.")
 		return
 	}
-	redirectEventDetails(w, r, conf, "Venue schedule updated.")
+	invalidateConferenceCache(ctx)
+	respondEventDetails(w, r, conf, http.StatusOK, "Venue schedule updated.")
 }
 
 func GlobalAdminUpdateConfTicket(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -619,6 +629,19 @@ func GlobalAdminUpdateConfState(w http.ResponseWriter, r *http.Request, ctx *con
 	invalidateConferenceCache(ctx)
 
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Event marked "+status+".")), http.StatusSeeOther)
+}
+
+// Inline saves keep edits in the other forms on the page intact. Ordinary
+// form posts retain the redirect fallback when JavaScript is unavailable.
+func respondEventDetails(w http.ResponseWriter, r *http.Request, conf *types.Conf, status int, message string) {
+	if strings.Contains(r.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": status == http.StatusOK, "message": message})
+		return
+	}
+	redirectEventDetails(w, r, conf, message)
 }
 
 func redirectEventDetails(w http.ResponseWriter, r *http.Request, conf *types.Conf, msg string) {

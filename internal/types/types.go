@@ -196,18 +196,20 @@ type (
 		// request time (shallow-copy + set in RenderConf / RenderTalks),
 		// never stored in Notion. Drives both the nav-bar "agenda" /
 		// "talks" links and the per-conf-template agenda section.
-		HasAgenda             bool
-		ShowHackathon         bool
-		Tickets               []*ConfTicket
-		TixSold               uint
-		OGFlavor              string
-		AccentColor           string
-		Emoji                 string
-		HeroTitle             string
-		HeroCaption           string
-		AboutTitle            string
-		AboutBody             string
-		AboutBody2            string
+		HasAgenda     bool
+		ShowHackathon bool
+		Tickets       []*ConfTicket
+		TixSold       uint
+		OGFlavor      string
+		AccentColor   string
+		Emoji         string
+		HeroTitle     string
+		HeroCaption   string
+		AboutTitle    string
+		AboutBody     string
+		AboutBody2    string
+		// AboutQuote: nil uses the translated default; an empty string hides it.
+		AboutQuote            *string
 		VenueTitle            string
 		VenueSubtitle         string
 		VenueBody             string
@@ -1203,6 +1205,15 @@ func (c *Conf) WithinTwoWeeks() bool {
 
 func (c *Conf) IsPublished() bool {
 	return c != nil && c.PublicationStatus == "published"
+}
+
+// AboutQuoteText resolves the optional event copy without losing the distinction
+// between an untouched default and a deliberately removed sentence.
+func (c *Conf) AboutQuoteText(fallback string) string {
+	if c == nil || c.AboutQuote == nil {
+		return fallback
+	}
+	return strings.TrimSpace(*c.AboutQuote)
 }
 
 func (c *Conf) UsesConferenceEmailCampaigns() bool {

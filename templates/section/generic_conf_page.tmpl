@@ -9,7 +9,6 @@
 {{ $venueSubtitle := .VenueSubtitle }}{{ if not $venueSubtitle }}{{ $venueSubtitle = $conf.VenueSubtitle }}{{ end }}{{ if not $venueSubtitle }}{{ $venueSubtitle = printf "%s · %s" $conf.Venue $conf.DateDesc }}{{ end }}
 {{ $venueBody := .VenueBody }}{{ if not $venueBody }}{{ $venueBody = $conf.VenueBody }}{{ end }}{{ if not $venueBody }}{{ $venueBody = msg "venue.default_body" (dict "Location" $conf.Location) }}{{ end }}
 {{ $hotelsIntro := .HotelsIntro }}{{ if not $hotelsIntro }}{{ $hotelsIntro = $conf.HotelsIntro }}{{ end }}
-{{ $localTicketBody := .LocalTicketBody }}{{ if not $localTicketBody }}{{ $localTicketBody = $conf.LocalTicketBody }}{{ end }}
 {{ $speakersTitle := .SpeakersTitle }}{{ if not $speakersTitle }}{{ $speakersTitle = $conf.SpeakersTitle }}{{ end }}{{ if not $speakersTitle }}{{ $speakersTitle = msg "speakers.title" }}{{ end }}
 {{ $speakersBody := .SpeakersBody }}{{ if not $speakersBody }}{{ $speakersBody = $conf.SpeakersBody }}{{ end }}{{ if not $speakersBody }}{{ $speakersBody = msg "speakers.default_body" (dict "Event" $conf.Desc) }}{{ end }}
 {{ $mapSrc := .MapSrc }}{{ if not $mapSrc }}{{ $mapSrc = $conf.MapEmbedURL }}{{ end }}
@@ -111,7 +110,7 @@
         <div class="rebrand-body-copy">
           <p>{{ $aboutBody1 }}</p>
           {{ if $aboutBody2 }}<p>{{ $aboutBody2 }}</p>{{ end }}
-          <p class="rebrand-pullquote">{{ msg "about.quote" }}</p>
+          {{ with $conf.AboutQuoteText (msg "about.quote") }}<p class="rebrand-pullquote">{{ . }}</p>{{ end }}
         </div>
       </section>
 
@@ -172,7 +171,7 @@
 
       {{ template "generic_conf_hotels" (dict "Page" $p "HotelsIntro" $hotelsIntro) }}
 
-      {{ template "generic_conf_tickets" (dict "Page" $p "LocalTicketBody" $localTicketBody) }}
+      {{ template "generic_conf_tickets" (dict "Page" $p) }}
       {{ template "satellites_section" $p }}
       {{ template "sponsors_section" $p }}
       {{ template "generic_conf_newsletter" $p }}

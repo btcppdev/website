@@ -4,10 +4,11 @@
   <title>{{ .Conf.Desc }} · event details</title>
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" .Conf }}
+  <script src="/static/js/event-details.js?v=20261122-inline-save" defer></script>
 </head>
 <body class="btcpp-admin-page bg-gray-50">
   {{ block "mainnav" . }} {{ end }}
-  <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
+  <div data-event-details class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
     <a href="/{{ .Conf.Tag }}/admin" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }} dashboard</a>
 
     <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -47,7 +48,7 @@
     {{ end }}
 
     <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
-      <form method="POST" action="/{{ .Conf.Tag }}/admin/details">
+      <form data-event-form="details" data-inline-save method="POST" action="/{{ .Conf.Tag }}/admin/details">
       <div class="flex items-center justify-between gap-3">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Conference record</h2>
         <button type="submit" class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-gray-800">Save details</button>
@@ -199,9 +200,6 @@
           <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hero title
             <input type="text" name="hero_title" value="{{ .Conf.HeroTitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
           </label>
-          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hero caption
-            <input type="text" name="hero_caption" value="{{ .Conf.HeroCaption }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-          </label>
           <label class="text-xs font-medium uppercase tracking-wider text-gray-500">About title
             <input type="text" name="about_title" value="{{ .Conf.AboutTitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
           </label>
@@ -213,6 +211,10 @@
           </label>
           <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">About body secondary
             <textarea name="about_body_2" rows="2" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.AboutBody2 }}</textarea>
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">About closing line
+            <textarea name="about_quote" rows="2" aria-describedby="about-quote-help" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.AboutQuoteText (msg "about.quote") }}</textarea>
+            <span id="about-quote-help" class="mt-1 block text-xs font-normal normal-case tracking-normal text-gray-500">Leave blank to hide.</span>
           </label>
           <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Venue subtitle
             <input type="text" name="venue_subtitle" value="{{ .Conf.VenueSubtitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
@@ -255,17 +257,11 @@
           <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Hotels intro
             <textarea name="hotels_intro" rows="2" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.HotelsIntro }}</textarea>
           </label>
-          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Local/student ticket copy
-            <textarea name="local_ticket_body" rows="2" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.LocalTicketBody }}</textarea>
-          </label>
           <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Speakers title
             <input type="text" name="speakers_title" value="{{ .Conf.SpeakersTitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
           </label>
           <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Speakers body
             <textarea name="speakers_body" rows="3" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.SpeakersBody }}</textarea>
-          </label>
-          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hackathon section label
-            <input type="text" name="hackathon_section_label" value="{{ .Conf.HackathonSectionLabel }}" placeholder="The hackathon" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
           </label>
           <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hackathon proof label
             <input type="text" name="hackathon_proof_label" value="{{ .Conf.HackathonProofLabel }}" placeholder="Last edition · 37 projects · 90 hackers" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
@@ -402,7 +398,7 @@
       <a class="mt-3 inline-block font-semibold underline" href="/{{ .Conf.Tag }}/admin/setup?step=tickets">Edit ticket options →</a>
     </section>
 
-    <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
+    <section data-event-days class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Venue schedule</h2>
@@ -415,7 +411,7 @@
 
       <div class="mt-4 space-y-4">
         {{ range .Days }}
-        <form method="POST" action="/{{ $.Conf.Tag }}/admin/details/confinfo" class="rounded-md border border-gray-100 bg-gray-50 px-3 py-3">
+        <form data-event-form="day-{{ .Info.ID }}" data-inline-save method="POST" action="/{{ $.Conf.Tag }}/admin/details/confinfo" class="rounded-md border border-gray-100 bg-gray-50 px-3 py-3">
           <input type="hidden" name="id" value="{{ .Info.ID }}">
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -461,7 +457,7 @@
         <p class="text-sm text-amber-700">No ConfInfo rows found for this event.</p>
         {{ end }}
 
-        <form method="POST" action="/{{ .Conf.Tag }}/admin/details/confinfo" class="rounded-md border border-dashed border-gray-300 bg-white px-3 py-3">
+        <form data-event-form="new-day" data-inline-save method="POST" action="/{{ .Conf.Tag }}/admin/details/confinfo" class="rounded-md border border-dashed border-gray-300 bg-white px-3 py-3">
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-sm font-semibold text-gray-900">Add or replace a day</h3>
             <button type="submit" class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-indigo-700">Save new day</button>

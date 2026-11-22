@@ -67,6 +67,10 @@ func renderLocalizedConference(w http.ResponseWriter, r *http.Request, ctx *conf
 	for _, field := range []*string{&conf.Desc, &conf.Tagline, &conf.DateDesc, &conf.Location, &conf.Venue, &conf.OGFlavor, &conf.HeroTitle, &conf.HeroCaption, &conf.AboutTitle, &conf.AboutBody, &conf.AboutBody2, &conf.VenueTitle, &conf.VenueSubtitle, &conf.VenueBody, &conf.HotelsIntro, &conf.LocalTicketBody, &conf.SpeakersTitle, &conf.SpeakersBody, &conf.HackathonSectionLabel, &conf.HackathonHeadline, &conf.HackathonJudgesNote, &conf.HackathonProofLabel} {
 		*field = text(*field)
 	}
+	if conf.AboutQuote != nil {
+		quote := text(*conf.AboutQuote)
+		conf.AboutQuote = &quote
+	}
 	if page.Hackathon != nil {
 		v := *page.Hackathon
 		v.Title = text(v.Title)
