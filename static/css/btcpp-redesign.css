@@ -3787,6 +3787,11 @@ body.btcpp-rebrand-page {
   color: var(--rebrand-ink);
 }
 
+/* A lone student or local ticket fills the secondary row. */
+.btcpp-rebrand-page #tickets .event-redesign-tickets:not(:has(> .event-redesign-ticket--local ~ .event-redesign-ticket--local)) > .event-redesign-ticket--local {
+  grid-column: 1 / -1;
+}
+
 .btcpp-rebrand-page #tickets .event-redesign-ticket__compact-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

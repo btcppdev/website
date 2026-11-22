@@ -15489,6 +15489,11 @@ border-bottom: 1px solid #d7d4cc;
 	letter-spacing: -.025em;
 }
 
+/* Conference titles sit over artwork, rather than the workspace panel. */
+.btcpp-dashboard-page .dashboard-ledger-card__hero-copy h2 {
+	color: #fff;
+}
+
 .btcpp-dashboard-page .dashboard-workspace-panel .dashboard-kicker,
 .btcpp-dashboard-page .dashboard-workspace-panel dt,
 .btcpp-dashboard-page .dashboard-workspace-panel label,
